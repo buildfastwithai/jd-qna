@@ -1,26 +1,48 @@
-import type { NextConfig } from "next";
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "avatar.vercel.sh",
+      },
 
-const nextConfig: NextConfig = {
-  /* config options here */
+      {
+        protocol: "https",
+        hostname: "images.unsplash.com",
+      },
+      {
+        protocol: "https",
+        hostname: "cdn1.iconfinder.com",
+      },
+      {
+        protocol: "https",
+        hostname: "zepanalytics.blr1.digitaloceanspaces.com",
+      },
+      {
+        protocol: "https",
+        hostname: "skynetplacements.blr1.digitaloceanspaces.com",
+      },
+      {
+        protocol: "https",
+        hostname: "skynetplacements.blr1.cdn.digitaloceanspaces.com",
+      },
+    ],
+  },
+  // Transpile react-pdf and related packages
+  transpilePackages: [
+    "react-pdf",
+    "@react-pdf/renderer",
+    "@react-pdf/font",
+    "@react-pdf/layout",
+    "@react-pdf/pdfkit",
+    "@react-pdf/image",
+    "@react-pdf/textkit",
+    "@react-pdf/types",
+    "pdfkit",
+  ],
   // Allow importing of PDF fonts in Next.js
-  webpack: (config, { isServer }) => {
-    // Handle log4js module issues
-    if (isServer) {
-      // Mark problematic modules as external to prevent bundling
-      const externalPackages = ["log4js", "@adobe/pdfservices-node-sdk"];
-      config.externals = [...(config.externals || []), ...externalPackages];
-    }
-
-    // Special handling for dynamic imports
-    config.module = config.module || {};
-    config.module.rules = config.module.rules || [];
-
-    // Add a rule to handle dynamic imports
-    config.module.rules.push({
-      test: /\.cjs$/,
-      use: "null-loader",
-    });
-
+  webpack: (config: any) => {
     // Add loader for .node files
     config.module.rules.push({
       test: /\.node$/,
@@ -36,15 +58,6 @@ const nextConfig: NextConfig = {
 
     return config;
   },
-  // Increase the serverComponentsExternalPackages array to exclude certain packages
-  // from the server-side bundle
-  // experimental: {
-  //   serverComponentsExternalPackages: [
-  //     "log4js",
-  //     "@adobe/pdfservices-node-sdk",
-  //     "unzipper",
-  //   ],
-  // },
 };
 
 export default nextConfig;
