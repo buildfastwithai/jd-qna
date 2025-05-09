@@ -38,13 +38,13 @@ const nextConfig: NextConfig = {
   },
   // Increase the serverComponentsExternalPackages array to exclude certain packages
   // from the server-side bundle
-  experimental: {
-    serverComponentsExternalPackages: [
-      "log4js",
-      "@adobe/pdfservices-node-sdk",
-      "unzipper",
-    ],
-  },
+  // experimental: {
+  //   serverComponentsExternalPackages: [
+  //     "log4js",
+  //     "@adobe/pdfservices-node-sdk",
+  //     "unzipper",
+  //   ],
+  // },
 };
 
 export default nextConfig;
