@@ -1,0 +1,325 @@
+"use client";
+import React, { useState } from "react";
+import { z } from "zod";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { Textarea } from "./ui/textarea";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "./ui/form";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "./ui/card";
+import { QuestionsDisplay, Question } from "./ui/questions-display";
+import { FileInput } from "./ui/file-input";
+import { Spinner } from "./ui/spinner";
+import { Download } from "lucide-react";
+import PDFDoc from "./PDFDocument";
+import { pdf } from "@react-pdf/renderer";
+import { saveAs } from "file-saver";
+
+// Form validation schema
+const formSchema = z.object({
+  jobRole: z.string().min(1, { message: "Job role is required" }),
+  customInstructions: z.string().optional(),
+  jobDescriptionFile: z.instanceof(File).optional(),
+});
+
+type FormValues = z.infer<typeof formSchema>;
+
+export function JDQnaForm() {
+  // States
+  const [uploading, setUploading] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [pdfContent, setPdfContent] = useState<string | null>(null);
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
+
+  // Form setup
+  const form = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      jobRole: "",
+      customInstructions: "",
+    },
+  });
+
+  // Handle file upload and content extraction
+  const handleFileUpload = async (file: File) => {
+    setUploading(true);
+    setFileName(file.name);
+
+    try {
+      // Upload the file to get URL
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const uploadResponse = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error("File upload failed");
+      }
+
+      const {
+        file: { url },
+      } = await uploadResponse.json();
+
+      // Extract content from the PDF
+      const extractResponse = await fetch("/api/pdf-extract", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ resumeUrl: url }),
+      });
+
+      if (!extractResponse.ok) {
+        throw new Error("Failed to extract PDF content");
+      }
+
+      const { content } = await extractResponse.json();
+      setPdfContent(content);
+    } catch (error) {
+      console.error("Error uploading or extracting file:", error);
+      alert("Error uploading or processing file. Please try again.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // Handle form submission
+  const onSubmit = async (values: FormValues) => {
+    if (!pdfContent) {
+      alert("Please upload a job description PDF first");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // Generate questions based on job role and description
+      const response = await fetch("/api/generate-questions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          jobRole: values.jobRole,
+          jobDescription: pdfContent,
+          customInstructions: values.customInstructions,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to generate questions");
+      }
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || "Failed to generate questions");
+      }
+
+      setQuestions(data.questions);
+    } catch (error) {
+      console.error("Error generating questions:", error);
+      alert("Error generating questions. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Reset the form and start over
+  const handleReset = () => {
+    form.reset();
+    setPdfContent(null);
+    setQuestions([]);
+    setFileName(null);
+  };
+
+  // Generate and download PDF
+  const handleGeneratePDF = async () => {
+    if (!questions.length) return;
+
+    setPdfLoading(true);
+    try {
+      const jobRole = form.getValues().jobRole;
+      const fileName = `interview-questions-${jobRole
+        .replace(/\s+/g, "-")
+        .toLowerCase()}.pdf`;
+
+      const blob = await pdf(
+        <PDFDoc jobRole={jobRole} questions={questions} />
+      ).toBlob();
+
+      saveAs(blob, fileName);
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      alert("Error generating PDF. Please try again.");
+    } finally {
+      setPdfLoading(false);
+    }
+  };
+
+  // Watch for file changes
+  const fileWatch = form.watch("jobDescriptionFile");
+
+  // When file changes, upload it
+  React.useEffect(() => {
+    if (fileWatch && fileWatch instanceof File) {
+      handleFileUpload(fileWatch);
+    }
+  }, [fileWatch]);
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+      <Card>
+        <CardHeader>
+          <CardTitle>Job Description Details</CardTitle>
+          <CardDescription>
+            Upload a job description PDF and provide details to generate
+            relevant interview questions.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              <FormField
+                control={form.control}
+                name="jobRole"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Job Role</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="e.g. Senior Frontend Developer"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="customInstructions"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Custom Instructions (Optional)</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Add any specific focus areas or question types you'd like to include"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="jobDescriptionFile"
+                render={({ field: { value, onChange, ...fieldProps } }) => (
+                  <FormItem>
+                    <FormLabel>Job Description PDF</FormLabel>
+                    <FormControl>
+                      <FileInput
+                        accept=".pdf"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            onChange(file);
+                          }
+                        }}
+                        {...fieldProps}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {uploading && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Spinner size="sm" />
+                  <span>Uploading and processing file...</span>
+                </div>
+              )}
+
+              {fileName && !uploading && pdfContent && (
+                <div className="border rounded-lg p-4">
+                  <h3 className="font-medium mb-2">Uploaded PDF</h3>
+                  <p className="text-sm text-muted-foreground">{fileName}</p>
+                  <div className="mt-2 text-sm text-green-600">
+                    <p>✓ PDF content extracted successfully!</p>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end">
+                <Button
+                  type="submit"
+                  disabled={loading || uploading || !pdfContent}
+                >
+                  {loading ? (
+                    <>
+                      <Spinner size="sm" className="mr-2" />
+                      Generating Questions...
+                    </>
+                  ) : (
+                    "Generate Questions"
+                  )}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
+
+      {questions.length > 0 && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold">
+              {form.getValues().jobRole} - Interview Questions
+            </h2>
+            <Button onClick={handleGeneratePDF} disabled={pdfLoading}>
+              {pdfLoading ? (
+                <>
+                  <Spinner size="sm" className="mr-2" />
+                  Preparing PDF...
+                </>
+              ) : (
+                <>
+                  <Download className="mr-2 h-4 w-4" />
+                  Download PDF
+                </>
+              )}
+            </Button>
+          </div>
+          <QuestionsDisplay questions={questions} />
+          <Button variant="outline" onClick={handleReset} className="mt-4">
+            Start Over
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
