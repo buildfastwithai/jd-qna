@@ -29,6 +29,7 @@ import { Download } from "lucide-react";
 import PDFDoc from "./PDFDocument";
 import { pdf } from "@react-pdf/renderer";
 import { saveAs } from "file-saver";
+import { SkillsDialog } from "./ui/skills-dialog";
 
 // Form validation schema
 const formSchema = z.object({
@@ -43,10 +44,13 @@ export function JDQnaForm() {
   // States
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [extractingSkills, setExtractingSkills] = useState(false);
   const [pdfContent, setPdfContent] = useState<string | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [fileName, setFileName] = useState<string | null>(null);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [skills, setSkills] = useState<string[]>([]);
+  const [skillsDialogOpen, setSkillsDialogOpen] = useState(false);
 
   // Form setup
   const form = useForm<FormValues>({
@@ -103,26 +107,68 @@ export function JDQnaForm() {
     }
   };
 
-  // Handle form submission
-  const onSubmit = async (values: FormValues) => {
+  // Extract skills from job description
+  const extractSkills = async () => {
     if (!pdfContent) {
       alert("Please upload a job description PDF first");
+      return;
+    }
+
+    setExtractingSkills(true);
+
+    try {
+      const response = await fetch("/api/extract-skills", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          jobDescription: pdfContent,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to extract skills");
+      }
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || "Failed to extract skills");
+      }
+
+      setSkills(data.skills);
+      setSkillsDialogOpen(true);
+    } catch (error) {
+      console.error("Error extracting skills:", error);
+      alert("Error extracting skills. Please try again.");
+    } finally {
+      setExtractingSkills(false);
+    }
+  };
+
+  // Generate questions based on selected skills
+  const generateQuestions = async () => {
+    if (!pdfContent || skills.length === 0) {
+      alert("Please extract skills first");
       return;
     }
 
     setLoading(true);
 
     try {
-      // Generate questions based on job role and description
+      // Generate questions based on job role, description and skills
       const response = await fetch("/api/generate-questions", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          jobRole: values.jobRole,
+          jobRole: form.getValues().jobRole,
           jobDescription: pdfContent,
-          customInstructions: values.customInstructions,
+          customInstructions: `Focus on these specific skills: ${skills.join(
+            ", "
+          )}. ${form.getValues().customInstructions || ""}`,
         }),
       });
 
@@ -137,6 +183,7 @@ export function JDQnaForm() {
       }
 
       setQuestions(data.questions);
+      setSkillsDialogOpen(false);
     } catch (error) {
       console.error("Error generating questions:", error);
       alert("Error generating questions. Please try again.");
@@ -151,6 +198,7 @@ export function JDQnaForm() {
     setPdfContent(null);
     setQuestions([]);
     setFileName(null);
+    setSkills([]);
   };
 
   // Generate and download PDF
@@ -186,6 +234,11 @@ export function JDQnaForm() {
       handleFileUpload(fileWatch);
     }
   }, [fileWatch]);
+
+  // Handle form submission - now extracts skills
+  const onSubmit = (values: FormValues) => {
+    extractSkills();
+  };
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -277,15 +330,15 @@ export function JDQnaForm() {
               <div className="flex justify-end">
                 <Button
                   type="submit"
-                  disabled={loading || uploading || !pdfContent}
+                  disabled={extractingSkills || uploading || !pdfContent}
                 >
-                  {loading ? (
+                  {extractingSkills ? (
                     <>
                       <Spinner size="sm" className="mr-2" />
-                      Generating Questions...
+                      Extracting Skills...
                     </>
                   ) : (
-                    "Generate Questions"
+                    "Extract Skills"
                   )}
                 </Button>
               </div>
@@ -293,6 +346,16 @@ export function JDQnaForm() {
           </Form>
         </CardContent>
       </Card>
+
+      {/* Skills Dialog */}
+      <SkillsDialog
+        isOpen={skillsDialogOpen}
+        onOpenChange={setSkillsDialogOpen}
+        skills={skills}
+        onSkillsChange={setSkills}
+        onGenerateQuestions={generateQuestions}
+        isGenerating={loading}
+      />
 
       {questions.length > 0 && (
         <div className="space-y-4">

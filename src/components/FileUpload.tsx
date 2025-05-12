@@ -1,10 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { getLogger } from "@/lib/logger";
 import { Button } from "@/components/ui/button";
-
-const logger = getLogger("FileUpload");
 
 interface FileUploadProps {
   onFileUploaded?: (url: string) => void;
@@ -31,7 +28,7 @@ export function FileUpload({
     setError(null);
 
     try {
-      logger.info(`Uploading file: ${file.name}`);
+      console.log(`Uploading file: ${file.name}`);
 
       const formData = new FormData();
       formData.append("file", file);
@@ -47,13 +44,13 @@ export function FileUpload({
       }
 
       const data = await response.json();
-      logger.info(`File uploaded successfully: ${data.file.url}`);
+      console.log(`File uploaded successfully: ${data.file.url}`);
 
       if (onFileUploaded) {
         onFileUploaded(data.file.url);
       }
     } catch (err) {
-      logger.error("Error uploading file:", err);
+      console.error("Error uploading file:", err);
       setError(err instanceof Error ? err.message : "Failed to upload file");
     } finally {
       setIsUploading(false);

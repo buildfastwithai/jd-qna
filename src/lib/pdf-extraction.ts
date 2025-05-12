@@ -1,4 +1,3 @@
-import { getLogger } from "./logger";
 import fs from "fs";
 import path from "path";
 import axios from "axios";
@@ -6,23 +5,44 @@ import { promisify } from "util";
 import { pipeline } from "stream";
 import { randomUUID } from "crypto";
 
-const logger = getLogger("pdf-extraction");
+// Variables to hold the SDK exports
+let PDFServices: any = null;
+let ServicePrincipalCredentials: any = null;
+let MimeType: any = null;
+let ExtractPDFParams: any = null;
+let ExtractElementType: any = null;
+let ExtractPDFJob: any = null;
+let ExtractPDFResult: any = null;
+
 const streamPipeline = promisify(pipeline);
 
-// Import the Adobe SDK in a way that's compatible with Next.js
-let PDFServices: any;
-let ServicePrincipalCredentials: any;
-let MimeType: any;
-let ExtractPDFParams: any;
-let ExtractElementType: any;
-let ExtractPDFJob: any;
-let ExtractPDFResult: any;
+// Initialize the SDK
+async function initializeAdobeSDK() {
+  if (PDFServices !== null) return true;
 
-// Use dynamic imports in a server-side only context
-async function loadAdobeSDK() {
   try {
     if (typeof window === "undefined") {
+      // Mock log4js before importing Adobe SDK
+      // @ts-ignore
+      global.log4js = {
+        getLogger: () => ({
+          debug: (...args: any[]) => console.debug(...args),
+          info: (...args: any[]) => console.log(...args),
+          warn: (...args: any[]) => console.warn(...args),
+          error: (...args: any[]) => console.error(...args),
+          fatal: (...args: any[]) => console.error(...args),
+          isDebugEnabled: () => false,
+          isInfoEnabled: () => true,
+          isWarnEnabled: () => true,
+          isErrorEnabled: () => true,
+          isFatalEnabled: () => true,
+        }),
+        configure: () => {},
+      };
+
+      console.log("Importing Adobe PDF Services SDK");
       const sdk = await import("@adobe/pdfservices-node-sdk");
+
       PDFServices = sdk.PDFServices;
       ServicePrincipalCredentials = sdk.ServicePrincipalCredentials;
       MimeType = sdk.MimeType;
@@ -30,11 +50,13 @@ async function loadAdobeSDK() {
       ExtractElementType = sdk.ExtractElementType;
       ExtractPDFJob = sdk.ExtractPDFJob;
       ExtractPDFResult = sdk.ExtractPDFResult;
+
+      console.log("Adobe PDF Services SDK initialized successfully");
       return true;
     }
     return false;
   } catch (error) {
-    logger.error("Failed to load Adobe PDF Services SDK:", error);
+    console.error("Failed to initialize Adobe PDF Services SDK:", error);
     return false;
   }
 }
@@ -68,7 +90,7 @@ export async function extractTextFromPDF(pdfUrl: string): Promise<string> {
   const unzipper = await import("unzipper");
 
   // Load the Adobe SDK
-  const sdkLoaded = await loadAdobeSDK();
+  const sdkLoaded = await initializeAdobeSDK();
   if (!sdkLoaded) {
     throw new Error("Adobe PDF Services SDK could not be loaded");
   }
@@ -85,7 +107,7 @@ export async function extractTextFromPDF(pdfUrl: string): Promise<string> {
 
   let readStream;
   try {
-    logger.info("Starting PDF extraction for URL:", pdfUrl);
+    console.log("Starting PDF extraction for URL:", pdfUrl);
 
     // Download PDF file
     const response = await axios({
@@ -96,7 +118,7 @@ export async function extractTextFromPDF(pdfUrl: string): Promise<string> {
 
     // Save PDF to temp file
     await streamPipeline(response.data, fs.createWriteStream(inputPath));
-    logger.info("PDF downloaded successfully to:", inputPath);
+    console.log("PDF downloaded successfully to:", inputPath);
 
     // Initialize Adobe PDF Services
     const credentials = new ServicePrincipalCredentials({
@@ -112,7 +134,7 @@ export async function extractTextFromPDF(pdfUrl: string): Promise<string> {
       readStream,
       mimeType: MimeType.PDF,
     });
-    logger.info("PDF uploaded to Adobe services");
+    console.log("PDF uploaded to Adobe services");
 
     // Set up extraction parameters
     const params = new ExtractPDFParams({
@@ -122,14 +144,14 @@ export async function extractTextFromPDF(pdfUrl: string): Promise<string> {
     // Create and submit job
     const job = new ExtractPDFJob({ inputAsset, params });
     const pollingURL = await pdfServices.submit({ job });
-    logger.info("PDF extraction job submitted");
+    console.log("PDF extraction job submitted");
 
     // Get job result
     const pdfServicesResponse = await pdfServices.getJobResult({
       pollingURL,
       resultType: ExtractPDFResult,
     });
-    logger.info("PDF extraction job completed");
+    console.log("PDF extraction job completed");
 
     if (!pdfServicesResponse?.result?.resource) {
       throw new Error("No resource found in the result");
@@ -146,7 +168,7 @@ export async function extractTextFromPDF(pdfUrl: string): Promise<string> {
       writeStream.on("finish", () => resolve(null));
       writeStream.on("error", reject);
     });
-    logger.info("Extraction results saved to zip file");
+    console.log("Extraction results saved to zip file");
 
     // Extract and parse the ZIP content
     const extractedContent: any = await extractTextFromZip(
@@ -169,7 +191,7 @@ export async function extractTextFromPDF(pdfUrl: string): Promise<string> {
       .replace(/\s+/g, " ")
       .trim();
 
-    logger.info(
+    console.log(
       "Text extraction successful, extracted",
       fullText.length,
       "characters"
@@ -177,7 +199,7 @@ export async function extractTextFromPDF(pdfUrl: string): Promise<string> {
 
     return fullText;
   } catch (error) {
-    logger.error("Error processing PDF:", error);
+    console.error("Error processing PDF:", error);
     throw error;
   } finally {
     // Clean up
@@ -197,9 +219,9 @@ export async function extractTextFromPDF(pdfUrl: string): Promise<string> {
       if (fs.existsSync(tempDir)) {
         fs.rmSync(tempDir, { recursive: true, force: true });
       }
-      logger.info("Temporary files cleaned up");
+      console.log("Temporary files cleaned up");
     } catch (cleanupError) {
-      logger.warn("Error cleaning up temporary files:", cleanupError);
+      console.warn("Error cleaning up temporary files:", cleanupError);
     }
   }
 }
