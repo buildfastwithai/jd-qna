@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -30,6 +30,8 @@ import PDFDoc from "./PDFDocument";
 import { pdf } from "@react-pdf/renderer";
 import { saveAs } from "file-saver";
 import { SkillsDialog } from "./ui/skills-dialog";
+import { useRouter } from "next/navigation";
+import { SkillLevel, Requirement } from "@prisma/client";
 
 // Form validation schema
 const formSchema = z.object({
@@ -37,6 +39,12 @@ const formSchema = z.object({
   customInstructions: z.string().optional(),
   jobDescriptionFile: z.instanceof(File).optional(),
 });
+
+export interface SkillWithMetadata {
+  name: string;
+  level: SkillLevel;
+  requirement: Requirement;
+}
 
 type FormValues = z.infer<typeof formSchema>;
 
@@ -49,8 +57,11 @@ export function JDQnaForm() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [fileName, setFileName] = useState<string | null>(null);
   const [pdfLoading, setPdfLoading] = useState(false);
-  const [skills, setSkills] = useState<string[]>([]);
+  const [skills, setSkills] = useState<SkillWithMetadata[]>([]);
   const [skillsDialogOpen, setSkillsDialogOpen] = useState(false);
+  const [recordId, setRecordId] = useState<string | null>(null);
+
+  const router = useRouter();
 
   // Form setup
   const form = useForm<FormValues>({
@@ -124,6 +135,7 @@ export function JDQnaForm() {
         },
         body: JSON.stringify({
           jobDescription: pdfContent,
+          jobTitle: form.getValues().jobRole,
         }),
       });
 
@@ -137,8 +149,12 @@ export function JDQnaForm() {
         throw new Error(data.error || "Failed to extract skills");
       }
 
-      setSkills(data.skills);
-      setSkillsDialogOpen(true);
+      // Instead of opening dialog, navigate directly to the record page
+      if (data.recordId) {
+        router.push(`/records/${data.recordId}`);
+      } else {
+        throw new Error("No record ID was returned from the API");
+      }
     } catch (error) {
       console.error("Error extracting skills:", error);
       alert("Error extracting skills. Please try again.");
@@ -157,7 +173,12 @@ export function JDQnaForm() {
     setLoading(true);
 
     try {
-      // Generate questions based on job role, description and skills
+      // Filter mandatory skills for question generation
+      const mandatorySkills = skills
+        .filter((skill) => skill.requirement === "MANDATORY")
+        .map((skill) => skill.name);
+
+      // Include all skills in the request for reference
       const response = await fetch("/api/generate-questions", {
         method: "POST",
         headers: {
@@ -166,9 +187,13 @@ export function JDQnaForm() {
         body: JSON.stringify({
           jobRole: form.getValues().jobRole,
           jobDescription: pdfContent,
-          customInstructions: `Focus on these specific skills: ${skills.join(
+          skills: skills,
+          recordId: recordId,
+          customInstructions: `Focus on these specific skills: ${mandatorySkills.join(
             ", "
-          )}. ${form.getValues().customInstructions || ""}`,
+          )}. Consider the skill level (Beginner/Intermediate/Professional) when generating questions. ${
+            form.getValues().customInstructions || ""
+          }`,
         }),
       });
 
@@ -184,6 +209,11 @@ export function JDQnaForm() {
 
       setQuestions(data.questions);
       setSkillsDialogOpen(false);
+
+      // If record was created, navigate to the record page to edit skills
+      if (recordId) {
+        router.push(`/records/${recordId}`);
+      }
     } catch (error) {
       console.error("Error generating questions:", error);
       alert("Error generating questions. Please try again.");
@@ -246,8 +276,8 @@ export function JDQnaForm() {
         <CardHeader>
           <CardTitle>Job Description Details</CardTitle>
           <CardDescription>
-            Upload a job description PDF and provide details to generate
-            relevant interview questions.
+            Upload a job description PDF and provide details to extract skills
+            and generate interview questions.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -338,7 +368,7 @@ export function JDQnaForm() {
                       Extracting Skills...
                     </>
                   ) : (
-                    "Extract Skills"
+                    "Extract Skills & Continue"
                   )}
                 </Button>
               </div>
@@ -346,16 +376,6 @@ export function JDQnaForm() {
           </Form>
         </CardContent>
       </Card>
-
-      {/* Skills Dialog */}
-      <SkillsDialog
-        isOpen={skillsDialogOpen}
-        onOpenChange={setSkillsDialogOpen}
-        skills={skills}
-        onSkillsChange={setSkills}
-        onGenerateQuestions={generateQuestions}
-        isGenerating={loading}
-      />
 
       {questions.length > 0 && (
         <div className="space-y-4">
