@@ -84,7 +84,7 @@ export async function POST(request: Request) {
 
       // Check if the response has the expected format
       if (parsedResponse.skills && Array.isArray(parsedResponse.skills)) {
-        let skillRecord = null;
+        let skillRecord: any = null;
 
         // If jobTitle is provided, create a record in the database
         if (jobTitle) {

@@ -94,7 +94,7 @@ export async function POST(request: Request) {
         ) {
           // Add the skill ID to each question
           const questionsWithSkillId = parsedResponse.questions.map(
-            (question) => ({
+            (question: any) => ({
               ...question,
               skillId: skill.id,
             })
