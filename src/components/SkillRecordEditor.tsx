@@ -91,6 +91,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
   const [generatingQuestions, setGeneratingQuestions] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("skills");
+  const [questionsLoading, setQuestionsLoading] = useState(false);
 
   // Parse question content from JSON string
   function formatQuestions(questions: Question[]): QuestionData[] {
@@ -195,18 +196,16 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
       const data = await response.json();
 
       if (data.success) {
-        // Switch to questions tab
-        setActiveTab("questions");
-
         // Show success toast
         toast.success(
-          `Generated questions for ${skillsNeedingQuestions.length} skills! Refreshing page...`
+          `Generated questions for ${skillsNeedingQuestions.length} skills!`
         );
 
-        // Reload the page to show fresh data
-        setTimeout(() => {
-          router.refresh();
-        }, 1500);
+        // Fetch the latest questions directly
+        await fetchLatestQuestions();
+
+        // Switch to questions tab
+        setActiveTab("questions");
       } else {
         throw new Error(data.error || "Failed to generate questions");
       }
@@ -241,16 +240,14 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
       const data = await response.json();
 
       if (data.success) {
+        // Show success toast
+        toast.success(`${data.message}`);
+
+        // Fetch the latest questions directly
+        await fetchLatestQuestions();
+
         // Switch to questions tab
         setActiveTab("questions");
-
-        // Show success toast
-        toast.success(`${data.message}! Refreshing page...`);
-
-        // Reload the page to show fresh data
-        setTimeout(() => {
-          router.refresh();
-        }, 1500);
       } else {
         throw new Error(data.error || "Failed to generate questions");
       }
@@ -259,6 +256,35 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
       toast.error(error.message || "Error generating questions");
     } finally {
       setGeneratingQuestions(false);
+    }
+  };
+
+  // Add a new function to fetch the latest questions
+  const fetchLatestQuestions = async () => {
+    try {
+      setQuestionsLoading(true);
+      const response = await fetch(`/api/records/${record.id}/questions`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch questions");
+      }
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Update questions state with the latest data
+        setQuestions(formatQuestions(data.questions));
+      }
+    } catch (error) {
+      console.error("Error fetching latest questions:", error);
+      // Don't show a toast for this error as it's a background operation
+    } finally {
+      setQuestionsLoading(false);
     }
   };
 
@@ -344,6 +370,13 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
     );
   };
 
+  // Add useEffect to fetch questions when tab changes
+  useEffect(() => {
+    if (activeTab === "questions" && questions.length === 0) {
+      fetchLatestQuestions();
+    }
+  }, [activeTab]);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -384,7 +417,15 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
           <TabsTrigger value="skills" className="flex-1 max-w-[200px]">
             Skills ({editedSkills.length})
           </TabsTrigger>
-          <TabsTrigger value="questions" className="flex-1 max-w-[200px]">
+          <TabsTrigger
+            value="questions"
+            className="flex-1 max-w-[200px]"
+            onClick={() => {
+              if (activeTab !== "questions") {
+                fetchLatestQuestions();
+              }
+            }}
+          >
             Questions ({questions.length})
           </TabsTrigger>
         </TabsList>
@@ -512,14 +553,34 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
 
         <TabsContent value="questions" className="pt-4">
           <Card>
-            <CardHeader>
-              <CardTitle>Interview Questions</CardTitle>
-              <CardDescription>
-                Questions generated based on the mandatory skills for this job.
-              </CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Interview Questions</CardTitle>
+                <CardDescription>
+                  Questions generated based on the mandatory skills for this
+                  job.
+                </CardDescription>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={fetchLatestQuestions}
+                disabled={questionsLoading}
+              >
+                <RefreshCw
+                  className={`h-4 w-4 ${
+                    questionsLoading ? "animate-spin" : ""
+                  }`}
+                />
+              </Button>
             </CardHeader>
             <CardContent>
-              {questions.length === 0 ? (
+              {questionsLoading ? (
+                <div className="flex flex-col items-center justify-center py-8">
+                  <Spinner size="lg" className="mb-4" />
+                  <p className="text-muted-foreground">Loading questions...</p>
+                </div>
+              ) : questions.length === 0 ? (
                 <div className="text-center py-8">
                   <p className="text-muted-foreground mb-4">
                     No questions have been generated yet.

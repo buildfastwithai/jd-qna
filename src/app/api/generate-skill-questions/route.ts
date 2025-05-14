@@ -23,7 +23,8 @@ Format your response as a JSON object with a 'questions' key containing an array
 1. A "question" field with the interview question
 2. A "answer" field with a suggested model answer for the interviewer (should be comprehensive)
 3. A "category" field with one of: "Technical", "Experience", "Problem Solving", or "Soft Skills"
-4. A "difficulty" field with one of: "Easy", "Medium", or "Hard"`;
+4. A "difficulty" field with one of: "Easy", "Medium", or "Hard"
+5. Prioritize questions that are Easy and Medium and are relevant to the skills and the level of the candidate`;
 };
 
 export async function POST(request: Request) {
