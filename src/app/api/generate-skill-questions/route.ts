@@ -141,7 +141,7 @@ export async function POST(request: Request) {
       const prompt = generatePrompt(
         skill.name,
         skill.level,
-        difficulty,
+        difficulty as any,
         questionsToGenerate
       );
 
