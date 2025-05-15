@@ -151,7 +151,14 @@ const getDifficultyBadgeStyle = (difficulty: Question["difficulty"]) => {
 // Create PDF Document
 interface PDFDocumentProps {
   jobRole: string;
-  questions: Question[];
+  questions: {
+    question: string;
+    answer: string;
+    category: string;
+    difficulty: string;
+    skillName: string;
+    liked?: "LIKED" | "DISLIKED" | "NONE";
+  }[];
 }
 
 const PDFDoc: React.FC<PDFDocumentProps> = ({ jobRole, questions }) => (
@@ -168,14 +175,14 @@ const PDFDoc: React.FC<PDFDocumentProps> = ({ jobRole, questions }) => (
 
           <View style={styles.metaContainer}>
             <Text
-              style={[styles.badge, getCategoryBadgeStyle(question.category)]}
+              style={[styles.badge, getCategoryBadgeStyle(question.category as "Technical" | "Experience" | "Problem Solving" | "Soft Skills")]}
             >
               {question.category}
             </Text>
             <Text
               style={[
                 styles.badge,
-                getDifficultyBadgeStyle(question.difficulty),
+                getDifficultyBadgeStyle(question.difficulty as "Easy" | "Medium" | "Hard"),
               ]}
             >
               {question.difficulty}

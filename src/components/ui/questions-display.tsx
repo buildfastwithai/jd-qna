@@ -1,53 +1,64 @@
-import React from "react";
+import React, { useState } from "react";
 import { Badge } from "./badge";
 import { Card, CardContent, CardHeader, CardTitle } from "./card";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "./button";
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "./accordion";
+import { QuestionLikeButtons } from "./question-like-buttons";
 
 export interface Question {
   question: string;
   answer: string;
   category: "Technical" | "Experience" | "Problem Solving" | "Soft Skills";
   difficulty: "Easy" | "Medium" | "Hard";
+  skillName?: string;
+  id?: string;
+  liked?: "LIKED" | "DISLIKED" | "NONE";
 }
 
 interface QuestionsDisplayProps {
   questions: Question[];
   onGeneratePDF?: () => void;
+  enableLikeButtons?: boolean;
 }
 
-export function QuestionsDisplay({ questions }: QuestionsDisplayProps) {
-  const [expandedId, setExpandedId] = React.useState<number | null>(null);
+export function QuestionsDisplay({ 
+  questions, 
+  onGeneratePDF,
+  enableLikeButtons = false 
+}: QuestionsDisplayProps) {
+  const [expandedId, setExpandedId] = useState<number | null>(null);
 
   const toggleQuestion = (index: number) => {
     setExpandedId(expandedId === index ? null : index);
   };
 
-  const getDifficultyColor = (difficulty: Question["difficulty"]) => {
-    switch (difficulty) {
-      case "Easy":
-        return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100";
-      case "Medium":
-        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100";
-      case "Hard":
-        return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100";
+  const getCategoryColor = (category: string) => {
+    switch (category) {
+      case "Technical":
+        return "bg-blue-100 text-blue-800 hover:bg-blue-100";
+      case "Experience":
+        return "bg-green-100 text-green-800 hover:bg-green-100";
+      case "Problem Solving":
+        return "bg-purple-100 text-purple-800 hover:bg-purple-100";
+      case "Soft Skills":
+        return "bg-orange-100 text-orange-800 hover:bg-orange-100";
       default:
-        return "";
+        return "bg-gray-100 text-gray-800 hover:bg-gray-100";
     }
   };
 
-  const getCategoryColor = (category: Question["category"]) => {
-    switch (category) {
-      case "Technical":
-        return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100";
-      case "Experience":
-        return "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-100";
-      case "Problem Solving":
-        return "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-100";
-      case "Soft Skills":
-        return "bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-100";
+  const getDifficultyColor = (difficulty: string) => {
+    switch (difficulty) {
+      case "Easy":
+        return "bg-green-100 text-green-800 hover:bg-green-100";
+      case "Medium":
+        return "bg-yellow-100 text-yellow-800 hover:bg-yellow-100";
+      case "Hard":
+        return "bg-red-100 text-red-800 hover:bg-red-100";
       default:
-        return "";
+        return "bg-gray-100 text-gray-800 hover:bg-gray-100";
     }
   };
 
@@ -79,14 +90,27 @@ export function QuestionsDisplay({ questions }: QuestionsDisplayProps) {
                         >
                           {question.difficulty}
                         </Badge>
+                        {question.skillName && (
+                          <Badge className="bg-slate-100 text-slate-800">
+                            {question.skillName}
+                          </Badge>
+                        )}
                       </div>
                       <h3 className="font-medium">{question.question}</h3>
 
                       {expandedId === index && question.answer && (
                         <div className="mt-4">
-                          <p className="text-sm font-semibold text-muted-foreground mb-1">
-                            Suggested Answer:
-                          </p>
+                          <div className="flex justify-between items-center mb-2">
+                            <p className="text-sm font-semibold text-muted-foreground">
+                              Suggested Answer:
+                            </p>
+                            {enableLikeButtons && question.id && (
+                              <QuestionLikeButtons
+                                questionId={question.id}
+                                initialStatus={question.liked || "NONE"}
+                              />
+                            )}
+                          </div>
                           <div className="bg-muted/30 p-3 rounded-md text-sm">
                             {question.answer}
                           </div>

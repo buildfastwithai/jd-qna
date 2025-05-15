@@ -32,6 +32,7 @@ model Skill {
   recordId     String
   record       SkillRecord  @relation(fields: [recordId], references: [id], onDelete: Cascade)
   questions    Question[]
+  feedbacks    Feedback[]
   
   @@unique([name, recordId])
 }
@@ -43,6 +44,16 @@ model Question {
   skill        Skill        @relation(fields: [skillId], references: [id], onDelete: Cascade)
   recordId     String
   record       SkillRecord  @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  liked        LikeStatus?  @default(NONE)
+}
+
+model Feedback {
+  id           String       @id @default(uuid())
+  content      String
+  skillId      String
+  skill        Skill        @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 }
 
 enum SkillLevel {
@@ -54,4 +65,10 @@ enum SkillLevel {
 enum Requirement {
   MANDATORY
   OPTIONAL
+}
+
+enum LikeStatus {
+  LIKED
+  DISLIKED
+  NONE
 }
