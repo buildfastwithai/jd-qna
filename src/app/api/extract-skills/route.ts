@@ -77,6 +77,8 @@ export interface SkillWithMetadata {
   name: string;
   level: SkillLevel;
   requirement: Requirement;
+  numQuestions: number;
+  difficulty?: string;
 }
 
 export interface JobAnalysis {
@@ -157,6 +159,8 @@ export async function POST(request: Request) {
                 name: skill.name,
                 level: skill.level,
                 requirement: skill.requirement,
+                numQuestions: 1, // Default to 1 question
+                difficulty: "Medium", // Default to Medium difficulty
                 recordId: skillRecord.id,
               })),
             });

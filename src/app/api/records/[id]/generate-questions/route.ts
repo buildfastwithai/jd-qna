@@ -8,16 +8,29 @@ const openai = new OpenAI({
 });
 
 // Generate prompt for skills
-const generatePrompt = (jobTitle: string, skills: any[]) => {
+const generatePrompt = (
+  jobTitle: string,
+  skills: any[],
+  questionsPerSkill: Map<string, number>
+) => {
   const skillsFormatted = skills
-    .map((skill) => `- ${skill.name} (Level: ${skill.level})`)
+    .map((skill) => {
+      const numQuestions = questionsPerSkill.get(skill.id) || 0;
+      if (numQuestions <= 0) return null; // Skip skills that don't need questions
+
+      return `- ${skill.name} (Level: ${skill.level}, Difficulty: ${
+        skill.difficulty || "Medium"
+      }, Questions: ${numQuestions})`;
+    })
+    .filter(Boolean) // Remove null entries
     .join("\n");
 
-  return `Generate interview questions for the following skills for a ${jobTitle} position:
+  return `Generate interview questions for the following skills for a ${jobTitle} position.
+IMPORTANT: Generate the EXACT number of questions specified for each skill - no more, no less.
 
 ${skillsFormatted}
 
-For each skill, generate at least one question that tests the candidate's knowledge and experience.
+Create questions that test the candidate's knowledge and experience:
 - For PROFESSIONAL level skills, create challenging, in-depth questions.
 - For INTERMEDIATE level skills, create moderately difficult questions.
 - For BEGINNER level skills, create basic but relevant questions.
@@ -26,7 +39,7 @@ Format your response as a JSON object with a 'questions' key containing an array
 1. A "question" field with the interview question
 2. A "answer" field with a suggested model answer for the interviewer
 3. A "category" field with one of: "Technical", "Experience", "Problem Solving", or "Soft Skills"
-4. A "difficulty" field with one of: "Easy", "Medium", or "Hard"
+4. A "difficulty" field matching the skill's specified difficulty
 5. A "skillName" field that specifies which skill from the list this question is targeting (must match exactly one of the skill names provided)
 
 Example:
@@ -38,7 +51,9 @@ Example:
     "difficulty": "Medium",
     "skillName": "Docker"
   }
-]}`;
+]}
+
+IMPORTANT: You must generate the EXACT number of questions requested for each skill - no more, no less.`;
 };
 
 export async function POST(
@@ -72,83 +87,151 @@ export async function POST(
       );
     }
 
-    // Generate prompt
-    const prompt = generatePrompt(record.jobTitle, record.skills);
-
-    // Call OpenAI API
-    const chatCompletion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are an expert interviewer who creates relevant interview questions based on specific skills. Include detailed suggested answers for each question.",
+    // Get existing questions
+    const existingQuestions = await prisma.question.findMany({
+      where: {
+        recordId: id,
+        skillId: {
+          in: record.skills.map((skill: any) => skill.id),
         },
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
-      temperature: 0.7,
-      response_format: { type: "json_object" },
+      },
+      select: {
+        skillId: true,
+      },
     });
 
-    const questionsContent = chatCompletion.choices[0]?.message?.content;
+    // Count existing questions per skill
+    const existingQuestionCounts = new Map<string, number>();
+    existingQuestions.forEach((question) => {
+      const currentCount = existingQuestionCounts.get(question.skillId) || 0;
+      existingQuestionCounts.set(question.skillId, currentCount + 1);
+    });
 
-    if (!questionsContent) {
-      throw new Error("No response received from OpenAI");
-    }
+    // Store all generated questions
+    const allGeneratedQuestions = [];
+    let totalQuestionsGenerated = 0;
 
-    try {
-      // Parse the JSON response
-      const parsedResponse = JSON.parse(questionsContent);
+    // Process each skill individually
+    for (const skill of record.skills) {
+      const requestedCount = skill.numQuestions || 1;
+      const existingCount = existingQuestionCounts.get(skill.id) || 0;
+      const neededCount = Math.max(0, requestedCount - existingCount);
 
-      // Check if the response has the expected format
-      if (parsedResponse.questions && Array.isArray(parsedResponse.questions)) {
-        const questions = parsedResponse.questions;
-
-        // Create a map of skill names to ids
-        const skillMap = new Map(
-          record.skills.map((skill: any) => [skill.name.toLowerCase(), skill.id])
+      // Skip if no questions needed for this skill
+      if (neededCount <= 0) {
+        console.log(
+          `Skill ${skill.name} already has ${existingCount} questions. Skipping.`
         );
+        continue;
+      }
 
-        // Save questions to the database
-        for (const question of questions) {
-          const skillId = skillMap.get(question.skillName.toLowerCase());
+      console.log(
+        `Generating ${neededCount} questions for skill ${skill.name}`
+      );
 
-          if (skillId) {
-            await prisma.question.create({
+      // Create a map with just this skill
+      const questionsToGenerate = new Map<string, number>();
+      questionsToGenerate.set(skill.id, neededCount);
+
+      // Generate prompt for only this skill
+      const prompt = generatePrompt(
+        record.jobTitle,
+        [skill], // Pass only the current skill
+        questionsToGenerate
+      );
+
+      // Call OpenAI API for this skill
+      const chatCompletion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: `You are an expert interviewer who creates relevant interview questions based on specific skills. Include detailed suggested answers for each question. You must generate EXACTLY ${neededCount} unique questions for the skill "${skill.name}" - no more, no less.`,
+          },
+          {
+            role: "user",
+            content: prompt,
+          },
+        ],
+        temperature: 0.7,
+        response_format: { type: "json_object" },
+      });
+
+      const questionsContent = chatCompletion.choices[0]?.message?.content;
+
+      if (!questionsContent) {
+        console.error(
+          `No response received from OpenAI for skill: ${skill.name}`
+        );
+        continue;
+      }
+
+      try {
+        // Parse the JSON response
+        const parsedResponse = JSON.parse(questionsContent);
+
+        // Check if the response has the expected format
+        if (
+          parsedResponse.questions &&
+          Array.isArray(parsedResponse.questions)
+        ) {
+          const questions = parsedResponse.questions.slice(0, neededCount); // Ensure we only take what we need
+
+          // Create a map of skill names to ids (just for this skill)
+          const skillId = skill.id;
+          const skillName = skill.name.toLowerCase();
+
+          // Save questions to the database
+          for (const question of questions) {
+            // Create the question
+            const createdQuestion = await prisma.question.create({
               data: {
                 content: JSON.stringify({
                   question: question.question,
                   answer: question.answer,
                   category: question.category,
-                  difficulty: question.difficulty,
+                  difficulty:
+                    question.difficulty || skill.difficulty || "Medium",
                 }),
-                skillId,
+                skillId: skillId,
                 recordId: id,
               },
             });
-          }
-        }
 
-        return NextResponse.json({
-          success: true,
-          message: `Generated ${questions.length} questions for ${record.jobTitle}`,
-        });
-      } else {
-        throw new Error("Unexpected response format");
+            // Add this question to our collection with all metadata
+            allGeneratedQuestions.push({
+              ...question,
+              id: createdQuestion.id,
+              skillId: skillId,
+              skillName: skill.name,
+            });
+          }
+
+          // Update count of total questions generated
+          totalQuestionsGenerated += questions.length;
+
+          // Update the existing count for next skills
+          existingQuestionCounts.set(
+            skillId,
+            (existingQuestionCounts.get(skillId) || 0) + questions.length
+          );
+        } else {
+          console.error(`Unexpected response format for skill ${skill.name}`);
+        }
+      } catch (error: any) {
+        console.error(
+          `Error processing questions for skill ${skill.name}:`,
+          error
+        );
+        // Continue with the next skill
       }
-    } catch (error: any) {
-      console.error("Error processing questions:", error);
-      return NextResponse.json(
-        {
-          success: false,
-          error: error.message || "Failed to process questions",
-        },
-        { status: 500 }
-      );
     }
+
+    return NextResponse.json({
+      success: true,
+      message: `Generated ${totalQuestionsGenerated} questions across ${record.skills.length} skills for ${record.jobTitle}`,
+      questions: allGeneratedQuestions,
+    });
   } catch (error: any) {
     console.error("Error generating questions:", error);
     return NextResponse.json(

@@ -10,7 +10,7 @@ export async function PATCH(
     const { id } = await params;
     const body = await request.json();
 
-    const { level, requirement } = body;
+    const { level, requirement, numQuestions, difficulty } = body;
 
     // Validate inputs
     if (!id) {
@@ -20,18 +20,23 @@ export async function PATCH(
       );
     }
 
-    if (!level && !requirement) {
+    if (!level && !requirement && numQuestions === undefined && !difficulty) {
       return NextResponse.json(
         {
           success: false,
-          error: "Either level or requirement must be provided",
+          error: "At least one field must be provided to update",
         },
         { status: 400 }
       );
     }
 
     // Build update data
-    const updateData: { level?: SkillLevel; requirement?: Requirement } = {};
+    const updateData: {
+      level?: SkillLevel;
+      requirement?: Requirement;
+      numQuestions?: number;
+      difficulty?: string;
+    } = {};
 
     if (level) {
       // Validate level
@@ -53,6 +58,30 @@ export async function PATCH(
         );
       }
       updateData.requirement = requirement as Requirement;
+    }
+
+    if (numQuestions !== undefined) {
+      // Validate numQuestions
+      const numQuestionsValue = Number(numQuestions);
+      if (isNaN(numQuestionsValue) || numQuestionsValue < 1) {
+        return NextResponse.json(
+          { success: false, error: "Number of questions must be at least 1" },
+          { status: 400 }
+        );
+      }
+      updateData.numQuestions = numQuestionsValue;
+    }
+
+    if (difficulty) {
+      // Validate difficulty
+      const validDifficulties = ["Easy", "Medium", "Hard"];
+      if (!validDifficulties.includes(difficulty)) {
+        return NextResponse.json(
+          { success: false, error: "Invalid difficulty value" },
+          { status: 400 }
+        );
+      }
+      updateData.difficulty = difficulty;
     }
 
     // Update skill

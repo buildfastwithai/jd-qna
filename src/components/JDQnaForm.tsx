@@ -44,6 +44,8 @@ export interface SkillWithMetadata {
   name: string;
   level: SkillLevel;
   requirement: Requirement;
+  numQuestions: number;
+  difficulty?: string;
 }
 
 type FormValues = z.infer<typeof formSchema>;

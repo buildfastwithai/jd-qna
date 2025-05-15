@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import { pdf } from "@react-pdf/renderer";
 import { saveAs } from "file-saver";
-import { Download, RefreshCw, ArrowLeft } from "lucide-react";
+import { Download, RefreshCw, ArrowLeft, Info } from "lucide-react";
 import PDFDoc from "./PDFDocument";
 import { Question as PDFQuestion } from "./ui/questions-display";
 import { toast } from "sonner";
@@ -35,6 +35,12 @@ import {
   TableHeader,
   TableRow,
 } from "./ui/table";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "./ui/tooltip";
 
 // Define interfaces for the types from Prisma
 interface Skill {
@@ -42,6 +48,8 @@ interface Skill {
   name: string;
   level: "BEGINNER" | "INTERMEDIATE" | "PROFESSIONAL";
   requirement: "MANDATORY" | "OPTIONAL";
+  numQuestions: number;
+  difficulty?: string;
   recordId: string;
 }
 
@@ -118,8 +126,8 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
   // Update skill level and requirement
   const updateSkill = async (
     skillId: string,
-    field: "level" | "requirement",
-    value: string
+    field: "level" | "requirement" | "numQuestions" | "difficulty",
+    value: string | number
   ) => {
     try {
       setLoading(true);
@@ -186,6 +194,12 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
         body: JSON.stringify({
           recordId: record.id,
           skillIds: skillsNeedingQuestions.map((s) => s.id),
+          // Include the skills with their metadata for batch processing
+          skills: skillsNeedingQuestions.map((s) => ({
+            id: s.id,
+            numQuestions: s.numQuestions || 1,
+            difficulty: s.difficulty || "Medium",
+          })),
         }),
       });
 
@@ -377,6 +391,67 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
     }
   }, [activeTab]);
 
+  // Add a new helper method to get the number of questions set for a skill
+  const getSkillNumQuestions = (skillId: string) => {
+    const skill = editedSkills.find((s) => s.id === skillId);
+    return skill?.numQuestions || 1;
+  };
+
+  // Add a new helper method to get the skill difficulty
+  const getSkillDifficulty = (skillId: string) => {
+    const skill = editedSkills.find((s) => s.id === skillId);
+    return skill?.difficulty || "Medium";
+  };
+
+  // First add a helper function to get a CSS class based on difficulty
+  const getDifficultyClass = (difficulty: string) => {
+    switch (difficulty.toLowerCase()) {
+      case "easy":
+        return "bg-green-50 text-green-800 border-green-200";
+      case "medium":
+        return "bg-orange-50 text-orange-800 border-orange-200";
+      case "hard":
+        return "bg-red-50 text-red-800 border-red-200";
+      default:
+        return "bg-orange-50 text-orange-800 border-orange-200";
+    }
+  };
+
+  // Add a helper function to get a CSS class based on category
+  const getCategoryClass = (category: string) => {
+    switch (category.toLowerCase()) {
+      case "technical":
+        return "bg-blue-50 text-blue-800 border-blue-200";
+      case "experience":
+        return "bg-purple-50 text-purple-800 border-purple-200";
+      case "problem solving":
+        return "bg-indigo-50 text-indigo-800 border-indigo-200";
+      case "soft skills":
+        return "bg-pink-50 text-pink-800 border-pink-200";
+      default:
+        return "bg-gray-50 text-gray-800 border-gray-200";
+    }
+  };
+
+  // Sort questions by skillId then by difficulty
+  const sortedQuestions = [...questions].sort((a, b) => {
+    // First sort by skillId
+    if (a.skillId !== b.skillId) {
+      return a.skillId.localeCompare(b.skillId);
+    }
+
+    // Then by difficulty (Hard, Medium, Easy)
+    const difficultyOrder = { Hard: 0, Medium: 1, Easy: 2 };
+    const aDiffValue =
+      difficultyOrder[a.difficulty as keyof typeof difficultyOrder] ?? 1;
+    const bDiffValue =
+      difficultyOrder[b.difficulty as keyof typeof difficultyOrder] ?? 1;
+    return aDiffValue - bDiffValue;
+  });
+
+  // Track the current skill to know when to add a divider
+  let currentSkillId = "";
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -445,14 +520,19 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                   No skills found for this job.
                 </p>
               ) : (
-                <div className="rounded-md border">
-                  <Table>
+                <div
+                  className="rounded-md border relative overflow-x-auto"
+                  style={{ width: "100%" }}
+                >
+                  <Table className="w-full table-fixed">
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="w-[40%]">Skill Name</TableHead>
-                        <TableHead className="w-[20%]">Level</TableHead>
-                        <TableHead className="w-[20%]">Requirement</TableHead>
-                        <TableHead className="w-[20%]">Questions</TableHead>
+                        <TableHead className="w-[30%]">Skill Name</TableHead>
+                        <TableHead className="w-[15%]">Level</TableHead>
+                        <TableHead className="w-[15%]">Requirement</TableHead>
+                        <TableHead className="w-[15%]">Questions</TableHead>
+                        <TableHead className="w-[15%]">Num. of Qs</TableHead>
+                        <TableHead className="w-[10%]">Difficulty</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -472,7 +552,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                               <SelectTrigger className="w-full">
                                 <SelectValue placeholder="Select level" />
                               </SelectTrigger>
-                              <SelectContent>
+                              <SelectContent className="min-w-[160px] z-[100]">
                                 <SelectItem value="BEGINNER">
                                   Beginner
                                 </SelectItem>
@@ -496,7 +576,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                               <SelectTrigger className="w-full">
                                 <SelectValue placeholder="Requirement" />
                               </SelectTrigger>
-                              <SelectContent>
+                              <SelectContent className="min-w-[160px] z-[100]">
                                 <SelectItem value="MANDATORY">
                                   Mandatory
                                 </SelectItem>
@@ -516,6 +596,44 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                               )}
                             </div>
                           </TableCell>
+                          <TableCell>
+                            <input
+                              type="number"
+                              min="1"
+                              max="10"
+                              value={skill.numQuestions || 1}
+                              onChange={(e) =>
+                                updateSkill(
+                                  skill.id,
+                                  "numQuestions",
+                                  Math.min(
+                                    10,
+                                    Math.max(1, parseInt(e.target.value) || 1)
+                                  )
+                                )
+                              }
+                              className="w-full p-2 border rounded"
+                              disabled={loading}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Select
+                              value={skill.difficulty || "Medium"}
+                              onValueChange={(value) =>
+                                updateSkill(skill.id, "difficulty", value)
+                              }
+                              disabled={loading}
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Difficulty" />
+                              </SelectTrigger>
+                              <SelectContent className="min-w-[160px] z-[100]">
+                                <SelectItem value="Easy">Easy</SelectItem>
+                                <SelectItem value="Medium">Medium</SelectItem>
+                                <SelectItem value="Hard">Hard</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -524,22 +642,35 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
               )}
             </CardContent>
             <CardFooter className="flex justify-between">
-              <Button
-                onClick={generateQuestionsForRecord}
-                disabled={generatingQuestions}
-              >
-                {generatingQuestions ? (
-                  <>
-                    <Spinner size="sm" className="mr-2" />
-                    Generating Questions...
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="mr-2 h-4 w-4" />
-                    Generate Questions for Mandatory Skills
-                  </>
-                )}
-              </Button>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      onClick={generateQuestionsForRecord}
+                      disabled={generatingQuestions}
+                    >
+                      {generatingQuestions ? (
+                        <>
+                          <Spinner size="sm" className="mr-2" />
+                          Generating Questions...
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="mr-2 h-4 w-4" />
+                          Generate Questions for Mandatory Skills
+                        </>
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-sm">
+                    <p>
+                      Questions are generated in batches of 5 at a time to
+                      reduce latency. Each skill will get the number of
+                      questions specified in the "Num. of Qs" column.
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
               <Button
                 variant="outline"
                 onClick={() => setActiveTab("questions")}
@@ -600,43 +731,107 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                   </Button>
                 </div>
               ) : (
-                <div className="rounded-md border">
-                  <Table>
+                <div
+                  className="rounded-md border relative overflow-x-auto"
+                  style={{ width: "100%" }}
+                >
+                  <Table className="w-full table-fixed">
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="w-[20%]">Skill</TableHead>
-                        <TableHead className="w-[15%]">Category</TableHead>
-                        <TableHead className="w-[15%]">Difficulty</TableHead>
-                        <TableHead className="w-[50%]">Question</TableHead>
+                        <TableHead className="w-[18%]">Skill</TableHead>
+                        <TableHead className="w-[10%]">
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger className="cursor-help flex items-center gap-1">
+                                Requests
+                                <Info className="h-3 w-3 text-muted-foreground" />
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>
+                                  Number of questions requested for this skill
+                                </p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </TableHead>
+                        <TableHead className="w-[12%]">Category</TableHead>
+                        <TableHead className="w-[12%]">Difficulty</TableHead>
+                        <TableHead className="w-[48%]">Question</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {questions.map((question) => (
-                        <TableRow
-                          key={question.id}
-                          className="cursor-pointer hover:bg-muted/50"
-                          onClick={() => viewAnswer(question)}
-                        >
-                          <TableCell>
-                            <span className="font-medium">
-                              {getSkillName(question.skillId)}
-                            </span>
-                          </TableCell>
-                          <TableCell>
-                            <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold bg-purple-50 text-purple-800 border-purple-200">
-                              {question.category}
-                            </span>
-                          </TableCell>
-                          <TableCell>
-                            <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold bg-orange-50 text-orange-800 border-orange-200">
-                              {question.difficulty}
-                            </span>
-                          </TableCell>
-                          <TableCell className="font-medium">
-                            {question.question}
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                      {sortedQuestions.map((question, index) => {
+                        // Check if this is a new skill group
+                        const isNewSkillGroup =
+                          question.skillId !== currentSkillId;
+                        // Update current skill
+                        currentSkillId = question.skillId;
+
+                        return (
+                          <Fragment key={question.id}>
+                            {isNewSkillGroup && (
+                              <TableRow className="bg-muted/30">
+                                <TableCell colSpan={5} className="py-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-semibold">
+                                      {getSkillName(question.skillId)}
+                                    </span>
+                                    <span className="text-xs text-muted-foreground">
+                                      ({getSkillNumQuestions(question.skillId)}{" "}
+                                      questions requested,{" "}
+                                      {getSkillDifficulty(question.skillId)}{" "}
+                                      difficulty)
+                                    </span>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            )}
+                            <TableRow
+                              className="cursor-pointer hover:bg-muted/50"
+                              onClick={() => viewAnswer(question)}
+                            >
+                              <TableCell>
+                                {/* Add small indentation for grouped questions */}
+                                <div className="pl-4">
+                                  <span className="text-sm text-muted-foreground">
+                                    Question {index + 1}
+                                  </span>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center justify-center">
+                                  <div className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100">
+                                    <span className="text-sm font-medium">
+                                      {getSkillNumQuestions(question.skillId)}
+                                    </span>
+                                  </div>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <span
+                                  className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${getCategoryClass(
+                                    question.category
+                                  )}`}
+                                >
+                                  {question.category}
+                                </span>
+                              </TableCell>
+                              <TableCell>
+                                <span
+                                  className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${getDifficultyClass(
+                                    question.difficulty
+                                  )}`}
+                                >
+                                  {question.difficulty}
+                                </span>
+                              </TableCell>
+                              <TableCell className="font-medium">
+                                {question.question}
+                              </TableCell>
+                            </TableRow>
+                          </Fragment>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </div>

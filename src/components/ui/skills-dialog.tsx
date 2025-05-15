@@ -47,6 +47,8 @@ export function SkillsDialog({
   const [newSkillRequirement, setNewSkillRequirement] = useState<Requirement>(
     Requirement.OPTIONAL
   );
+  const [newSkillNumQuestions, setNewSkillNumQuestions] = useState(1);
+  const [newSkillDifficulty, setNewSkillDifficulty] = useState("Medium");
 
   const handleAddSkill = () => {
     if (
@@ -59,6 +61,8 @@ export function SkillsDialog({
           name: newSkill.trim(),
           level: newSkillLevel,
           requirement: newSkillRequirement,
+          numQuestions: newSkillNumQuestions,
+          difficulty: newSkillDifficulty,
         },
       ]);
       setNewSkill("");
@@ -95,15 +99,30 @@ export function SkillsDialog({
     );
   };
 
+  const updateSkillNumQuestions = (skillName: string, numQuestions: number) => {
+    onSkillsChange(
+      skills.map((skill) =>
+        skill.name === skillName ? { ...skill, numQuestions } : skill
+      )
+    );
+  };
+
+  const updateSkillDifficulty = (skillName: string, difficulty: string) => {
+    onSkillsChange(
+      skills.map((skill) =>
+        skill.name === skillName ? { ...skill, difficulty } : skill
+      )
+    );
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Skills Extracted from Job Description</DialogTitle>
           <DialogDescription>
-            Review, add, or remove skills. Set the level
-            (Professional/Intermediate/Beginner) and requirement
-            (Mandatory/Optional) for each skill.
+            Review, add, or remove skills. Set the level, requirement, number of
+            questions, and difficulty for each skill.
           </DialogDescription>
         </DialogHeader>
 
@@ -119,7 +138,7 @@ export function SkillsDialog({
                 {skills.map((skill) => (
                   <div
                     key={skill.name}
-                    className="flex flex-col sm:flex-row sm:items-center gap-2 p-2 border rounded-md"
+                    className="flex flex-col gap-2 p-2 border rounded-md"
                   >
                     <div className="flex items-center gap-2 flex-1">
                       <span className="font-medium">{skill.name}</span>
@@ -131,17 +150,17 @@ export function SkillsDialog({
                       </button>
                     </div>
 
-                    <div className="flex flex-col sm:flex-row gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <Select
                         value={skill.level}
                         onValueChange={(value) =>
                           updateSkillLevel(skill.name, value as SkillLevel)
                         }
                       >
-                        <SelectTrigger className="w-36">
+                        <SelectTrigger className="w-full">
                           <SelectValue placeholder="Select level" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="min-w-[160px] z-[100]">
                           <SelectItem value={SkillLevel.BEGINNER}>
                             Beginner
                           </SelectItem>
@@ -163,16 +182,54 @@ export function SkillsDialog({
                           )
                         }
                       >
-                        <SelectTrigger className="w-36">
+                        <SelectTrigger className="w-full">
                           <SelectValue placeholder="Requirement" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="min-w-[160px] z-[100]">
                           <SelectItem value={Requirement.MANDATORY}>
                             Mandatory
                           </SelectItem>
                           <SelectItem value={Requirement.OPTIONAL}>
                             Optional
                           </SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      <div className="flex flex-col">
+                        <label className="text-xs mb-1">
+                          Number of Questions
+                        </label>
+                        <Input
+                          type="number"
+                          min="1"
+                          max="10"
+                          value={skill.numQuestions || 1}
+                          onChange={(e) =>
+                            updateSkillNumQuestions(
+                              skill.name,
+                              Math.min(
+                                10,
+                                Math.max(1, parseInt(e.target.value) || 1)
+                              )
+                            )
+                          }
+                          className="w-full"
+                        />
+                      </div>
+
+                      <Select
+                        value={skill.difficulty || "Medium"}
+                        onValueChange={(value) =>
+                          updateSkillDifficulty(skill.name, value)
+                        }
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Difficulty" />
+                        </SelectTrigger>
+                        <SelectContent className="min-w-[160px] z-[100]">
+                          <SelectItem value="Easy">Easy</SelectItem>
+                          <SelectItem value="Medium">Medium</SelectItem>
+                          <SelectItem value="Hard">Hard</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -182,23 +239,23 @@ export function SkillsDialog({
             )}
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <Input
               placeholder="Add a skill..."
               value={newSkill}
               onChange={(e) => setNewSkill(e.target.value)}
               onKeyDown={handleKeyDown}
-              className="flex-1"
+              className="col-span-1 sm:col-span-2"
             />
 
             <Select
               value={newSkillLevel}
               onValueChange={(value) => setNewSkillLevel(value as SkillLevel)}
             >
-              <SelectTrigger className="w-36">
+              <SelectTrigger>
                 <SelectValue placeholder="Level" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="min-w-[160px] z-[100]">
                 <SelectItem value={SkillLevel.BEGINNER}>Beginner</SelectItem>
                 <SelectItem value={SkillLevel.INTERMEDIATE}>
                   Intermediate
@@ -215,17 +272,50 @@ export function SkillsDialog({
                 setNewSkillRequirement(value as Requirement)
               }
             >
-              <SelectTrigger className="w-36">
+              <SelectTrigger>
                 <SelectValue placeholder="Requirement" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="min-w-[160px] z-[100]">
                 <SelectItem value={Requirement.MANDATORY}>Mandatory</SelectItem>
                 <SelectItem value={Requirement.OPTIONAL}>Optional</SelectItem>
               </SelectContent>
             </Select>
 
-            <Button onClick={handleAddSkill} disabled={!newSkill.trim()}>
-              <Plus className="h-4 w-4 mr-1" /> Add
+            <div className="flex flex-col">
+              <label className="text-xs mb-1">Number of Questions</label>
+              <Input
+                type="number"
+                min="1"
+                max="10"
+                value={newSkillNumQuestions}
+                onChange={(e) =>
+                  setNewSkillNumQuestions(
+                    Math.min(10, Math.max(1, parseInt(e.target.value) || 1))
+                  )
+                }
+              />
+            </div>
+
+            <Select
+              value={newSkillDifficulty}
+              onValueChange={(value) => setNewSkillDifficulty(value)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Difficulty" />
+              </SelectTrigger>
+              <SelectContent className="min-w-[160px] z-[100]">
+                <SelectItem value="Easy">Easy</SelectItem>
+                <SelectItem value="Medium">Medium</SelectItem>
+                <SelectItem value="Hard">Hard</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Button
+              onClick={handleAddSkill}
+              disabled={!newSkill.trim()}
+              className="col-span-1 sm:col-span-2"
+            >
+              <Plus className="h-4 w-4 mr-1" /> Add Skill
             </Button>
           </div>
         </div>

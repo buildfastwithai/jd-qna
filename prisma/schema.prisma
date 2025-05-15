@@ -27,6 +27,8 @@ model Skill {
   name         String
   level        SkillLevel   @default(INTERMEDIATE)
   requirement  Requirement  @default(OPTIONAL)
+  numQuestions Int          @default(1)
+  difficulty   String?      
   recordId     String
   record       SkillRecord  @relation(fields: [recordId], references: [id], onDelete: Cascade)
   questions    Question[]
