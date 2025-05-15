@@ -739,21 +739,6 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-[18%]">Skill</TableHead>
-                        <TableHead className="w-[10%]">
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger className="cursor-help flex items-center gap-1">
-                                Requests
-                                <Info className="h-3 w-3 text-muted-foreground" />
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>
-                                  Number of questions requested for this skill
-                                </p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        </TableHead>
                         <TableHead className="w-[12%]">Category</TableHead>
                         <TableHead className="w-[12%]">Difficulty</TableHead>
                         <TableHead className="w-[48%]">Question</TableHead>
@@ -796,15 +781,6 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                                   <span className="text-sm text-muted-foreground">
                                     Question {index + 1}
                                   </span>
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex items-center justify-center">
-                                  <div className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100">
-                                    <span className="text-sm font-medium">
-                                      {getSkillNumQuestions(question.skillId)}
-                                    </span>
-                                  </div>
                                 </div>
                               </TableCell>
                               <TableCell>

@@ -30,7 +30,7 @@ export default async function RecordPage({ params }: PageProps) {
 
   return (
     <div className="container py-8">
-      <SkillRecordEditor record={record} />
+      <SkillRecordEditor record={record as any} />
     </div>
   );
 }
