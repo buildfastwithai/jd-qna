@@ -245,7 +245,7 @@ export function JDQnaForm() {
         .toLowerCase()}.pdf`;
 
       const blob = await pdf(
-        <PDFDoc jobRole={jobRole} questions={questions} />
+        <PDFDoc jobRole={jobRole} questions={questions as any} />
       ).toBlob();
 
       saveAs(blob, fileName);
