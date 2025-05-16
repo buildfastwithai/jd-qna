@@ -23,7 +23,7 @@ Extract the following:
 ## 2. Skill Matrix
 Extract all technical skills, frameworks, libraries, tools, and technologies mentioned.
 For each skill, determine:
-- Level: BEGINNER, INTERMEDIATE, PROFESSIONAL, or EXPERT based on the complexity or expertise required
+- Level: BEGINNER, INTERMEDIATE or PROFESSIONAL based on the complexity or expertise required
 - Requirement: MANDATORY or OPTIONAL based on how essential it is for the role
 - For 20-30% of skills add softskills grouped into categories like communication, leadership, problem-solving, etc.
 

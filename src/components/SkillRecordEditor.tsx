@@ -45,6 +45,7 @@ import { QuestionLikeButtons } from "./ui/question-like-buttons";
 import { SkillFeedbackDialog } from "./ui/skill-feedback-dialog";
 import { SkillFeedbackList } from "./ui/skill-feedback-list";
 import { SkillFeedbackViewDialog } from "./ui/skill-feedback-view-dialog";
+import { QuestionDialog } from "./ui/question-dialog";
 
 // Define interfaces for the types from Prisma
 interface Skill {
@@ -107,8 +108,12 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
   const [activeTab, setActiveTab] = useState("skills");
   const [questionsLoading, setQuestionsLoading] = useState(false);
   const [feedbackRefreshTrigger, setFeedbackRefreshTrigger] = useState(0);
-  const [activeSkillFeedback, setActiveSkillFeedback] = useState<string | null>(null);
-  const [skillFeedbackCounts, setSkillFeedbackCounts] = useState<Record<string, number>>({});
+  const [activeSkillFeedback, setActiveSkillFeedback] = useState<string | null>(
+    null
+  );
+  const [skillFeedbackCounts, setSkillFeedbackCounts] = useState<
+    Record<string, number>
+  >({});
 
   // Parse question content from JSON string
   function formatQuestions(questions: Question[]): QuestionData[] {
@@ -318,9 +323,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
       setPdfLoading(true);
 
       // Only include liked or neutral questions, not disliked ones
-      const filteredQuestions = questions.filter(
-        (q) => q.liked !== "DISLIKED"
-      );
+      const filteredQuestions = questions.filter((q) => q.liked !== "DISLIKED");
 
       // Format questions for PDF
       const pdfQuestions = filteredQuestions.map((q) => ({
@@ -337,10 +340,9 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
       ).toBlob();
 
       // Generate filename
-      const fileName = `${record.jobTitle.replace(
-        /[^a-z0-9]/gi,
-        "_"
-      ).toLowerCase()}_interview_questions.pdf`;
+      const fileName = `${record.jobTitle
+        .replace(/[^a-z0-9]/gi, "_")
+        .toLowerCase()}_interview_questions.pdf`;
 
       // Save file
       saveAs(blob, fileName);
@@ -381,33 +383,6 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
   // Count questions for each skill
   const getSkillQuestionCount = (skillId: string) => {
     return questions.filter((q) => q.skillId === skillId).length;
-  };
-
-  // View answer in a toast popup
-  const viewAnswer = (question: QuestionData) => {
-    toast(
-      <div className="max-w-md">
-        <h3 className="text-lg font-semibold mb-3">{question.question}</h3>
-        <div className="bg-muted/30 p-3 rounded-md">
-          <div className="flex justify-between items-center mb-2">
-            <p className="text-sm font-semibold">
-              Suggested Answer:
-            </p>
-            <QuestionLikeButtons
-              questionId={question.id}
-              initialStatus={question.liked || "NONE"}
-              onStatusChange={(status) => handleQuestionStatusChange(question.id, status)}
-            />
-          </div>
-          <p className="text-sm">{question.answer}</p>
-        </div>
-      </div>,
-      {
-        duration: 15000,
-        position: "bottom-center",
-        className: "w-[36rem] max-w-full",
-      }
-    );
   };
 
   // Add useEffect to fetch questions when tab changes
@@ -479,19 +454,49 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
   let currentSkillId = "";
 
   // Update like status for a question
-  const handleQuestionStatusChange = (questionId: string, status: "LIKED" | "DISLIKED" | "NONE") => {
+  const handleQuestionStatusChange = (
+    questionId: string,
+    status: "LIKED" | "DISLIKED" | "NONE"
+  ) => {
+    // Update locally first
     setQuestions((prevQuestions) =>
       prevQuestions.map((q) =>
         q.id === questionId ? { ...q, liked: status } : q
       )
     );
+
+    // Update in database
+    fetch(`/api/questions/${questionId}/like`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ status }),
+    })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error("Failed to update question status");
+        }
+        return response.json();
+      })
+      .then(() => {
+        // Success - already updated UI optimistically
+      })
+      .catch((error) => {
+        console.error("Error updating question status:", error);
+        toast.error("Failed to update question status");
+        // Revert the change in case of error
+        setQuestions((prevQuestions) => [...prevQuestions]);
+      });
   };
 
   // Get number of liked/disliked questions for a skill
   const getSkillLikeStats = (skillId: string) => {
     const skillQuestions = questions.filter((q) => q.skillId === skillId);
     const liked = skillQuestions.filter((q) => q.liked === "LIKED").length;
-    const disliked = skillQuestions.filter((q) => q.liked === "DISLIKED").length;
+    const disliked = skillQuestions.filter(
+      (q) => q.liked === "DISLIKED"
+    ).length;
     return { liked, disliked };
   };
 
@@ -514,7 +519,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
     const fetchFeedbackCounts = async () => {
       try {
         const feedbackCounts: Record<string, number> = {};
-        
+
         for (const skill of editedSkills) {
           const response = await fetch(`/api/skills/${skill.id}/feedback`);
           if (response.ok) {
@@ -522,13 +527,13 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
             feedbackCounts[skill.id] = data.feedbacks.length;
           }
         }
-        
+
         setSkillFeedbackCounts(feedbackCounts);
       } catch (error) {
         console.error("Error fetching feedback counts:", error);
       }
     };
-    
+
     fetchFeedbackCounts();
   }, [editedSkills, feedbackRefreshTrigger]);
 
@@ -634,7 +639,10 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                                   }
                                   disabled={loading}
                                 >
-                                  <SelectTrigger className="w-full" aria-label={`Select level for ${skill.name}`}>
+                                  <SelectTrigger
+                                    className="w-full"
+                                    aria-label={`Select level for ${skill.name}`}
+                                  >
                                     <SelectValue placeholder="Select level" />
                                   </SelectTrigger>
                                   <SelectContent className="min-w-[160px] z-[100]">
@@ -658,7 +666,10 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                                   }
                                   disabled={loading}
                                 >
-                                  <SelectTrigger className="w-full" aria-label={`Select requirement for ${skill.name}`}>
+                                  <SelectTrigger
+                                    className="w-full"
+                                    aria-label={`Select requirement for ${skill.name}`}
+                                  >
                                     <SelectValue placeholder="Requirement" />
                                   </SelectTrigger>
                                   <SelectContent className="min-w-[160px] z-[100]">
@@ -683,13 +694,22 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                               </TableCell>
                               <TableCell>
                                 <Select
-                                  defaultValue={String(getSkillNumQuestions(skill.id))}
+                                  defaultValue={String(
+                                    getSkillNumQuestions(skill.id)
+                                  )}
                                   onValueChange={(value) =>
-                                    updateSkill(skill.id, "numQuestions", parseInt(value))
+                                    updateSkill(
+                                      skill.id,
+                                      "numQuestions",
+                                      parseInt(value)
+                                    )
                                   }
                                   disabled={loading}
                                 >
-                                  <SelectTrigger className="w-20" aria-label={`Select number of questions for ${skill.name}`}>
+                                  <SelectTrigger
+                                    className="w-20"
+                                    aria-label={`Select number of questions for ${skill.name}`}
+                                  >
                                     <SelectValue placeholder="Count" />
                                   </SelectTrigger>
                                   <SelectContent>
@@ -709,12 +729,17 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                                   }
                                   disabled={loading}
                                 >
-                                  <SelectTrigger className="w-28" aria-label={`Select difficulty for ${skill.name}`}>
+                                  <SelectTrigger
+                                    className="w-28"
+                                    aria-label={`Select difficulty for ${skill.name}`}
+                                  >
                                     <SelectValue placeholder="Difficulty" />
                                   </SelectTrigger>
                                   <SelectContent className="min-w-[160px] z-[100]">
                                     <SelectItem value="Easy">Easy</SelectItem>
-                                    <SelectItem value="Medium">Medium</SelectItem>
+                                    <SelectItem value="Medium">
+                                      Medium
+                                    </SelectItem>
                                     <SelectItem value="Hard">Hard</SelectItem>
                                   </SelectContent>
                                 </Select>
@@ -731,11 +756,12 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                                             </div>
                                           </TooltipTrigger>
                                           <TooltipContent>
-                                            {likeStats.liked} questions marked as helpful
+                                            {likeStats.liked} questions marked
+                                            as helpful
                                           </TooltipContent>
                                         </Tooltip>
                                       </TooltipProvider>
-                                      
+
                                       <TooltipProvider>
                                         <Tooltip>
                                           <TooltipTrigger asChild>
@@ -744,30 +770,37 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                                             </div>
                                           </TooltipTrigger>
                                           <TooltipContent>
-                                            {likeStats.disliked} questions marked as not helpful
+                                            {likeStats.disliked} questions
+                                            marked as not helpful
                                           </TooltipContent>
                                         </Tooltip>
                                       </TooltipProvider>
                                     </>
                                   ) : (
-                                    <span className="text-xs text-gray-500">No questions generated yet</span>
+                                    <span className="text-xs text-gray-500">
+                                      No questions generated yet
+                                    </span>
                                   )}
                                 </div>
                               </TableCell>
                               <TableCell>
                                 <div className="flex items-center gap-2">
                                   {getSkillQuestionCount(skill.id) > 0 && (
-                                    <SkillFeedbackDialog 
+                                    <SkillFeedbackDialog
                                       skillId={skill.id}
                                       skillName={skill.name}
-                                      onFeedbackSubmitted={handleFeedbackSubmitted}
+                                      onFeedbackSubmitted={
+                                        handleFeedbackSubmitted
+                                      }
                                     />
                                   )}
                                   {(skillFeedbackCounts[skill.id] || 0) > 0 && (
                                     <SkillFeedbackViewDialog
                                       skillId={skill.id}
                                       skillName={skill.name}
-                                      feedbackCount={skillFeedbackCounts[skill.id] || 0}
+                                      feedbackCount={
+                                        skillFeedbackCounts[skill.id] || 0
+                                      }
                                       refreshTrigger={feedbackRefreshTrigger}
                                     />
                                   )}
@@ -915,36 +948,58 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                                         {getSkillName(question.skillId)}
                                       </span>
                                       <span className="text-xs text-muted-foreground ml-2">
-                                        ({getSkillNumQuestions(question.skillId)}{" "}
+                                        (
+                                        {getSkillNumQuestions(question.skillId)}{" "}
                                         questions requested,{" "}
                                         {getSkillDifficulty(question.skillId)}{" "}
                                         difficulty)
                                       </span>
                                     </div>
-                                    {getSkillQuestionCount(question.skillId) > 0 && (
+                                    {getSkillQuestionCount(question.skillId) >
+                                      0 && (
                                       <div className="flex items-center gap-2">
                                         <TooltipProvider>
                                           <Tooltip>
                                             <TooltipTrigger asChild>
                                               <div className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-medium">
-                                                👍 {getSkillLikeStats(question.skillId).liked}
+                                                👍{" "}
+                                                {
+                                                  getSkillLikeStats(
+                                                    question.skillId
+                                                  ).liked
+                                                }
                                               </div>
                                             </TooltipTrigger>
                                             <TooltipContent>
-                                              {getSkillLikeStats(question.skillId).liked} questions marked as helpful
+                                              {
+                                                getSkillLikeStats(
+                                                  question.skillId
+                                                ).liked
+                                              }{" "}
+                                              questions marked as helpful
                                             </TooltipContent>
                                           </Tooltip>
                                         </TooltipProvider>
-                                        
+
                                         <TooltipProvider>
                                           <Tooltip>
                                             <TooltipTrigger asChild>
                                               <div className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-medium">
-                                                👎 {getSkillLikeStats(question.skillId).disliked}
+                                                👎{" "}
+                                                {
+                                                  getSkillLikeStats(
+                                                    question.skillId
+                                                  ).disliked
+                                                }
                                               </div>
                                             </TooltipTrigger>
                                             <TooltipContent>
-                                              {getSkillLikeStats(question.skillId).disliked} questions marked as not helpful
+                                              {
+                                                getSkillLikeStats(
+                                                  question.skillId
+                                                ).disliked
+                                              }{" "}
+                                              questions marked as not helpful
                                             </TooltipContent>
                                           </Tooltip>
                                         </TooltipProvider>
@@ -954,9 +1009,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                                 </TableCell>
                               </TableRow>
                             )}
-                            <TableRow
-                              className="cursor-pointer hover:bg-muted/50"
-                            >
+                            <TableRow className="cursor-pointer hover:bg-muted/50">
                               <TableCell>
                                 {/* Add small indentation for grouped questions */}
                                 <div className="pl-4">
@@ -983,8 +1036,21 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                                   {question.difficulty}
                                 </span>
                               </TableCell>
-                              <TableCell className="font-medium" onClick={() => viewAnswer(question)}>
-                                {question.question}
+                              <TableCell className="font-medium">
+                                <QuestionDialog
+                                  questionId={question.id}
+                                  question={question.question}
+                                  answer={question.answer}
+                                  category={question.category}
+                                  difficulty={question.difficulty}
+                                  liked={question.liked}
+                                  onStatusChange={(status) =>
+                                    handleQuestionStatusChange(
+                                      question.id,
+                                      status
+                                    )
+                                  }
+                                />
                               </TableCell>
                             </TableRow>
                           </Fragment>
