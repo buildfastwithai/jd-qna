@@ -25,6 +25,7 @@ Extract all technical skills, frameworks, libraries, tools, and technologies men
 For each skill, determine:
 - Level: BEGINNER, INTERMEDIATE, PROFESSIONAL, or EXPERT based on the complexity or expertise required
 - Requirement: MANDATORY or OPTIONAL based on how essential it is for the role
+- For 20-30% of skills add softskills grouped into categories like communication, leadership, problem-solving, etc.
 
 Level definitions:
 - BEGINNER: Fundamental understanding, entry-level proficiency
