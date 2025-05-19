@@ -146,26 +146,26 @@ export async function POST(request: Request) {
         // If jobTitle is provided, create a record in the database
         if (jobTitle) {
           // Only store data that matches the existing schema
-          skillRecord = await prisma.skillRecord.create({
-            data: {
-              jobTitle,
-              // Don't include other fields if they don't exist in your schema
-            },
-          });
+          // skillRecord = await prisma.skillRecord.create({
+          //   data: {
+          //     jobTitle,
+          //     // Don't include other fields if they don't exist in your schema
+          //   },
+          // });
 
           // Create skills with metadata
-          if (skillRecord) {
-            await prisma.skill.createMany({
-              data: parsedResponse.skills.map((skill: SkillWithMetadata) => ({
-                name: skill.name,
-                level: skill.level,
-                requirement: skill.requirement,
-                numQuestions: 1, // Default to 1 question
-                difficulty: "Medium", // Default to Medium difficulty
-                recordId: skillRecord.id,
-              })),
-            });
-          }
+          // if (skillRecord) {
+          //   await prisma.skill.createMany({
+          //     data: parsedResponse.skills.map((skill: SkillWithMetadata) => ({
+          //       name: skill.name,
+          //       level: skill.level,
+          //       requirement: skill.requirement,
+          //       numQuestions: 1, // Default to 1 question
+          //       difficulty: "Medium", // Default to Medium difficulty
+          //       recordId: skillRecord.id,
+          //     })),
+          //   });
+          // }
         }
 
         return NextResponse.json({

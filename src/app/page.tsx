@@ -2,7 +2,7 @@ import Link from "next/link";
 import { JDQnaForm } from "@/components/JDQnaForm";
 import { Button } from "@/components/ui/button";
 import { Database } from "lucide-react";
-
+import Chathome from "@/components/chatformate/Chat-home";
 export default function Home() {
   return (
     <div className="container mx-auto py-10 px-4">
@@ -23,7 +23,16 @@ export default function Home() {
           based on the role and requirements.
         </p>
       </div>
-      <JDQnaForm />
+      <div className="flex flex-col md:flex-row gap-4 w-full">
+        <div className="w-full md:w-1/2">
+          <JDQnaForm />
+        </div>
+        <div className="w-full md:w-1/2">
+          <Chathome />
+        </div>
+      </div>
+
+
     </div>
   );
 }

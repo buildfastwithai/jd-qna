@@ -273,7 +273,7 @@ export function JDQnaForm() {
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+    <div className="w-[90%] gap-8">
       <Card>
         <CardHeader>
           <CardTitle>Job Description Details</CardTitle>
