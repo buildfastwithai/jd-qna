@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { MessageSquareText } from "lucide-react";
 import {
   Dialog,
@@ -22,7 +22,10 @@ interface QuestionDialogProps {
   category: string;
   difficulty: string;
   liked?: "LIKED" | "DISLIKED" | "NONE";
+  feedback?: string;
   onStatusChange?: (status: "LIKED" | "DISLIKED" | "NONE") => void;
+  onFeedbackChange?: (feedback: string) => void;
+  onRegenerateQuestion?: (questionId: string) => Promise<void>;
 }
 
 export function QuestionDialog({
@@ -32,9 +35,20 @@ export function QuestionDialog({
   category,
   difficulty,
   liked = "NONE",
+  feedback = "",
   onStatusChange,
+  onFeedbackChange,
+  onRegenerateQuestion,
 }: QuestionDialogProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [currentQuestion, setCurrentQuestion] = useState(question);
+  const [currentAnswer, setCurrentAnswer] = useState(answer);
+
+  // Update local state when props change
+  useEffect(() => {
+    setCurrentQuestion(question);
+    setCurrentAnswer(answer);
+  }, [question, answer]);
 
   // Helper function to get CSS class based on difficulty
   const getDifficultyClass = (difficulty: string) => {
@@ -66,14 +80,22 @@ export function QuestionDialog({
     }
   };
 
+  // Handle regenerate question
+  const handleRegenerateQuestion = async (id: string) => {
+    if (!onRegenerateQuestion) return;
+
+    await onRegenerateQuestion(id);
+    // The parent component should update the question content
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <div className="cursor-pointer hover:underline">{question}</div>
+        <div className="cursor-pointer hover:underline">{currentQuestion}</div>
       </DialogTrigger>
       <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle>{question}</DialogTitle>
+          <DialogTitle>{currentQuestion}</DialogTitle>
           <div className="flex gap-2 mt-2">
             <span
               className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${getCategoryClass(
@@ -94,7 +116,7 @@ export function QuestionDialog({
         <div className="py-4">
           <h3 className="text-sm font-semibold mb-2">Suggested Answer:</h3>
           <div className="bg-muted/30 p-4 rounded-md text-sm whitespace-pre-wrap">
-            {answer}
+            {currentAnswer}
           </div>
         </div>
         <DialogFooter className="flex justify-between items-center">
@@ -107,7 +129,10 @@ export function QuestionDialog({
             <QuestionLikeButtons
               questionId={questionId}
               initialStatus={liked}
+              initialFeedback={feedback}
               onStatusChange={onStatusChange}
+              onFeedbackChange={onFeedbackChange}
+              onRegenerateQuestion={handleRegenerateQuestion}
             />
           </div>
         </DialogFooter>

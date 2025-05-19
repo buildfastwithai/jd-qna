@@ -14,12 +14,14 @@ datasource db {
 }
 
 model SkillRecord {
-  id          String   @id @default(uuid())
-  jobTitle    String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  skills      Skill[]
-  questions   Question[]
+  id             String    @id @default(uuid())
+  jobTitle       String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  skills         Skill[]
+  questions      Question[]
+  interviewLength Int?     // Interview length in minutes
+  rawJobDescription String? @db.Text // Raw job description text
 }
 
 model Skill {
@@ -33,6 +35,7 @@ model Skill {
   record       SkillRecord  @relation(fields: [recordId], references: [id], onDelete: Cascade)
   questions    Question[]
   feedbacks    Feedback[]
+  priority     Int?         // Priority order for sequencing questions
   
   @@unique([name, recordId])
 }
@@ -45,6 +48,7 @@ model Question {
   recordId     String
   record       SkillRecord  @relation(fields: [recordId], references: [id], onDelete: Cascade)
   liked        LikeStatus?  @default(NONE)
+  feedback     String?      @db.Text
 }
 
 model Feedback {

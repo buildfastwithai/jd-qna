@@ -1,123 +1,97 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { prisma } from "@/lib/prisma";
-import { SkillWithMetadata } from "@/components/JDQnaForm";
 
 // Initialize OpenAI client
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// Enhanced prompt template for generating questions based on a specific skill
-const generatePromptForSkill = (
-  jobRole: string,
-  jobDescription: string,
-  skill: SkillWithMetadata,
-  exactCount: number
+// Generate prompt for a specific skill batch
+const generatePrompt = (
+  skillName: string,
+  level: string,
+  difficulty: string,
+  batchSize: number = 5
 ) => {
-  const difficultyLevel =
-    skill.difficulty ||
-    (skill.level === "PROFESSIONAL"
+  // Map skill level to difficulty if not provided
+  const effectiveDifficulty =
+    difficulty ||
+    (level === "PROFESSIONAL"
       ? "Hard"
-      : skill.level === "INTERMEDIATE"
+      : level === "INTERMEDIATE"
       ? "Medium"
       : "Easy");
 
-  let prompt = `You are an expert interviewer for technical roles.
-Based on the following job description for a ${jobRole} position, generate EXACTLY ${exactCount} relevant interview questions with suggested answers for the skill: ${skill.name}.
+  return `Generate exactly ${batchSize} interview questions for the skill "${skillName}" at a ${level} level (${effectiveDifficulty} difficulty).
+The questions should be challenging but fair, testing both theoretical knowledge and practical application.
 
-The questions should assess both technical knowledge and practical application of this skill.
-The questions should be at a ${difficultyLevel} difficulty level.
-
-Job Description:
-${jobDescription}`;
-
-  prompt += `\nFormat your response as a JSON object with a 'questions' key containing an array of question objects, where each object has:
+Format your response as a JSON object with a 'questions' key containing an array of question objects, where each object has:
 1. A "question" field with the interview question
-2. A "answer" field with a suggested model answer for the interviewer
+2. A "answer" field with a suggested model answer for the interviewer (should be comprehensive)
 3. A "category" field with one of: "Technical", "Experience", "Problem Solving", or "Soft Skills"
-4. A "difficulty" field with "${difficultyLevel}"
-5. A "skillName" field with "${skill.name}"
+4. A "difficulty" field with "${effectiveDifficulty}"
+5. A "skillName" field with "${skillName}"
 
-IMPORTANT: You must generate EXACTLY ${exactCount} unique questions, no more and no less.
-
-Example:
-{"questions": [
-  {
-    "question": "Can you describe your experience with deploying applications using Docker containers?",
-    "answer": "A strong answer would demonstrate hands-on experience with Docker, including creating Dockerfiles, managing containers, using Docker Compose for multi-container applications, and understanding Docker networking and volumes. The candidate should explain specific projects where they've used Docker in production environments, challenges they faced, and how they solved them. Knowledge of Docker orchestration with Kubernetes or Docker Swarm would be a plus.",
-    "category": "Technical",
-    "difficulty": "${difficultyLevel}",
-    "skillName": "${skill.name}"
-  }
-]}`;
-
-  return prompt;
+Make sure the questions match the specified difficulty level and are appropriate for the skill.
+IMPORTANT: You must generate exactly ${batchSize} unique questions, no more and no less.`;
 };
 
-interface Question {
-  question: string;
-  answer: string;
-  category: string;
-  difficulty: string;
-  skillName: string;
+interface SkillMetadata {
+  id: string;
+  numQuestions?: number;
+  difficulty?: string;
 }
 
 export async function POST(request: Request) {
   try {
-    const { jobRole, jobDescription, skills, recordId, customInstructions } =
-      await request.json();
+    const { recordId, skillIds, skills: skillsMetadata } = await request.json();
 
-    if (!jobRole || !jobDescription || !skills) {
+    if (!recordId || !skillIds || !Array.isArray(skillIds)) {
       return NextResponse.json(
-        { error: "Job role, description, and skills are required" },
+        { success: false, error: "Record ID and skill IDs are required" },
         { status: 400 }
       );
     }
 
-    // Filter for mandatory skills
-    const mandatorySkills = skills.filter(
-      (skill: SkillWithMetadata) => skill.requirement === "MANDATORY"
-    );
+    // Create a map of skill ID to metadata if provided
+    const metadataMap = new Map<string, SkillMetadata>();
+    if (skillsMetadata && Array.isArray(skillsMetadata)) {
+      skillsMetadata.forEach((meta: SkillMetadata) => {
+        if (meta.id) {
+          metadataMap.set(meta.id, meta);
+        }
+      });
+    }
 
-    if (mandatorySkills.length === 0) {
+    // Get the skills from the database
+    const skills = await prisma.skill.findMany({
+      where: {
+        id: { in: skillIds },
+        recordId: recordId,
+      },
+    });
+
+    if (skills.length === 0) {
       return NextResponse.json(
-        { error: "No mandatory skills found" },
-        { status: 400 }
+        { success: false, error: "No valid skills found" },
+        { status: 404 }
       );
     }
 
-    // Prepare to store all generated questions
-    const allQuestions: Question[] = [];
+    const allQuestions = [];
 
-    // Get all skills for this record to map skillName to skillId
-    const dbSkills = recordId
-      ? await prisma.skill.findMany({
-          where: { recordId },
-          select: { id: true, name: true },
-        })
-      : [];
-
-    // Create a map of skill names to ids
-    const skillMap = new Map(
-      dbSkills.map((skill) => [skill.name.toLowerCase(), skill.id])
-    );
-
-    // Get existing questions for this record
-    const existingQuestions = recordId
-      ? await prisma.question.findMany({
-          where: {
-            recordId,
-            skillId: {
-              in: skillMap.keys() as any,
-            },
-          },
-          select: {
-            id: true,
-            skillId: true,
-          },
-        })
-      : [];
+    // First, check how many questions already exist for each skill
+    const existingQuestions = await prisma.question.findMany({
+      where: {
+        skillId: { in: skillIds },
+        recordId: recordId,
+      },
+      select: {
+        id: true,
+        skillId: true,
+      },
+    });
 
     // Create a map of skill IDs to existing question counts
     const existingQuestionCounts = new Map<string, number>();
@@ -126,25 +100,22 @@ export async function POST(request: Request) {
       existingQuestionCounts.set(question.skillId, currentCount + 1);
     });
 
-    // Process each mandatory skill
-    for (const skill of mandatorySkills) {
-      const skillId = skillMap.get(skill.name.toLowerCase());
+    // Generate questions for each skill in batches
+    for (const skill of skills) {
+      // Get metadata for this skill (if provided)
+      const metadata = metadataMap.get(skill.id);
 
-      if (!skillId) {
-        console.log(`No skill ID found for ${skill.name}`);
-        continue;
-      }
-
-      // Get requested questions count
-      const totalQuestionsNeeded = skill.numQuestions || 1;
+      // Determine how many questions to generate
+      const requestedQuestions =
+        metadata?.numQuestions || skill.numQuestions || 1;
 
       // Get number of existing questions
-      const existingCount = existingQuestionCounts.get(skillId) || 0;
+      const existingCount = existingQuestionCounts.get(skill.id) || 0;
 
       // Calculate how many more questions we need to generate
       const questionsToGenerate = Math.max(
         0,
-        totalQuestionsNeeded - existingCount
+        requestedQuestions - existingCount
       );
 
       // Skip if we already have enough questions
@@ -155,25 +126,32 @@ export async function POST(request: Request) {
         continue;
       }
 
+      // Get the difficulty (from metadata, skill, or based on level)
+      const difficulty = metadata?.difficulty || skill.difficulty;
+
+      // Process in batches of max 5
+      const batchSize = Math.min(5, questionsToGenerate);
+
+      // Generate the exact number of questions needed
       console.log(
         `Generating ${questionsToGenerate} questions for skill ${skill.name}`
       );
 
-      // Generate prompt for this skill with exact count needed
-      const prompt = generatePromptForSkill(
-        jobRole,
-        jobDescription,
-        skill,
+      // Generate prompt for this batch
+      const prompt = generatePrompt(
+        skill.name,
+        skill.level,
+        difficulty as any,
         questionsToGenerate
       );
 
-      // Call OpenAI API for this batch
+      // Call OpenAI API
       const chatCompletion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-4o",
         messages: [
           {
             role: "system",
-            content: `You are an expert interviewer who creates relevant interview questions based on job descriptions and specific skills. Include detailed suggested answers for each question. You MUST generate EXACTLY ${questionsToGenerate} unique questions, no more and no less.`,
+            content: `You are an expert interviewer who creates relevant interview questions for specific technical skills. Include detailed suggested answers for each question. You MUST generate EXACTLY ${questionsToGenerate} unique questions, no more and no less.`,
           },
           {
             role: "user",
@@ -184,79 +162,76 @@ export async function POST(request: Request) {
         response_format: { type: "json_object" },
       });
 
-      const questionsContent = chatCompletion.choices[0]?.message?.content;
+      const content = chatCompletion.choices[0]?.message?.content;
 
-      if (!questionsContent) {
+      if (!content) {
         console.error(
           `No response received from OpenAI for skill: ${skill.name}`
         );
-        continue; // Skip to the next batch or skill
+        continue;
       }
 
       try {
-        // Parse the JSON response
-        const parsedResponse = JSON.parse(questionsContent);
+        const parsedResponse = JSON.parse(content);
 
-        // Check if the response has the expected format
         if (
           parsedResponse.questions &&
           Array.isArray(parsedResponse.questions)
         ) {
-          const questions: Question[] = parsedResponse.questions;
+          // Ensure we only process the exact number needed
+          const questionsToProcess = parsedResponse.questions.slice(
+            0,
+            questionsToGenerate
+          );
 
-          // Add questions to our collection
-          allQuestions.push(...questions);
+          // Add the skill ID to each question
+          const questionsWithSkillId = questionsToProcess.map(
+            (question: any) => ({
+              ...question,
+              skillId: skill.id,
+            })
+          );
 
-          // If recordId is provided, save questions to the database
-          if (recordId) {
-            // For each question, create a record in the database
-            for (const question of questions) {
-              await prisma.question.create({
-                data: {
-                  content: JSON.stringify({
-                    question: question.question,
-                    answer: question.answer,
-                    category: question.category,
-                    difficulty: question.difficulty,
-                  }),
-                  skillId,
-                  recordId,
-                },
-              });
-            }
+          // Save questions to the database
+          for (const question of questionsWithSkillId) {
+            await prisma.question.create({
+              data: {
+                content: JSON.stringify({
+                  question: question.question,
+                  answer: question.answer,
+                  category: question.category,
+                  difficulty: question.difficulty,
+                }),
+                skillId: skill.id,
+                recordId: recordId,
+              },
+            });
           }
 
-          // After saving questions, update the count
+          allQuestions.push(...questionsWithSkillId);
+
+          // Update the existing question count for this skill
           existingQuestionCounts.set(
-            skillId,
-            (existingQuestionCounts.get(skillId) || 0) + questions.length
-          );
-        } else {
-          console.error(
-            `Unexpected JSON structure for skill ${skill.name}:`,
-            parsedResponse
+            skill.id,
+            (existingQuestionCounts.get(skill.id) || 0) +
+              questionsWithSkillId.length
           );
         }
       } catch (e) {
-        console.error(
-          `Error parsing or saving questions for skill ${skill.name}:`,
-          e
-        );
-        // Continue to the next batch or skill
+        console.error(`Error parsing questions for skill ${skill.name}:`, e);
       }
     }
 
     return NextResponse.json({
       success: true,
       questions: allQuestions,
-      recordId,
     });
   } catch (error: any) {
-    console.error("Error generating questions:", error);
+    console.error("Error generating skill questions:", error);
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Failed to generate questions",
+        error: error.message || "Failed to generate skill questions",
       },
       { status: 500 }
     );

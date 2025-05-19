@@ -63,6 +63,10 @@ export async function POST(
   try {
     const { id } = await params;
 
+    // Accept force parameter from request body
+    const requestBody = await request.json();
+    const forceRegenerate = requestBody.forceRegenerate === true;
+
     // Find the record with skills
     const record = await prisma.skillRecord.findUnique({
       where: { id },
@@ -115,7 +119,12 @@ export async function POST(
     for (const skill of record.skills) {
       const requestedCount = skill.numQuestions || 1;
       const existingCount = existingQuestionCounts.get(skill.id) || 0;
-      const neededCount = Math.max(0, requestedCount - existingCount);
+
+      // If forceRegenerate is true, generate the full requested count
+      // Otherwise, only generate what's needed to reach the requested count
+      const neededCount = forceRegenerate
+        ? requestedCount
+        : Math.max(0, requestedCount - existingCount);
 
       // Skip if no questions needed for this skill
       if (neededCount <= 0) {
@@ -142,7 +151,7 @@ export async function POST(
 
       // Call OpenAI API for this skill
       const chatCompletion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-4o",
         messages: [
           {
             role: "system",
@@ -176,6 +185,24 @@ export async function POST(
           Array.isArray(parsedResponse.questions)
         ) {
           const questions = parsedResponse.questions.slice(0, neededCount); // Ensure we only take what we need
+
+          // If forceRegenerate is true and we already have questions, delete the existing ones
+          if (forceRegenerate && existingCount > 0) {
+            console.log(
+              `Deleting ${existingCount} existing questions for skill ${skill.name}`
+            );
+
+            // Delete existing questions for this skill
+            await prisma.question.deleteMany({
+              where: {
+                skillId: skill.id,
+                recordId: id,
+              },
+            });
+
+            // Reset the existing count
+            existingQuestionCounts.set(skill.id, 0);
+          }
 
           // Create a map of skill names to ids (just for this skill)
           const skillId = skill.id;

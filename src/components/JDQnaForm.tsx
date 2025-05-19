@@ -29,15 +29,20 @@ import { Download } from "lucide-react";
 import PDFDoc from "./PDFDocument";
 import { pdf } from "@react-pdf/renderer";
 import { saveAs } from "file-saver";
-import { SkillsDialog } from "./ui/skills-dialog";
 import { useRouter } from "next/navigation";
 import { SkillLevel, Requirement } from "@prisma/client";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 
 // Form validation schema
 const formSchema = z.object({
   jobRole: z.string().min(1, { message: "Job role is required" }),
   customInstructions: z.string().optional(),
   jobDescriptionFile: z.instanceof(File).optional(),
+  jobDescriptionText: z.string().optional(),
+  interviewLength: z.coerce
+    .number()
+    .min(15, { message: "Minimum interview length is 15 minutes" })
+    .optional(),
 });
 
 export interface SkillWithMetadata {
@@ -46,6 +51,7 @@ export interface SkillWithMetadata {
   requirement: Requirement;
   numQuestions: number;
   difficulty?: string;
+  priority?: number;
 }
 
 type FormValues = z.infer<typeof formSchema>;
@@ -62,6 +68,7 @@ export function JDQnaForm() {
   const [skills, setSkills] = useState<SkillWithMetadata[]>([]);
   const [skillsDialogOpen, setSkillsDialogOpen] = useState(false);
   const [recordId, setRecordId] = useState<string | null>(null);
+  const [inputMethod, setInputMethod] = useState<"file" | "text">("file");
 
   const router = useRouter();
 
@@ -71,6 +78,8 @@ export function JDQnaForm() {
     defaultValues: {
       jobRole: "",
       customInstructions: "",
+      jobDescriptionText: "",
+      interviewLength: 60, // Default to 60 minutes
     },
   });
 
@@ -122,8 +131,11 @@ export function JDQnaForm() {
 
   // Extract skills from job description
   const extractSkills = async () => {
-    if (!pdfContent) {
-      alert("Please upload a job description PDF first");
+    const jobDescription =
+      inputMethod === "file" ? pdfContent : form.getValues().jobDescriptionText;
+
+    if (!jobDescription) {
+      alert("Please provide a job description first");
       return;
     }
 
@@ -136,8 +148,9 @@ export function JDQnaForm() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          jobDescription: pdfContent,
+          jobDescription: jobDescription,
           jobTitle: form.getValues().jobRole,
+          interviewLength: form.getValues().interviewLength,
         }),
       });
 
@@ -151,9 +164,11 @@ export function JDQnaForm() {
         throw new Error(data.error || "Failed to extract skills");
       }
 
-      // Instead of opening dialog, navigate directly to the record page
+      // Set the recordId and open skills dialog instead of navigating
       if (data.recordId) {
-        router.push(`/records/${data.recordId}`);
+        setRecordId(data.recordId);
+        setSkills(data.analysis.skills || []);
+        setSkillsDialogOpen(true);
       } else {
         throw new Error("No record ID was returned from the API");
       }
@@ -167,7 +182,10 @@ export function JDQnaForm() {
 
   // Generate questions based on selected skills
   const generateQuestions = async () => {
-    if (!pdfContent || skills.length === 0) {
+    const jobDescription =
+      inputMethod === "file" ? pdfContent : form.getValues().jobDescriptionText;
+
+    if (!jobDescription || skills.length === 0) {
       alert("Please extract skills first");
       return;
     }
@@ -175,10 +193,22 @@ export function JDQnaForm() {
     setLoading(true);
 
     try {
+      // Assign priorities to skills based on requirement and user's ordering
+      const prioritizedSkills = [...skills].map((skill, index) => ({
+        ...skill,
+        priority: index + 1, // Default priority based on current order
+      }));
+
       // Filter mandatory skills for question generation
-      const mandatorySkills = skills
+      const mandatorySkills = prioritizedSkills
         .filter((skill) => skill.requirement === "MANDATORY")
         .map((skill) => skill.name);
+
+      // Calculate total questions based on interview length
+      const interviewLength = form.getValues().interviewLength || 60;
+      const totalAvailableTime = interviewLength - 10; // Reserve 10 min for intro/wrap-up
+      const avgTimePerQuestion = 4; // Average 4 minutes per question
+      const maxQuestions = Math.floor(totalAvailableTime / avgTimePerQuestion);
 
       // Include all skills in the request for reference
       const response = await fetch("/api/generate-questions", {
@@ -188,14 +218,16 @@ export function JDQnaForm() {
         },
         body: JSON.stringify({
           jobRole: form.getValues().jobRole,
-          jobDescription: pdfContent,
-          skills: skills,
+          jobDescription: jobDescription,
+          skills: prioritizedSkills,
           recordId: recordId,
+          interviewLength: interviewLength,
+          maxQuestions: maxQuestions,
           customInstructions: `Focus on these specific skills: ${mandatorySkills.join(
             ", "
-          )}. Consider the skill level (Beginner/Intermediate/Professional) when generating questions. ${
-            form.getValues().customInstructions || ""
-          }`,
+          )}. Consider the skill level (Beginner/Intermediate/Professional) when generating questions. 
+          Generate up to ${maxQuestions} questions in total, prioritizing mandatory skills. 
+          ${form.getValues().customInstructions || ""}`,
         }),
       });
 
@@ -278,8 +310,8 @@ export function JDQnaForm() {
         <CardHeader>
           <CardTitle>Job Description Details</CardTitle>
           <CardDescription>
-            Upload a job description PDF and provide details to extract skills
-            and generate interview questions.
+            Upload a job description PDF or paste text to extract skills and
+            generate interview questions.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -294,6 +326,26 @@ export function JDQnaForm() {
                     <FormControl>
                       <Input
                         placeholder="e.g. Senior Frontend Developer"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="interviewLength"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Interview Length (minutes)</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        min="15"
+                        max="240"
+                        placeholder="60"
                         {...field}
                       />
                     </FormControl>
@@ -319,50 +371,98 @@ export function JDQnaForm() {
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name="jobDescriptionFile"
-                render={({ field: { value, onChange, ...fieldProps } }) => (
-                  <FormItem>
-                    <FormLabel>Job Description PDF</FormLabel>
-                    <FormControl>
-                      <FileInput
-                        accept=".pdf"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            onChange(file);
-                          }
-                        }}
-                        {...fieldProps}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className="space-y-4">
+                <Tabs
+                  defaultValue="file"
+                  onValueChange={(value) =>
+                    setInputMethod(value as "file" | "text")
+                  }
+                >
+                  <TabsList className="grid grid-cols-2">
+                    <TabsTrigger value="file">Upload File</TabsTrigger>
+                    <TabsTrigger value="text">
+                      Paste Job Description
+                    </TabsTrigger>
+                  </TabsList>
 
-              {uploading && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Spinner size="sm" />
-                  <span>Uploading and processing file...</span>
-                </div>
-              )}
+                  <TabsContent value="file">
+                    <FormField
+                      control={form.control}
+                      name="jobDescriptionFile"
+                      render={({
+                        field: { value, onChange, ...fieldProps },
+                      }) => (
+                        <FormItem>
+                          <FormLabel>Job Description PDF</FormLabel>
+                          <FormControl>
+                            <FileInput
+                              accept=".pdf"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  onChange(file);
+                                }
+                              }}
+                              {...fieldProps}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-              {fileName && !uploading && pdfContent && (
-                <div className="border rounded-lg p-4">
-                  <h3 className="font-medium mb-2">Uploaded PDF</h3>
-                  <p className="text-sm text-muted-foreground">{fileName}</p>
-                  <div className="mt-2 text-sm text-green-600">
-                    <p>✓ PDF content extracted successfully!</p>
-                  </div>
-                </div>
-              )}
+                    {uploading && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Spinner size="sm" />
+                        <span>Uploading and processing file...</span>
+                      </div>
+                    )}
+
+                    {fileName && !uploading && pdfContent && (
+                      <div className="border rounded-lg p-4">
+                        <h3 className="font-medium mb-2">Uploaded PDF</h3>
+                        <p className="text-sm text-muted-foreground">
+                          {fileName}
+                        </p>
+                        <div className="mt-2 text-sm text-green-600">
+                          <p>✓ PDF content extracted successfully!</p>
+                        </div>
+                      </div>
+                    )}
+                  </TabsContent>
+
+                  <TabsContent value="text">
+                    <FormField
+                      control={form.control}
+                      name="jobDescriptionText"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Paste Job Description</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              value={field.value || ""}
+                              onChange={field.onChange}
+                              placeholder="Paste your job description here..."
+                              className="min-h-64 resize-y"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </TabsContent>
+                </Tabs>
+              </div>
 
               <div className="flex justify-end">
                 <Button
                   type="submit"
-                  disabled={extractingSkills || uploading || !pdfContent}
+                  disabled={
+                    extractingSkills ||
+                    (inputMethod === "file"
+                      ? uploading || !pdfContent
+                      : !form.getValues().jobDescriptionText)
+                  }
                 >
                   {extractingSkills ? (
                     <>

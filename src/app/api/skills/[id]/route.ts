@@ -10,7 +10,7 @@ export async function PATCH(
     const { id } = await params;
     const body = await request.json();
 
-    const { level, requirement, numQuestions, difficulty } = body;
+    const { level, requirement, numQuestions, difficulty, priority } = body;
 
     // Validate inputs
     if (!id) {
@@ -20,7 +20,13 @@ export async function PATCH(
       );
     }
 
-    if (!level && !requirement && numQuestions === undefined && !difficulty) {
+    if (
+      !level &&
+      !requirement &&
+      numQuestions === undefined &&
+      !difficulty &&
+      priority === undefined
+    ) {
       return NextResponse.json(
         {
           success: false,
@@ -36,6 +42,7 @@ export async function PATCH(
       requirement?: Requirement;
       numQuestions?: number;
       difficulty?: string;
+      priority?: number;
     } = {};
 
     if (level) {
@@ -84,6 +91,18 @@ export async function PATCH(
       updateData.difficulty = difficulty;
     }
 
+    if (priority !== undefined) {
+      // Validate priority
+      const priorityValue = Number(priority);
+      if (isNaN(priorityValue) || priorityValue < 1) {
+        return NextResponse.json(
+          { success: false, error: "Priority must be a positive number" },
+          { status: 400 }
+        );
+      }
+      updateData.priority = priorityValue;
+    }
+
     // Update skill
     const updatedSkill = await prisma.skill.update({
       where: { id },
@@ -107,6 +126,59 @@ export async function PATCH(
 
     return NextResponse.json(
       { success: false, error: error.message || "Failed to update skill" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+
+    // Validate inputs
+    if (!id) {
+      return NextResponse.json(
+        { success: false, error: "Skill ID is required" },
+        { status: 400 }
+      );
+    }
+
+    // First, delete all associated questions
+    await prisma.question.deleteMany({
+      where: { skillId: id },
+    });
+
+    // Then, delete all associated feedback
+    await prisma.feedback.deleteMany({
+      where: { skillId: id },
+    });
+
+    // Finally, delete the skill itself
+    const deletedSkill = await prisma.skill.delete({
+      where: { id },
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: "Skill and associated data deleted successfully",
+      skill: deletedSkill,
+    });
+  } catch (error: any) {
+    console.error("Error deleting skill:", error);
+
+    // Check for Prisma errors
+    if (error.code === "P2025") {
+      return NextResponse.json(
+        { success: false, error: "Skill not found" },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json(
+      { success: false, error: error.message || "Failed to delete skill" },
       { status: 500 }
     );
   }

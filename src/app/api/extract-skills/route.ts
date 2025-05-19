@@ -80,6 +80,7 @@ export interface SkillWithMetadata {
   requirement: Requirement;
   numQuestions: number;
   difficulty?: string;
+  priority?: number;
 }
 
 export interface JobAnalysis {
@@ -96,7 +97,11 @@ export interface JobAnalysis {
 
 export async function POST(request: Request) {
   try {
-    const { jobDescription, jobTitle: providedJobTitle } = await request.json();
+    const {
+      jobDescription,
+      jobTitle: providedJobTitle,
+      interviewLength,
+    } = await request.json();
 
     if (!jobDescription) {
       return NextResponse.json(
@@ -109,7 +114,7 @@ export async function POST(request: Request) {
 
     // Call OpenAI API
     const chatCompletion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-4o",
       messages: [
         {
           role: "system",
@@ -145,25 +150,40 @@ export async function POST(request: Request) {
 
         // If jobTitle is provided, create a record in the database
         if (jobTitle) {
-          // Only store data that matches the existing schema
+          // Store data with the new fields
           skillRecord = await prisma.skillRecord.create({
             data: {
               jobTitle,
-              // Don't include other fields if they don't exist in your schema
+              interviewLength: interviewLength || 60, // Default to 60 minutes if not provided
+              rawJobDescription: jobDescription, // Store the raw job description
             },
           });
 
-          // Create skills with metadata
+          // Create skills with metadata and priorities
           if (skillRecord) {
+            // Sort mandatory skills first, then optional
+            const sortedSkills = [
+              ...parsedResponse.skills.filter(
+                (skill) => skill.requirement === "MANDATORY"
+              ),
+              ...parsedResponse.skills.filter(
+                (skill) => skill.requirement === "OPTIONAL"
+              ),
+            ];
+
+            // Add priority based on order
             await prisma.skill.createMany({
-              data: parsedResponse.skills.map((skill: SkillWithMetadata) => ({
-                name: skill.name,
-                level: skill.level,
-                requirement: skill.requirement,
-                numQuestions: 1, // Default to 1 question
-                difficulty: "Medium", // Default to Medium difficulty
-                recordId: skillRecord.id,
-              })),
+              data: sortedSkills.map(
+                (skill: SkillWithMetadata, index: number) => ({
+                  name: skill.name,
+                  level: skill.level,
+                  requirement: skill.requirement,
+                  numQuestions: 1, // Default to 1 question
+                  difficulty: "Medium", // Default to Medium difficulty
+                  recordId: skillRecord.id,
+                  priority: index + 1, // Priority based on sorted order
+                })
+              ),
             });
           }
         }

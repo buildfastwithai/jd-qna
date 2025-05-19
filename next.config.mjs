@@ -1,9 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    outputFileTracingIncludes: {
-      "/": ["./node_modules/argon2/prebuilds/*/*.node"],
-    },
+  outputFileTracingIncludes: {
+    "/": ["./node_modules/argon2/prebuilds/*/*.node"],
   },
   async headers() {
     return [

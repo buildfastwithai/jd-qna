@@ -1,36 +1,85 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# JD QnA
+
+A Next.js application for processing and analyzing documents with AI-powered Q&A capabilities.
+
+## Features
+
+- PDF document processing and analysis
+- AI-powered question answering
+- Document AI integration
+- Modern UI with Radix UI components
+- TypeScript support
+- Tailwind CSS styling
+
+## Prerequisites
+
+- Node.js (Latest LTS version recommended)
+- npm or yarn
+- AWS S3 credentials (for file storage)
+- Google Cloud Document AI credentials
+- OpenAI API key
 
 ## Getting Started
 
-First, run the development server:
+1. Clone the repository:
+
+```bash
+git clone [repository-url]
+cd jd-qna
+```
+
+2. Install dependencies:
+
+```bash
+npm install
+# or
+yarn install
+```
+
+3. Set up environment variables:
+   Create a `.env` file in the root directory with the following variables:
+
+```env
+# Add your environment variables here
+# AWS_S3_ACCESS_KEY=
+# AWS_S3_SECRET_KEY=
+# GOOGLE_CLOUD_CREDENTIALS=
+# OPENAI_API_KEY=
+```
+
+4. Run the development server:
 
 ```bash
 npm run dev
 # or
 yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the application.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Tech Stack
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- **Framework**: Next.js 15
+- **Language**: TypeScript
+- **UI Components**: Radix UI
+- **Styling**: Tailwind CSS
+- **Database**: Prisma
+- **AI/ML**:
+  - OpenAI
+  - Google Cloud Document AI
+  - LangChain
+- **File Processing**:
+  - PDF.js
+  - Adobe PDF Services
+  - React PDF
 
-## Learn More
+## Development
 
-To learn more about Next.js, take a look at the following resources:
+- `npm run dev` - Start development server with Turbopack
+- `npm run build` - Build for production
+- `npm run start` - Start production server
+- `npm run lint` - Run ESLint
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## License
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+[Add your license information here]

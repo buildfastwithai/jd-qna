@@ -4,7 +4,14 @@ import { useState, useEffect, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import { pdf } from "@react-pdf/renderer";
 import { saveAs } from "file-saver";
-import { Download, RefreshCw, ArrowLeft, Info } from "lucide-react";
+import {
+  Download,
+  RefreshCw,
+  ArrowLeft,
+  Info,
+  Trash2,
+  GripVertical,
+} from "lucide-react";
 import PDFDoc from "./PDFDocument";
 import { Question as PDFQuestion } from "./ui/questions-display";
 import { toast } from "sonner";
@@ -46,6 +53,18 @@ import { SkillFeedbackDialog } from "./ui/skill-feedback-dialog";
 import { SkillFeedbackList } from "./ui/skill-feedback-list";
 import { SkillFeedbackViewDialog } from "./ui/skill-feedback-view-dialog";
 import { QuestionDialog } from "./ui/question-dialog";
+import { Badge } from "./ui/badge";
+import { Separator } from "./ui/separator";
+import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "./ui/dialog";
+import SkillsTable from "./SkillsTable";
 
 // Define interfaces for the types from Prisma
 interface Skill {
@@ -56,6 +75,7 @@ interface Skill {
   numQuestions: number;
   difficulty?: string;
   recordId: string;
+  priority?: number;
 }
 
 interface Question {
@@ -65,6 +85,7 @@ interface Question {
   recordId: string;
   liked?: "LIKED" | "DISLIKED" | "NONE";
   skill?: Skill;
+  feedback?: string;
 }
 
 interface SkillRecord {
@@ -90,6 +111,7 @@ interface QuestionData {
   category: string;
   difficulty: string;
   liked?: "LIKED" | "DISLIKED" | "NONE";
+  feedback?: string;
 }
 
 interface SkillRecordEditorProps {
@@ -114,6 +136,12 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
   const [skillFeedbackCounts, setSkillFeedbackCounts] = useState<
     Record<string, number>
   >({});
+  const [skillBeingDeleted, setSkillBeingDeleted] = useState<string | null>(
+    null
+  );
+  const [deleteSkillDialogOpen, setDeleteSkillDialogOpen] = useState(false);
+  const [deletingSkill, setDeletingSkill] = useState(false);
+  const [priorityMode, setPriorityMode] = useState(false);
 
   // Parse question content from JSON string
   function formatQuestions(questions: Question[]): QuestionData[] {
@@ -129,6 +157,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
             category: content.category,
             difficulty: content.difficulty,
             liked: q.liked || "NONE",
+            feedback: q.feedback || "",
           };
         } catch (e) {
           console.error("Error parsing question content:", e);
@@ -141,7 +170,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
   // Update skill level and requirement
   const updateSkill = async (
     skillId: string,
-    field: "level" | "requirement" | "numQuestions" | "difficulty",
+    field: "level" | "requirement" | "numQuestions" | "difficulty" | "priority",
     value: string | number
   ) => {
     try {
@@ -247,10 +276,15 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
   };
 
   // Generate questions using the API endpoint for the record
-  const generateQuestionsForRecord = async () => {
+  const generateQuestionsForRecord = async (force = false) => {
     try {
       setGeneratingQuestions(true);
-      toast.loading("Generating questions for all mandatory skills...");
+
+      const actionText = force
+        ? "Regenerating questions for all mandatory skills..."
+        : "Generating questions for all mandatory skills...";
+
+      toast.loading(actionText);
 
       const response = await fetch(
         `/api/records/${record.id}/generate-questions`,
@@ -259,6 +293,9 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
           headers: {
             "Content-Type": "application/json",
           },
+          body: JSON.stringify({
+            forceRegenerate: force,
+          }),
         }
       );
 
@@ -285,6 +322,18 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
       toast.error(error.message || "Error generating questions");
     } finally {
       setGeneratingQuestions(false);
+    }
+  };
+
+  // Force regenerate all questions for the record
+  const regenerateAllQuestions = () => {
+    // Show confirmation dialog
+    if (
+      confirm(
+        "This will regenerate ALL questions for mandatory skills. Are you sure?"
+      )
+    ) {
+      generateQuestionsForRecord(true);
     }
   };
 
@@ -490,6 +539,97 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
       });
   };
 
+  // Handle feedback submitted for a question
+  const handleQuestionFeedbackChange = (
+    questionId: string,
+    feedback: string
+  ) => {
+    // Update locally first
+    setQuestions((prevQuestions) =>
+      prevQuestions.map((q) => (q.id === questionId ? { ...q, feedback } : q))
+    );
+
+    // Update in database
+    fetch(`/api/questions/${questionId}/feedback`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ feedback }),
+    })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error("Failed to update question feedback");
+        }
+        return response.json();
+      })
+      .then(() => {
+        // Success - already updated UI optimistically
+      })
+      .catch((error) => {
+        console.error("Error updating question feedback:", error);
+        toast.error("Failed to update question feedback");
+        // Revert the change in case of error
+        setQuestions((prevQuestions) => [...prevQuestions]);
+      });
+  };
+
+  // Handle regenerating a question
+  const handleRegenerateQuestion = async (
+    questionId: string
+  ): Promise<void> => {
+    try {
+      const response = await fetch(`/api/questions/${questionId}/regenerate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to regenerate question");
+      }
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Parse the new content
+        const newContent = data.question.newContent;
+
+        // Update the question locally
+        setQuestions((prevQuestions) =>
+          prevQuestions.map((q) =>
+            q.id === questionId
+              ? {
+                  ...q,
+                  question: newContent.question,
+                  answer: newContent.answer,
+                  category: newContent.category,
+                  difficulty: newContent.difficulty,
+                  liked: "NONE",
+                  feedback: "",
+                }
+              : q
+          )
+        );
+
+        // Force re-render by triggering a state update
+        setQuestionsLoading(true);
+        setQuestionsLoading(false);
+
+        toast.success("Question regenerated successfully");
+
+        // Update the questions list with the latest data to ensure everything is in sync
+        fetchLatestQuestions();
+      } else {
+        throw new Error(data.error || "Failed to regenerate question");
+      }
+    } catch (error) {
+      console.error("Error regenerating question:", error);
+      toast.error("Failed to regenerate question");
+    }
+  };
+
   // Get number of liked/disliked questions for a skill
   const getSkillLikeStats = (skillId: string) => {
     const skillQuestions = questions.filter((q) => q.skillId === skillId);
@@ -537,8 +677,165 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
     fetchFeedbackCounts();
   }, [editedSkills, feedbackRefreshTrigger]);
 
+  // Add a function to handle skill deletion
+  const handleDeleteSkill = async (skillId: string) => {
+    try {
+      setDeletingSkill(true);
+
+      const response = await fetch(`/api/skills/${skillId}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to delete skill");
+      }
+
+      toast.success("Skill deleted successfully");
+
+      // Update local state to remove the deleted skill
+      setEditedSkills(editedSkills.filter((skill) => skill.id !== skillId));
+
+      // Remove related questions
+      setQuestions(
+        questions.filter((question) => question.skillId !== skillId)
+      );
+
+      // Close dialog
+      setDeleteSkillDialogOpen(false);
+
+      // Refresh the page to get updated data
+      router.refresh();
+    } catch (error) {
+      console.error("Error deleting skill:", error);
+      toast.error("Failed to delete skill. Please try again.");
+    } finally {
+      setDeletingSkill(false);
+    }
+  };
+
+  // Add an onDragEnd function for drag and drop
+  const onDragEnd = async (result: any) => {
+    if (!result.destination) return;
+
+    const startIndex = result.source.index;
+    const endIndex = result.destination.index;
+
+    if (startIndex === endIndex) return;
+
+    // Determine if we're working with mandatory or optional skills
+    const droppableId = result.source.droppableId;
+    const isMandatory = droppableId === "mandatory-skills";
+
+    // Get the correct list
+    const skills = isMandatory
+      ? editedSkills.filter((s) => s.requirement === "MANDATORY")
+      : editedSkills.filter((s) => s.requirement === "OPTIONAL");
+
+    // Reorder the list
+    const [movedSkill] = skills.splice(startIndex, 1);
+    skills.splice(endIndex, 0, movedSkill);
+
+    // Update priorities for the reordered list
+    const updatedSkills = skills.map((skill, index) => ({
+      ...skill,
+      priority: index + 1,
+    }));
+
+    // Combine with the skills from the other group
+    const otherSkills = editedSkills.filter((s) =>
+      isMandatory ? s.requirement !== "MANDATORY" : s.requirement !== "OPTIONAL"
+    );
+
+    // Create the new combined list
+    const newSkills = [...updatedSkills, ...otherSkills];
+
+    // Update local state
+    setEditedSkills(newSkills);
+
+    // Update in database
+    try {
+      setLoading(true);
+
+      // Update each skill's priority
+      for (const skill of updatedSkills) {
+        await fetch(`/api/skills/${skill.id}`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ priority: skill.priority }),
+        });
+      }
+
+      toast.success("Skill priorities updated");
+    } catch (error) {
+      console.error("Error updating skill priorities:", error);
+      toast.error("Failed to update skill priorities");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Create separate lists for mandatory and optional skills
+  const mandatorySkills = editedSkills
+    .filter((skill) => skill.requirement === "MANDATORY")
+    .sort((a, b) => (a.priority || 999) - (b.priority || 999));
+
+  const optionalSkills = editedSkills
+    .filter((skill) => skill.requirement === "OPTIONAL")
+    .sort((a, b) => (a.priority || 999) - (b.priority || 999));
+
+  // Add regenerate all disliked questions function
+  const regenerateAllDislikedQuestions = async () => {
+    try {
+      // Find all disliked questions
+      const dislikedQuestions = questions.filter((q) => q.liked === "DISLIKED");
+
+      if (dislikedQuestions.length === 0) {
+        toast.info("No disliked questions to regenerate");
+        return;
+      }
+
+      setQuestionsLoading(true);
+      toast.loading(
+        `Regenerating ${dislikedQuestions.length} disliked questions...`
+      );
+
+      // First ensure all feedback is saved to the database
+      for (const question of dislikedQuestions) {
+        if (question.feedback && question.id) {
+          // Submit any feedback that might not be saved yet
+          await fetch(`/api/questions/${question.id}/feedback`, {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ feedback: question.feedback }),
+          });
+        }
+      }
+
+      // Process each disliked question sequentially
+      for (const question of dislikedQuestions) {
+        await handleRegenerateQuestion(question.id);
+      }
+
+      toast.success("All disliked questions have been regenerated");
+    } catch (error) {
+      console.error("Error regenerating questions:", error);
+      toast.error("Failed to regenerate all questions");
+    } finally {
+      setQuestionsLoading(false);
+    }
+  };
+
+  // Add function to check if there are any disliked questions
+  const hasDislikedQuestions = () => {
+    return questions.some((q) => q.liked === "DISLIKED");
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full overflow-hidden">
       <div className="flex items-center justify-between">
         <div>
           <Button
@@ -591,278 +888,274 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
         </TabsList>
 
         <TabsContent value="skills" className="pt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Skills Management</CardTitle>
-              <CardDescription>
-                Edit skill levels and requirements. Mark skills as mandatory to
-                include them in interview questions.
-              </CardDescription>
+          <Card className="w-full overflow-hidden">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Skills Management</CardTitle>
+                <CardDescription>
+                  Edit skill levels, requirements, and priorities. Mark skills
+                  as mandatory to include them in interview questions.
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant={priorityMode ? "secondary" : "outline"}
+                  onClick={() => setPriorityMode(!priorityMode)}
+                >
+                  {priorityMode ? "Exit Priority Mode" : "Prioritize Skills"}
+                </Button>
+              </div>
             </CardHeader>
+
             <CardContent>
               {editedSkills.length === 0 ? (
                 <p className="text-muted-foreground">
                   No skills found for this job.
                 </p>
-              ) : (
-                <div
-                  className="rounded-md border relative overflow-x-auto"
-                  style={{ width: "100%" }}
-                >
-                  <Table className="w-full table-fixed">
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-[30%]">Skill Name</TableHead>
-                        <TableHead className="w-[15%]">Level</TableHead>
-                        <TableHead className="w-[15%]">Requirement</TableHead>
-                        <TableHead className="w-[15%]">Questions</TableHead>
-                        <TableHead className="w-[10%]">Num. of Qs</TableHead>
-                        <TableHead className="w-[15%]">Difficulty</TableHead>
-                        <TableHead className="w-[15%]">Like Stats</TableHead>
-                        <TableHead className="w-[10%]">Feedback</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {editedSkills.map((skill) => {
-                        const likeStats = getSkillLikeStats(skill.id);
-                        return (
-                          <Fragment key={skill.id}>
-                            <TableRow>
-                              <TableCell className="font-medium">
-                                {skill.name}
-                              </TableCell>
-                              <TableCell>
-                                <Select
-                                  value={skill.level}
-                                  onValueChange={(value) =>
-                                    updateSkill(skill.id, "level", value)
-                                  }
-                                  disabled={loading}
-                                >
-                                  <SelectTrigger
-                                    className="w-full"
-                                    aria-label={`Select level for ${skill.name}`}
-                                  >
-                                    <SelectValue placeholder="Select level" />
-                                  </SelectTrigger>
-                                  <SelectContent className="min-w-[160px] z-[100]">
-                                    <SelectItem value="BEGINNER">
-                                      Beginner
-                                    </SelectItem>
-                                    <SelectItem value="INTERMEDIATE">
-                                      Intermediate
-                                    </SelectItem>
-                                    <SelectItem value="PROFESSIONAL">
-                                      Professional
-                                    </SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </TableCell>
-                              <TableCell>
-                                <Select
-                                  value={skill.requirement}
-                                  onValueChange={(value) =>
-                                    updateSkill(skill.id, "requirement", value)
-                                  }
-                                  disabled={loading}
-                                >
-                                  <SelectTrigger
-                                    className="w-full"
-                                    aria-label={`Select requirement for ${skill.name}`}
-                                  >
-                                    <SelectValue placeholder="Requirement" />
-                                  </SelectTrigger>
-                                  <SelectContent className="min-w-[160px] z-[100]">
-                                    <SelectItem value="MANDATORY">
-                                      Mandatory
-                                    </SelectItem>
-                                    <SelectItem value="OPTIONAL">
-                                      Optional
-                                    </SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex items-center gap-2">
-                                  <span>{getSkillQuestionCount(skill.id)}</span>
-                                  {getSkillQuestionCount(skill.id) > 0 && (
-                                    <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full">
-                                      Generated
-                                    </span>
-                                  )}
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                <Select
-                                  defaultValue={String(
-                                    getSkillNumQuestions(skill.id)
-                                  )}
-                                  onValueChange={(value) =>
-                                    updateSkill(
-                                      skill.id,
-                                      "numQuestions",
-                                      parseInt(value)
-                                    )
-                                  }
-                                  disabled={loading}
-                                >
-                                  <SelectTrigger
-                                    className="w-20"
-                                    aria-label={`Select number of questions for ${skill.name}`}
-                                  >
-                                    <SelectValue placeholder="Count" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {[1, 2, 3, 4, 5].map((num) => (
-                                      <SelectItem key={num} value={String(num)}>
-                                        {num}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </TableCell>
-                              <TableCell>
-                                <Select
-                                  value={skill.difficulty || "Medium"}
-                                  onValueChange={(value) =>
-                                    updateSkill(skill.id, "difficulty", value)
-                                  }
-                                  disabled={loading}
-                                >
-                                  <SelectTrigger
-                                    className="w-28"
-                                    aria-label={`Select difficulty for ${skill.name}`}
-                                  >
-                                    <SelectValue placeholder="Difficulty" />
-                                  </SelectTrigger>
-                                  <SelectContent className="min-w-[160px] z-[100]">
-                                    <SelectItem value="Easy">Easy</SelectItem>
-                                    <SelectItem value="Medium">
-                                      Medium
-                                    </SelectItem>
-                                    <SelectItem value="Hard">Hard</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex items-center gap-2">
-                                  {getSkillQuestionCount(skill.id) > 0 ? (
-                                    <>
-                                      <TooltipProvider>
-                                        <Tooltip>
-                                          <TooltipTrigger asChild>
-                                            <div className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-medium">
-                                              👍 {likeStats.liked}
-                                            </div>
-                                          </TooltipTrigger>
-                                          <TooltipContent>
-                                            {likeStats.liked} questions marked
-                                            as helpful
-                                          </TooltipContent>
-                                        </Tooltip>
-                                      </TooltipProvider>
+              ) : priorityMode ? (
+                // Drag and drop priority mode
+                <DragDropContext onDragEnd={onDragEnd}>
+                  <div className="space-y-6">
+                    {mandatorySkills.length > 0 && (
+                      <div>
+                        <div className="flex items-center gap-2 mb-4">
+                          <Badge variant="default">Mandatory Skills</Badge>
+                          <span className="text-xs text-muted-foreground">
+                            Drag to reorder - these skills will be prioritized
+                            in question generation
+                          </span>
+                        </div>
 
-                                      <TooltipProvider>
-                                        <Tooltip>
-                                          <TooltipTrigger asChild>
-                                            <div className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-medium">
-                                              👎 {likeStats.disliked}
-                                            </div>
-                                          </TooltipTrigger>
-                                          <TooltipContent>
-                                            {likeStats.disliked} questions
-                                            marked as not helpful
-                                          </TooltipContent>
-                                        </Tooltip>
-                                      </TooltipProvider>
-                                    </>
-                                  ) : (
-                                    <span className="text-xs text-gray-500">
-                                      No questions generated yet
-                                    </span>
+                        <Droppable droppableId="mandatory-skills">
+                          {(provided) => (
+                            <div
+                              {...provided.droppableProps}
+                              ref={provided.innerRef}
+                              className="space-y-2"
+                            >
+                              {mandatorySkills.map((skill, index) => (
+                                <Draggable
+                                  key={skill.id}
+                                  draggableId={skill.id}
+                                  index={index}
+                                >
+                                  {(provided) => (
+                                    <div
+                                      ref={provided.innerRef}
+                                      {...provided.draggableProps}
+                                      className="flex items-center p-3 border rounded-md bg-muted/20"
+                                    >
+                                      <div
+                                        {...provided.dragHandleProps}
+                                        className="cursor-grab mr-2"
+                                      >
+                                        <GripVertical className="h-5 w-5 text-muted-foreground" />
+                                      </div>
+
+                                      <div className="flex-1 min-w-0">
+                                        <div className="font-medium overflow-hidden break-words">
+                                          {skill.name}
+                                        </div>
+                                        <div className="text-sm text-muted-foreground flex items-center gap-2">
+                                          <span>
+                                            Level: {getLevelLabel(skill.level)}
+                                          </span>
+                                          <span>•</span>
+                                          <span>
+                                            Priority:{" "}
+                                            {skill.priority || index + 1}
+                                          </span>
+                                          <span>•</span>
+                                          <span>
+                                            Questions:{" "}
+                                            {getSkillNumQuestions(skill.id)}
+                                          </span>
+                                        </div>
+                                      </div>
+
+                                      <div className="ml-2">
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          onClick={() => {
+                                            setSkillBeingDeleted(skill.id);
+                                            setDeleteSkillDialogOpen(true);
+                                          }}
+                                        >
+                                          <Trash2 className="h-4 w-4 text-destructive" />
+                                        </Button>
+                                      </div>
+                                    </div>
                                   )}
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex items-center gap-2">
-                                  {getSkillQuestionCount(skill.id) > 0 && (
-                                    <SkillFeedbackDialog
-                                      skillId={skill.id}
-                                      skillName={skill.name}
-                                      onFeedbackSubmitted={
-                                        handleFeedbackSubmitted
-                                      }
-                                    />
+                                </Draggable>
+                              ))}
+                              {provided.placeholder}
+                            </div>
+                          )}
+                        </Droppable>
+                      </div>
+                    )}
+
+                    {mandatorySkills.length > 0 &&
+                      optionalSkills.length > 0 && (
+                        <Separator className="my-6" />
+                      )}
+
+                    {optionalSkills.length > 0 && (
+                      <div>
+                        <div className="flex items-center gap-2 mb-4">
+                          <Badge variant="outline">Optional Skills</Badge>
+                          <span className="text-xs text-muted-foreground">
+                            These skills will be used if time permits
+                          </span>
+                        </div>
+
+                        <Droppable droppableId="optional-skills">
+                          {(provided) => (
+                            <div
+                              {...provided.droppableProps}
+                              ref={provided.innerRef}
+                              className="space-y-2"
+                            >
+                              {optionalSkills.map((skill, index) => (
+                                <Draggable
+                                  key={skill.id}
+                                  draggableId={skill.id}
+                                  index={index}
+                                >
+                                  {(provided) => (
+                                    <div
+                                      ref={provided.innerRef}
+                                      {...provided.draggableProps}
+                                      className="flex items-center p-3 border rounded-md"
+                                    >
+                                      <div
+                                        {...provided.dragHandleProps}
+                                        className="cursor-grab mr-2"
+                                      >
+                                        <GripVertical className="h-5 w-5 text-muted-foreground" />
+                                      </div>
+
+                                      <div className="flex-1 min-w-0">
+                                        <div className="font-medium overflow-hidden break-words">
+                                          {skill.name}
+                                        </div>
+                                        <div className="text-sm text-muted-foreground flex items-center gap-2">
+                                          <span>
+                                            Level: {getLevelLabel(skill.level)}
+                                          </span>
+                                          <span>•</span>
+                                          <span>
+                                            Priority:{" "}
+                                            {skill.priority || index + 1}
+                                          </span>
+                                          <span>•</span>
+                                          <span>
+                                            Questions:{" "}
+                                            {getSkillNumQuestions(skill.id)}
+                                          </span>
+                                        </div>
+                                      </div>
+
+                                      <div className="ml-2">
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          onClick={() => {
+                                            setSkillBeingDeleted(skill.id);
+                                            setDeleteSkillDialogOpen(true);
+                                          }}
+                                        >
+                                          <Trash2 className="h-4 w-4 text-destructive" />
+                                        </Button>
+                                      </div>
+                                    </div>
                                   )}
-                                  {(skillFeedbackCounts[skill.id] || 0) > 0 && (
-                                    <SkillFeedbackViewDialog
-                                      skillId={skill.id}
-                                      skillName={skill.name}
-                                      feedbackCount={
-                                        skillFeedbackCounts[skill.id] || 0
-                                      }
-                                      refreshTrigger={feedbackRefreshTrigger}
-                                    />
-                                  )}
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                            {activeSkillFeedback === skill.id && (
-                              <TableRow>
-                                <TableCell colSpan={8} className="bg-gray-50">
-                                  <SkillFeedbackList
-                                    skillId={skill.id}
-                                    skillName={skill.name}
-                                    refreshTrigger={feedbackRefreshTrigger}
-                                  />
-                                </TableCell>
-                              </TableRow>
-                            )}
-                          </Fragment>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
+                                </Draggable>
+                              ))}
+                              {provided.placeholder}
+                            </div>
+                          )}
+                        </Droppable>
+                      </div>
+                    )}
+                  </div>
+                </DragDropContext>
+              ) : (
+                // TanStack table implementation
+                <SkillsTable
+                  skills={editedSkills}
+                  onUpdateSkill={updateSkill}
+                  getSkillQuestionCount={getSkillQuestionCount}
+                  onDeleteSkill={(skillId) => {
+                    setSkillBeingDeleted(skillId);
+                    setDeleteSkillDialogOpen(true);
+                  }}
+                  loading={loading}
+                />
               )}
             </CardContent>
+
             <CardFooter className="flex justify-between">
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      onClick={generateQuestionsForRecord}
-                      disabled={generatingQuestions}
-                    >
-                      {generatingQuestions ? (
-                        <>
-                          <Spinner size="sm" className="mr-2" />
-                          Generating Questions...
-                        </>
-                      ) : (
-                        <>
-                          <RefreshCw className="mr-2 h-4 w-4" />
-                          Generate Questions for Mandatory Skills
-                        </>
-                      )}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-sm">
-                    <p>
-                      Questions are generated in batches of 5 at a time to
-                      reduce latency. Each skill will get the number of
-                      questions specified in the "Num. of Qs" column.
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-              <Button
-                variant="outline"
-                onClick={() => setActiveTab("questions")}
-                disabled={questions.length === 0}
-              >
-                View Questions
-              </Button>
+              <div>
+                <Button
+                  onClick={() => setPriorityMode(!priorityMode)}
+                  variant="outline"
+                >
+                  {priorityMode ? "Table View" : "Priority View"}
+                </Button>
+              </div>
+              <div className="flex items-center gap-2">
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        className="rounded-full h-8 w-8"
+                      >
+                        <Info className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-sm">
+                      <p>
+                        Questions are generated for mandatory skills. Select
+                        "Generate Questions" to create questions for skills that
+                        don't have any yet. Use "Regenerate All Questions" to
+                        create new questions for all skills, replacing existing
+                        ones.
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                <Button
+                  onClick={() => generateQuestionsForRecord(false)}
+                  disabled={generatingQuestions}
+                  variant="outline"
+                >
+                  {generatingQuestions ? (
+                    <>
+                      <Spinner size="sm" className="mr-2" />
+                      Generating...
+                    </>
+                  ) : (
+                    "Generate Questions"
+                  )}
+                </Button>
+                <Button
+                  onClick={regenerateAllQuestions}
+                  disabled={generatingQuestions}
+                >
+                  {generatingQuestions ? (
+                    <>
+                      <Spinner size="sm" className="mr-2" />
+                      Regenerating...
+                    </>
+                  ) : (
+                    "Regenerate All"
+                  )}
+                </Button>
+              </div>
             </CardFooter>
           </Card>
         </TabsContent>
@@ -873,22 +1166,79 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
               <div>
                 <CardTitle>Interview Questions</CardTitle>
                 <CardDescription>
-                  Questions generated based on the mandatory skills for this
-                  job.
+                  Generated questions for the mandatory skills
                 </CardDescription>
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={fetchLatestQuestions}
-                disabled={questionsLoading}
-              >
-                <RefreshCw
-                  className={`h-4 w-4 ${
-                    questionsLoading ? "animate-spin" : ""
-                  }`}
-                />
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={fetchLatestQuestions}
+                  disabled={questionsLoading}
+                >
+                  <RefreshCw
+                    className={`h-4 w-4 mr-2 ${
+                      questionsLoading ? "animate-spin" : ""
+                    }`}
+                  />
+                  Refresh
+                </Button>
+                {hasDislikedQuestions() && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={regenerateAllDislikedQuestions}
+                    disabled={questionsLoading || generatingQuestions}
+                  >
+                    {questionsLoading ? (
+                      <>
+                        <Spinner size="sm" className="mr-2" />
+                        Regenerating...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Regenerate Disliked
+                      </>
+                    )}
+                  </Button>
+                )}
+                {questions.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={regenerateAllQuestions}
+                    disabled={questionsLoading || generatingQuestions}
+                  >
+                    {generatingQuestions ? (
+                      <>
+                        <Spinner size="sm" className="mr-2" />
+                        Regenerating...
+                      </>
+                    ) : (
+                      "Regenerate All"
+                    )}
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleGeneratePDF}
+                  disabled={pdfLoading}
+                >
+                  {pdfLoading ? (
+                    <>
+                      <Spinner size="sm" className="mr-2" />
+                      Generating PDF...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="h-4 w-4 mr-2" />
+                      Export PDF
+                    </>
+                  )}
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               {questionsLoading ? (
@@ -901,19 +1251,35 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                   <p className="text-muted-foreground mb-4">
                     No questions have been generated yet.
                   </p>
-                  <Button
-                    onClick={generateQuestionsForRecord}
-                    disabled={generatingQuestions}
-                  >
-                    {generatingQuestions ? (
-                      <>
-                        <Spinner size="sm" className="mr-2" />
-                        Generating Questions...
-                      </>
-                    ) : (
-                      "Generate Questions"
-                    )}
-                  </Button>
+                  <div className="flex items-center justify-center gap-2">
+                    <Button
+                      onClick={() => generateQuestionsForRecord(false)}
+                      disabled={generatingQuestions}
+                      variant="outline"
+                    >
+                      {generatingQuestions ? (
+                        <>
+                          <Spinner size="sm" className="mr-2" />
+                          Generating...
+                        </>
+                      ) : (
+                        "Generate Questions"
+                      )}
+                    </Button>
+                    <Button
+                      onClick={regenerateAllQuestions}
+                      disabled={generatingQuestions}
+                    >
+                      {generatingQuestions ? (
+                        <>
+                          <Spinner size="sm" className="mr-2" />
+                          Regenerating...
+                        </>
+                      ) : (
+                        "Regenerate All"
+                      )}
+                    </Button>
+                  </div>
                 </div>
               ) : (
                 <div
@@ -1044,13 +1410,33 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                                   category={question.category}
                                   difficulty={question.difficulty}
                                   liked={question.liked}
+                                  feedback={question.feedback}
                                   onStatusChange={(status) =>
                                     handleQuestionStatusChange(
                                       question.id,
                                       status
                                     )
                                   }
+                                  onFeedbackChange={(feedback) =>
+                                    handleQuestionFeedbackChange(
+                                      question.id,
+                                      feedback
+                                    )
+                                  }
+                                  onRegenerateQuestion={
+                                    handleRegenerateQuestion
+                                  }
                                 />
+                                {question.liked === "DISLIKED" && (
+                                  <Badge className="ml-2 bg-red-100 text-red-800 border-red-200">
+                                    Disliked
+                                  </Badge>
+                                )}
+                                {question.feedback && (
+                                  <Badge className="ml-2 bg-blue-100 text-blue-800 border-blue-200">
+                                    Has Feedback
+                                  </Badge>
+                                )}
                               </TableCell>
                             </TableRow>
                           </Fragment>
@@ -1085,6 +1471,54 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Delete skill confirmation dialog */}
+      {skillBeingDeleted && (
+        <Dialog
+          open={deleteSkillDialogOpen}
+          onOpenChange={setDeleteSkillDialogOpen}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Delete Skill</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete this skill? This action cannot
+                be undone.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="pt-4 pb-2">
+              <p className="text-sm text-red-500 font-medium">
+                Warning: This will also delete all questions associated with
+                this skill.
+              </p>
+            </div>
+
+            <DialogFooter className="flex items-center justify-end gap-2 pt-4">
+              <Button
+                variant="outline"
+                onClick={() => setDeleteSkillDialogOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => handleDeleteSkill(skillBeingDeleted)}
+                disabled={deletingSkill}
+              >
+                {deletingSkill ? (
+                  <>
+                    <Spinner size="sm" className="mr-2" />
+                    Deleting...
+                  </>
+                ) : (
+                  "Delete Skill"
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
