@@ -168,7 +168,7 @@ export function JDQnaForm() {
       if (data.recordId) {
         setRecordId(data.recordId);
         setSkills(data.analysis.skills || []);
-        setSkillsDialogOpen(true);
+        router.push(`/records/${data.recordId}`);
       } else {
         throw new Error("No record ID was returned from the API");
       }

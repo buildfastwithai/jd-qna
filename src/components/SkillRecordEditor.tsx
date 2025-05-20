@@ -280,12 +280,6 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
     try {
       setGeneratingQuestions(true);
 
-      const actionText = force
-        ? "Regenerating questions for all mandatory skills..."
-        : "Generating questions for all mandatory skills...";
-
-      toast.loading(actionText);
-
       const response = await fetch(
         `/api/records/${record.id}/generate-questions`,
         {
