@@ -142,6 +142,8 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
   const [deleteSkillDialogOpen, setDeleteSkillDialogOpen] = useState(false);
   const [deletingSkill, setDeletingSkill] = useState(false);
   const [priorityMode, setPriorityMode] = useState(false);
+  const [activeQuestion, setActiveQuestion] = useState<string | null>(null);
+  const [feedbackDialogOpen, setFeedbackDialogOpen] = useState(false);
 
   // Parse question content from JSON string
   function formatQuestions(questions: Question[]): QuestionData[] {
@@ -215,7 +217,6 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
 
     try {
       setGeneratingQuestions(true);
-      toast.loading("Generating questions for mandatory skills...");
 
       // Find skills that need questions (mandatory skills with no questions)
       const skillsNeedingQuestions = editedSkills.filter(
@@ -319,7 +320,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
     }
   };
 
-  // Force regenerate all questions for the record
+  // Modify the regenerateAllQuestions function to focus on questions with feedback
   const regenerateAllQuestions = () => {
     // Show confirmation dialog
     if (
@@ -327,7 +328,76 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
         "This will regenerate ALL questions for mandatory skills. Are you sure?"
       )
     ) {
+      // First check if there are questions with feedback
+      const questionsWithFeedback = questions.filter(
+        (q) => q.feedback && q.feedback.trim() !== ""
+      );
+
+      if (questionsWithFeedback.length > 0) {
+        // If we have questions with feedback, regenerate those first
+        regenerateQuestionsWithFeedback();
+      } else {
+        // Otherwise, generate all questions as usual
+        generateQuestionsForRecord(true);
+      }
+    }
+  };
+
+  // Add a new function to regenerate questions with feedback
+  const regenerateQuestionsWithFeedback = async () => {
+    try {
+      setQuestionsLoading(true);
+
+      // Collect the feedback for API
+      const feedbackData = questions
+        .filter((q) => q.feedback && q.feedback.trim() !== "")
+        .map((q) => ({
+          questionId: q.id,
+          feedback: q.feedback,
+        }));
+
+      // Call the API to regenerate questions with feedback
+      const response = await fetch(
+        `/api/records/${record.id}/regenerate-with-feedback`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            feedback: feedbackData,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to regenerate questions with feedback");
+      }
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Show success toast
+        toast.success(
+          `${data.message || "Questions regenerated based on feedback!"}`
+        );
+
+        // Fetch the latest questions directly
+        await fetchLatestQuestions();
+
+        // Switch to questions tab
+        setActiveTab("questions");
+      } else {
+        throw new Error(data.error || "Failed to regenerate questions");
+      }
+    } catch (error: any) {
+      console.error("Error regenerating questions with feedback:", error);
+      toast.error(error.message || "Error regenerating questions");
+
+      // Fall back to regular regeneration if the feedback-based one fails
       generateQuestionsForRecord(true);
+    } finally {
+      setQuestionsLoading(false);
     }
   };
 
@@ -791,9 +861,6 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
       }
 
       setQuestionsLoading(true);
-      toast.loading(
-        `Regenerating ${dislikedQuestions.length} disliked questions...`
-      );
 
       // First ensure all feedback is saved to the database
       for (const question of dislikedQuestions) {
@@ -826,6 +893,67 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
   // Add function to check if there are any disliked questions
   const hasDislikedQuestions = () => {
     return questions.some((q) => q.liked === "DISLIKED");
+  };
+
+  // Add a function to handle opening the feedback dialog
+  const handleOpenFeedbackDialog = (questionId: string) => {
+    setActiveQuestion(questionId);
+    setFeedbackDialogOpen(true);
+  };
+
+  // Add a function to handle submitting feedback
+  const handleSubmitFeedback = (feedback: string) => {
+    if (activeQuestion) {
+      handleQuestionFeedbackChange(activeQuestion, feedback);
+    }
+    setFeedbackDialogOpen(false);
+  };
+
+  // Add a component for the feedback dialog
+  const FeedbackDialog = () => {
+    const question = questions.find((q) => q.id === activeQuestion);
+    const [feedback, setFeedback] = useState(question?.feedback || "");
+
+    useEffect(() => {
+      if (question) {
+        setFeedback(question.feedback || "");
+      }
+    }, [question]);
+
+    if (!question) return null;
+
+    return (
+      <Dialog open={feedbackDialogOpen} onOpenChange={setFeedbackDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Feedback for Question</DialogTitle>
+            <DialogDescription>
+              Please provide your feedback to improve this question.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm font-medium mb-2">{question.question}</p>
+            <textarea
+              className="w-full min-h-[100px] p-2 border rounded-md"
+              value={feedback}
+              onChange={(e) => setFeedback(e.target.value)}
+              placeholder="What would you like to improve about this question?"
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setFeedbackDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button onClick={() => handleSubmitFeedback(feedback)}>
+              Submit Feedback
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
   };
 
   return (
@@ -1283,10 +1411,13 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                   <Table className="w-full table-fixed">
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="w-[18%]">Skill</TableHead>
-                        <TableHead className="w-[12%]">Category</TableHead>
-                        <TableHead className="w-[12%]">Difficulty</TableHead>
-                        <TableHead className="w-[58%]">Question</TableHead>
+                        <TableHead className="w-[15%]">Skill</TableHead>
+                        <TableHead className="w-[10%]">Category</TableHead>
+                        <TableHead className="w-[10%]">Difficulty</TableHead>
+                        <TableHead className="w-[50%]">Question</TableHead>
+                        <TableHead className="w-[15%] text-right">
+                          Actions
+                        </TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1301,7 +1432,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                           <Fragment key={question.id}>
                             {isNewSkillGroup && (
                               <TableRow className="bg-muted/30">
-                                <TableCell colSpan={4} className="py-2">
+                                <TableCell colSpan={5} className="py-2">
                                   <div className="flex items-center justify-between">
                                     <div>
                                       <span className="font-semibold">
@@ -1369,7 +1500,13 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                                 </TableCell>
                               </TableRow>
                             )}
-                            <TableRow className="cursor-pointer hover:bg-muted/50">
+                            <TableRow
+                              className={cn(
+                                "cursor-pointer hover:bg-muted/50",
+                                question.liked === "LIKED" && "bg-green-50",
+                                question.liked === "DISLIKED" && "bg-red-50"
+                              )}
+                            >
                               <TableCell>
                                 {/* Add small indentation for grouped questions */}
                                 <div className="pl-4">
@@ -1397,40 +1534,139 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                                 </span>
                               </TableCell>
                               <TableCell className="font-medium">
-                                <QuestionDialog
-                                  questionId={question.id}
-                                  question={question.question}
-                                  answer={question.answer}
-                                  category={question.category}
-                                  difficulty={question.difficulty}
-                                  liked={question.liked}
-                                  feedback={question.feedback}
-                                  onStatusChange={(status) =>
-                                    handleQuestionStatusChange(
-                                      question.id,
-                                      status
-                                    )
-                                  }
-                                  onFeedbackChange={(feedback) =>
-                                    handleQuestionFeedbackChange(
-                                      question.id,
-                                      feedback
-                                    )
-                                  }
-                                  onRegenerateQuestion={
-                                    handleRegenerateQuestion
-                                  }
-                                />
-                                {question.liked === "DISLIKED" && (
-                                  <Badge className="ml-2 bg-red-100 text-red-800 border-red-200">
-                                    Disliked
-                                  </Badge>
-                                )}
-                                {question.feedback && (
-                                  <Badge className="ml-2 bg-blue-100 text-blue-800 border-blue-200">
-                                    Has Feedback
-                                  </Badge>
-                                )}
+                                <div className="whitespace-normal break-words">
+                                  <QuestionDialog
+                                    questionId={question.id}
+                                    question={question.question}
+                                    answer={question.answer}
+                                    category={question.category}
+                                    difficulty={question.difficulty}
+                                    liked={question.liked}
+                                    feedback={question.feedback}
+                                    onStatusChange={(status) =>
+                                      handleQuestionStatusChange(
+                                        question.id,
+                                        status
+                                      )
+                                    }
+                                    onFeedbackChange={(feedback) =>
+                                      handleQuestionFeedbackChange(
+                                        question.id,
+                                        feedback
+                                      )
+                                    }
+                                    onRegenerateQuestion={
+                                      handleRegenerateQuestion
+                                    }
+                                  />
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex items-center justify-end space-x-2">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() =>
+                                      handleOpenFeedbackDialog(question.id)
+                                    }
+                                    className="h-8 w-8"
+                                  >
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Info
+                                            className={cn(
+                                              "h-4 w-4",
+                                              question.feedback
+                                                ? "text-blue-500"
+                                                : "text-gray-400"
+                                            )}
+                                          />
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          {question.feedback
+                                            ? "Edit feedback"
+                                            : "Add feedback"}
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() =>
+                                      handleQuestionStatusChange(
+                                        question.id,
+                                        "LIKED"
+                                      )
+                                    }
+                                    className={cn(
+                                      "h-8 w-8",
+                                      question.liked === "LIKED" &&
+                                        "bg-green-100 text-green-800"
+                                    )}
+                                  >
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <div className="flex items-center">
+                                            👍
+                                          </div>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          Mark as helpful
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() =>
+                                      handleQuestionStatusChange(
+                                        question.id,
+                                        "DISLIKED"
+                                      )
+                                    }
+                                    className={cn(
+                                      "h-8 w-8",
+                                      question.liked === "DISLIKED" &&
+                                        "bg-red-100 text-red-800"
+                                    )}
+                                  >
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <div className="flex items-center">
+                                            👎
+                                          </div>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          Mark as not helpful
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  </Button>
+                                  {/* <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() =>
+                                      handleRegenerateQuestion(question.id)
+                                    }
+                                    className="h-8 w-8"
+                                  >
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <RefreshCw className="h-4 w-4" />
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          Regenerate this question
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  </Button> */}
+                                </div>
                               </TableCell>
                             </TableRow>
                           </Fragment>
@@ -1445,7 +1681,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
               <Button variant="outline" onClick={() => setActiveTab("skills")}>
                 Back to Skills
               </Button>
-              <Button
+              {/* <Button
                 onClick={handleGeneratePDF}
                 disabled={pdfLoading || questions.length === 0}
               >
@@ -1460,7 +1696,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                     Download PDF
                   </>
                 )}
-              </Button>
+              </Button> */}
             </CardFooter>
           </Card>
         </TabsContent>
@@ -1513,6 +1749,9 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Add the FeedbackDialog component */}
+      <FeedbackDialog />
     </div>
   );
 }
