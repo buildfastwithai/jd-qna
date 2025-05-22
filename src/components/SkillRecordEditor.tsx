@@ -1358,11 +1358,43 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                 // TanStack table implementation
                 <SkillsTable
                   skills={editedSkills}
+                  recordId={record.id}
                   onUpdateSkill={updateSkill}
                   getSkillQuestionCount={getSkillQuestionCount}
                   onDeleteSkill={(skillId) => {
                     setSkillBeingDeleted(skillId);
                     setDeleteSkillDialogOpen(true);
+                  }}
+                  onSkillAdded={() => {
+                    // Fetch the latest skills data from the server
+                    fetch(`/api/records/${record.id}`)
+                      .then((response) => response.json())
+                      .then((data) => {
+                        if (data.success && data.record) {
+                          // Sort skills by priority
+                          const sortedSkills = [...data.record.skills].sort(
+                            (a, b) => {
+                              // First sort by requirement type (MANDATORY first)
+                              if (a.requirement !== b.requirement) {
+                                return a.requirement === "MANDATORY" ? -1 : 1;
+                              }
+                              // Then sort by priority
+                              const aPriority = a.priority ?? 999;
+                              const bPriority = b.priority ?? 999;
+                              return aPriority - bPriority;
+                            }
+                          );
+
+                          // Update the skills state
+                          setEditedSkills(sortedSkills);
+                          toast.success("Skill added successfully");
+                        }
+                      })
+                      .catch((error) => {
+                        console.error("Error fetching updated skills:", error);
+                        // Refresh the entire page as fallback
+                        router.refresh();
+                      });
                   }}
                   loading={loading}
                 />

@@ -12,6 +12,7 @@ const generatePrompt = (
   skillName: string,
   level: string,
   difficulty: string,
+  feedback: string[] = [],
   batchSize: number = 5
 ) => {
   // Map skill level to difficulty if not provided
@@ -23,8 +24,18 @@ const generatePrompt = (
       ? "Medium"
       : "Easy");
 
+  // Format feedback if available
+  const feedbackSection =
+    feedback.length > 0
+      ? `\nIMPORTANT FEEDBACK TO CONSIDER:\n${feedback
+          .map((fb, i) => `${i + 1}. ${fb}`)
+          .join(
+            "\n"
+          )}\n\nPlease ensure that the generated questions take this feedback into account.`
+      : "";
+
   return `Generate exactly ${batchSize} interview questions for the skill "${skillName}" at a ${level} level (${effectiveDifficulty} difficulty).
-The questions should be challenging but fair, testing both theoretical knowledge and practical application.
+The questions should be challenging but fair, testing both theoretical knowledge and practical application.${feedbackSection}
 
 Format your response as a JSON object with a 'questions' key containing an array of question objects, where each object has:
 1. A "question" field with the interview question
@@ -79,6 +90,25 @@ export async function POST(request: Request) {
       );
     }
 
+    // Get feedback for all skills at once
+    const allFeedback = await prisma.feedback.findMany({
+      where: {
+        skillId: { in: skillIds },
+      },
+      select: {
+        content: true,
+        skillId: true,
+      },
+    });
+
+    // Create a map of skill IDs to feedback
+    const feedbackMap = new Map<string, string[]>();
+    allFeedback.forEach((feedback) => {
+      const currentFeedback = feedbackMap.get(feedback.skillId) || [];
+      currentFeedback.push(feedback.content);
+      feedbackMap.set(feedback.skillId, currentFeedback);
+    });
+
     const allQuestions = [];
 
     // First, check how many questions already exist for each skill
@@ -129,6 +159,9 @@ export async function POST(request: Request) {
       // Get the difficulty (from metadata, skill, or based on level)
       const difficulty = metadata?.difficulty || skill.difficulty;
 
+      // Get feedback for this skill
+      const skillFeedback = feedbackMap.get(skill.id) || [];
+
       // Process in batches of max 5
       const batchSize = Math.min(5, questionsToGenerate);
 
@@ -137,11 +170,12 @@ export async function POST(request: Request) {
         `Generating ${questionsToGenerate} questions for skill ${skill.name}`
       );
 
-      // Generate prompt for this batch
+      // Generate prompt for this batch, including feedback
       const prompt = generatePrompt(
         skill.name,
         skill.level,
         difficulty as any,
+        skillFeedback,
         questionsToGenerate
       );
 
@@ -151,7 +185,11 @@ export async function POST(request: Request) {
         messages: [
           {
             role: "system",
-            content: `You are an expert interviewer who creates relevant interview questions for specific technical skills. Include detailed suggested answers for each question. You MUST generate EXACTLY ${questionsToGenerate} unique questions, no more and no less.`,
+            content: `You are an expert interviewer who creates relevant interview questions for specific technical skills. Include detailed suggested answers for each question. You MUST generate EXACTLY ${questionsToGenerate} unique questions, no more and no less.${
+              skillFeedback.length > 0
+                ? " Incorporate the provided feedback into your question generation."
+                : ""
+            }`,
           },
           {
             role: "user",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   createColumnHelper,
   flexRender,
@@ -23,8 +23,11 @@ import {
   SelectValue,
 } from "./ui/select";
 import { Button } from "./ui/button";
-import { Trash2 } from "lucide-react";
+import { Trash2, MessageSquarePlus } from "lucide-react";
 import { toast } from "sonner";
+import { SkillFeedbackDialog } from "./ui/skill-feedback-dialog";
+import { SkillFeedbackViewDialog } from "./ui/skill-feedback-view-dialog";
+import { AddSkillDialog } from "./ui/add-skill-dialog";
 
 // Define interfaces for the types from Prisma
 interface Skill {
@@ -38,10 +41,12 @@ interface Skill {
   priority?: number;
   category?: "TECHNICAL" | "FUNCTIONAL" | "BEHAVIORAL" | "COGNITIVE";
   questionFormat?: string;
+  feedbacks?: { id: string; content: string; createdAt: string }[];
 }
 
 interface SkillsTableProps {
   skills: Skill[];
+  recordId: string;
   onUpdateSkill: (
     skillId: string,
     field:
@@ -56,16 +61,55 @@ interface SkillsTableProps {
   ) => Promise<void>;
   getSkillQuestionCount: (skillId: string) => number;
   onDeleteSkill: (skillId: string) => void;
+  onSkillAdded: () => void;
   loading: boolean;
 }
 
 export default function SkillsTable({
   skills,
+  recordId,
   onUpdateSkill,
   getSkillQuestionCount,
   onDeleteSkill,
+  onSkillAdded,
   loading,
 }: SkillsTableProps) {
+  // State to track feedback counts and refresh trigger
+  const [feedbackCounts, setFeedbackCounts] = useState<Record<string, number>>(
+    {}
+  );
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  // Fetch feedback counts for each skill
+  useEffect(() => {
+    const fetchFeedbackCounts = async () => {
+      const counts: Record<string, number> = {};
+
+      for (const skill of skills) {
+        try {
+          const response = await fetch(`/api/skills/${skill.id}/feedback`);
+          if (response.ok) {
+            const data = await response.json();
+            counts[skill.id] = data.feedbacks?.length || 0;
+          }
+        } catch (error) {
+          console.error(
+            `Error fetching feedback count for skill ${skill.id}:`,
+            error
+          );
+        }
+      }
+
+      setFeedbackCounts(counts);
+    };
+
+    fetchFeedbackCounts();
+  }, [skills, refreshTrigger]);
+
+  // Handle feedback submission
+  const handleFeedbackSubmitted = () => {
+    setRefreshTrigger((prev) => prev + 1);
+  };
   // Column helper
   const columnHelper = createColumnHelper<Skill>();
 
@@ -347,6 +391,34 @@ export default function SkillsTable({
         size: 130,
       }),
       columnHelper.accessor((row) => row.id, {
+        id: "feedback",
+        header: "Feedback",
+        cell: (info) => {
+          const skillId = info.getValue();
+          const skillName = info.row.original.name;
+          const feedbackCount = feedbackCounts[skillId] || 0;
+
+          return (
+            <div className="flex items-center space-x-2">
+              <SkillFeedbackDialog
+                skillId={skillId}
+                skillName={skillName}
+                onFeedbackSubmitted={handleFeedbackSubmitted}
+              />
+              {feedbackCount > 0 && (
+                <SkillFeedbackViewDialog
+                  skillId={skillId}
+                  skillName={skillName}
+                  feedbackCount={feedbackCount}
+                  refreshTrigger={refreshTrigger}
+                />
+              )}
+            </div>
+          );
+        },
+        size: 150,
+      }),
+      columnHelper.accessor((row) => row.id, {
         id: "actions",
         header: "Actions",
         cell: (info) => (
@@ -386,63 +458,68 @@ export default function SkillsTable({
   });
 
   return (
-    <div className="rounded-md border overflow-hidden">
-      <div className="overflow-x-auto">
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <TableHead
-                    key={header.id}
-                    style={{
-                      width: `${header.column.getSize()}px`,
-                      minWidth: `${header.column.getSize()}px`,
-                    }}
-                  >
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext()
-                        )}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows.length ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id}>
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell
-                      key={cell.id}
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <AddSkillDialog recordId={recordId} onSkillAdded={onSkillAdded} />
+      </div>
+      <div className="rounded-md border overflow-hidden">
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => (
+                    <TableHead
+                      key={header.id}
                       style={{
-                        width: `${cell.column.getSize()}px`,
-                        minWidth: `${cell.column.getSize()}px`,
+                        width: `${header.column.getSize()}px`,
+                        minWidth: `${header.column.getSize()}px`,
                       }}
                     >
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
-                      )}
-                    </TableCell>
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(
+                            header.column.columnDef.header,
+                            header.getContext()
+                          )}
+                    </TableHead>
                   ))}
                 </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className="h-24 text-center"
-                >
-                  No skills found
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
+              ))}
+            </TableHeader>
+            <TableBody>
+              {table.getRowModel().rows.length ? (
+                table.getRowModel().rows.map((row) => (
+                  <TableRow key={row.id}>
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell
+                        key={cell.id}
+                        style={{
+                          width: `${cell.column.getSize()}px`,
+                          minWidth: `${cell.column.getSize()}px`,
+                        }}
+                      >
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext()
+                        )}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell
+                    colSpan={columns.length}
+                    className="h-24 text-center"
+                  >
+                    No skills found
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </div>
     </div>
   );
