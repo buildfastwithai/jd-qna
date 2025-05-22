@@ -50,27 +50,30 @@ ${jobDescription}
 
 Format your response as a JSON object like this:
 {
-  "generalInfo": {
-    "jobTitle": "Software Engineer",
-    "experienceRequired": "7-10 years",
-    "companyDepartment": "Digital and Technology"
-  },
-  "skills": [
-    { "name": "JavaScript", "level": "PROFESSIONAL", "requirement": "MANDATORY" },
-    { "name": "React", "level": "INTERMEDIATE", "requirement": "MANDATORY" },
-    { "name": "Docker", "level": "BEGINNER", "requirement": "OPTIONAL" }
-  ],
-  "keyResponsibilities": [
-    "Develop and maintain .NET applications",
-    "Take ownership of complex technical designs",
-    "Collaborate with cross-functional teams"
-  ],
-  "otherRequirements": [
-    "Bachelor's degree in Computer Science or equivalent",
-    "Certification in cloud native application development preferred",
-    "Excellent communication skills"
-  ],
-  "summary": "The ideal candidate is an experienced software engineer with strong expertise in .NET development, cloud technologies, and front-end frameworks. They should be able to lead technical initiatives, solve complex problems, and drive continuous improvement while maintaining high code quality standards."
+  "success": true,
+  "analysis": {
+    "generalInfo": {
+      "jobTitle": "Software Engineer",
+      "experienceRequired": "7-10 years",
+      "companyDepartment": "Digital and Technology"
+    },
+    "skills": [
+      { "name": "JavaScript", "level": "PROFESSIONAL", "requirement": "MANDATORY" },
+      { "name": "React", "level": "INTERMEDIATE", "requirement": "MANDATORY" },
+      { "name": "Docker", "level": "BEGINNER", "requirement": "OPTIONAL" }
+    ],
+    "keyResponsibilities": [
+      "Develop and maintain .NET applications",
+      "Take ownership of complex technical designs",
+      "Collaborate with cross-functional teams"
+    ],
+    "otherRequirements": [
+      "Bachelor's degree in Computer Science or equivalent",
+      "Certification in cloud native application development preferred",
+      "Excellent communication skills"
+    ],
+    "summary": "The ideal candidate is an experienced software engineer with strong expertise in .NET development, cloud technologies, and front-end frameworks. They should be able to lead technical initiatives, solve complex problems, and drive continuous improvement while maintaining high code quality standards."
+  }
 }`;
 };
 
@@ -96,9 +99,43 @@ export interface JobAnalysis {
 
 export async function POST(request: Request) {
   try {
-    const { jobDescription, jobTitle: providedJobTitle } = await request.json();
+    // Parse the request body
+    const rawBody = await request.text();
+    console.log("Raw request body:", rawBody);
+
+    let json;
+    try {
+      json = JSON.parse(rawBody);
+      console.log("Parsed JSON:", json);
+    } catch (e) {
+      console.log("Failed to parse JSON, using raw text as input");
+      json = rawBody;
+    }
+
+    let jobDescription;
+
+    // Handle both direct string input and JSON object input for compatibility
+    if (typeof json === "string") {
+      try {
+        // If the input is a JSON string, try to parse it
+        const parsed = JSON.parse(json);
+        console.log("Parsed nested JSON:", parsed);
+        jobDescription = parsed.jobDescription;
+      } catch (e) {
+        // If parsing fails, assume the string itself is the job description
+        console.log("Using raw string as job description");
+        jobDescription = json;
+      }
+    } else {
+      // If the input is already an object, extract jobDescription
+      console.log("JSON is an object, extracting jobDescription");
+      jobDescription = json.jobDescription;
+    }
+
+    console.log("Final jobDescription:", jobDescription);
 
     if (!jobDescription) {
+      console.log("Job description is undefined or empty");
       return NextResponse.json(
         { success: false, error: "Job description is required" },
         { status: 400 }
@@ -131,71 +168,8 @@ export async function POST(request: Request) {
       throw new Error("No response received from OpenAI");
     }
 
-    try {
-      // Parse the JSON response
-      const parsedResponse: JobAnalysis = JSON.parse(analysisContent);
-
-      // Check if the response has the expected format
-      if (parsedResponse.skills && Array.isArray(parsedResponse.skills)) {
-        let skillRecord: any = null;
-
-        // Use the extracted job title or the provided one
-        const jobTitle =
-          providedJobTitle || parsedResponse.generalInfo.jobTitle;
-
-        // If jobTitle is provided, create a record in the database
-        if (jobTitle) {
-          // Only store data that matches the existing schema
-          // skillRecord = await prisma.skillRecord.create({
-          //   data: {
-          //     jobTitle,
-          //     // Don't include other fields if they don't exist in your schema
-          //   },
-          // });
-
-          // Create skills with metadata
-          // if (skillRecord) {
-          //   await prisma.skill.createMany({
-          //     data: parsedResponse.skills.map((skill: SkillWithMetadata) => ({
-          //       name: skill.name,
-          //       level: skill.level,
-          //       requirement: skill.requirement,
-          //       numQuestions: 1, // Default to 1 question
-          //       difficulty: "Medium", // Default to Medium difficulty
-          //       recordId: skillRecord.id,
-          //     })),
-          //   });
-          // }
-        }
-
-        return NextResponse.json({
-          success: true,
-          analysis: parsedResponse,
-          recordId: skillRecord?.id,
-        });
-      } else {
-        // If we have JSON but not in the expected format
-        console.error("Unexpected JSON structure:", parsedResponse);
-        return NextResponse.json(
-          {
-            success: false,
-            error: "Unexpected response format",
-            rawContent: analysisContent,
-          },
-          { status: 500 }
-        );
-      }
-    } catch (e) {
-      console.error("Error parsing analysis:", e);
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Failed to parse analysis",
-          rawContent: analysisContent,
-        },
-        { status: 500 }
-      );
-    }
+    // For Vercel AI SDK, just return the raw response content
+    return new Response(analysisContent);
   } catch (error: any) {
     console.error("Error analyzing job description:", error);
     return NextResponse.json(

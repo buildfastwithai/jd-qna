@@ -24,15 +24,13 @@ export default function Home() {
         </p>
       </div>
       <div className="flex flex-col md:flex-row gap-4 w-full">
-        <div className="w-full md:w-1/2">
+        {/* <div className="w-full md:w-1/2">
           <JDQnaForm />
-        </div>
-        <div className="w-full md:w-1/2">
+        </div> */}
+        <div className="w-full">
           <Chathome />
         </div>
       </div>
-
-
     </div>
   );
 }
