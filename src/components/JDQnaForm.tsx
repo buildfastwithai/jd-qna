@@ -299,6 +299,61 @@ export function JDQnaForm() {
     }
   }, [fileWatch]);
 
+  // Auto-generate both skills and questions in one go
+  const autoGenerateSkillsAndQuestions = async () => {
+    const jobDescription =
+      inputMethod === "file" ? pdfContent : form.getValues().jobDescriptionText;
+
+    if (!form.getValues().jobRole) {
+      alert("Please enter a job role first");
+      return;
+    }
+
+    if (!jobDescription) {
+      alert("Please provide a job description first");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const response = await fetch("/api/auto-generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          jobRole: form.getValues().jobRole,
+          jobDescription: jobDescription,
+          interviewLength: form.getValues().interviewLength || 60,
+          customInstructions: form.getValues().customInstructions || "",
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to auto-generate skills and questions");
+      }
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || "Failed to auto-generate");
+      }
+
+      if (data.recordId) {
+        // Navigate directly to the record page
+        router.push(`/records/${data.recordId}`);
+      } else {
+        throw new Error("No record ID was returned from the API");
+      }
+    } catch (error) {
+      console.error("Error auto-generating:", error);
+      alert("Error auto-generating skills and questions. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Handle form submission - now extracts skills
   const onSubmit = (values: FormValues) => {
     extractSkills();
@@ -454,7 +509,27 @@ export function JDQnaForm() {
                 </Tabs>
               </div>
 
-              <div className="flex justify-end">
+              <div className="flex justify-end space-x-2">
+                <Button
+                  variant="outline"
+                  type="button"
+                  disabled={
+                    loading ||
+                    (inputMethod === "file"
+                      ? uploading || !pdfContent
+                      : !form.getValues().jobDescriptionText)
+                  }
+                  onClick={autoGenerateSkillsAndQuestions}
+                >
+                  {loading ? (
+                    <>
+                      <Spinner size="sm" className="mr-2" />
+                      Auto-Generating...
+                    </>
+                  ) : (
+                    "Auto-Generate Questions"
+                  )}
+                </Button>
                 <Button
                   type="submit"
                   disabled={

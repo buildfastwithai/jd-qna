@@ -151,7 +151,7 @@ export async function POST(
 
       // Call OpenAI API for this skill
       const chatCompletion = await openai.chat.completions.create({
-        model: "gpt-4o",
+        model: "gpt-4.1",
         messages: [
           {
             role: "system",

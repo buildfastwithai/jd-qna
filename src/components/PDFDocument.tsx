@@ -60,11 +60,13 @@ const styles = StyleSheet.create({
   metaContainer: {
     flexDirection: "row",
     marginBottom: 8,
+    flexWrap: "wrap",
   },
   badge: {
     fontSize: 10,
     padding: 4,
     marginRight: 8,
+    marginBottom: 4,
     borderRadius: 4,
   },
   technicalBadge: {
@@ -83,6 +85,18 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFE6F3",
     color: "#CC0066",
   },
+  functionalBadge: {
+    backgroundColor: "#E8F8F5",
+    color: "#148F77",
+  },
+  behavioralBadge: {
+    backgroundColor: "#FEF9E7",
+    color: "#B7950B",
+  },
+  cognitiveBadge: {
+    backgroundColor: "#F4ECF7",
+    color: "#8E44AD",
+  },
   easyBadge: {
     backgroundColor: "#E6FFE6",
     color: "#006600",
@@ -94,6 +108,18 @@ const styles = StyleSheet.create({
   hardBadge: {
     backgroundColor: "#FFE6E6",
     color: "#660000",
+  },
+  skillBadge: {
+    backgroundColor: "#E8F4FD",
+    color: "#2E86C1",
+  },
+  formatBadge: {
+    backgroundColor: "#FADBD8",
+    color: "#943126",
+  },
+  priorityBadge: {
+    backgroundColor: "#EAECEE",
+    color: "#2C3E50",
   },
   answerLabel: {
     fontSize: 12,
@@ -120,31 +146,37 @@ const styles = StyleSheet.create({
 
 // Get badge style based on category
 const getCategoryBadgeStyle = (category: Question["category"]) => {
-  switch (category) {
-    case "Technical":
+  switch (category?.toLowerCase()) {
+    case "technical":
       return styles.technicalBadge;
-    case "Experience":
+    case "experience":
       return styles.experienceBadge;
-    case "Problem Solving":
+    case "problem solving":
       return styles.problemSolvingBadge;
-    case "Soft Skills":
+    case "soft skills":
       return styles.softSkillsBadge;
+    case "functional":
+      return styles.functionalBadge;
+    case "behavioral":
+      return styles.behavioralBadge;
+    case "cognitive":
+      return styles.cognitiveBadge;
     default:
-      return {};
+      return styles.technicalBadge;
   }
 };
 
 // Get badge style based on difficulty
 const getDifficultyBadgeStyle = (difficulty: Question["difficulty"]) => {
-  switch (difficulty) {
-    case "Easy":
+  switch (difficulty?.toLowerCase()) {
+    case "easy":
       return styles.easyBadge;
-    case "Medium":
+    case "medium":
       return styles.mediumBadge;
-    case "Hard":
+    case "hard":
       return styles.hardBadge;
     default:
-      return {};
+      return styles.mediumBadge;
   }
 };
 
@@ -157,6 +189,8 @@ interface PDFDocumentProps {
     category: string;
     difficulty: string;
     skillName: string;
+    priority?: number;
+    questionFormat?: string;
     liked?: "LIKED" | "DISLIKED" | "NONE";
   }[];
 }
@@ -174,19 +208,35 @@ const PDFDoc: React.FC<PDFDocumentProps> = ({ jobRole, questions }) => (
           </Text>
 
           <View style={styles.metaContainer}>
+            <Text style={[styles.badge, styles.skillBadge]}>
+              Skill: {question.skillName}
+            </Text>
             <Text
-              style={[styles.badge, getCategoryBadgeStyle(question.category as "Technical" | "Experience" | "Problem Solving" | "Soft Skills")]}
+              style={[
+                styles.badge,
+                getCategoryBadgeStyle(question.category as any),
+              ]}
             >
               {question.category}
             </Text>
             <Text
               style={[
                 styles.badge,
-                getDifficultyBadgeStyle(question.difficulty as "Easy" | "Medium" | "Hard"),
+                getDifficultyBadgeStyle(question.difficulty as any),
               ]}
             >
               {question.difficulty}
             </Text>
+            {question.questionFormat && (
+              <Text style={[styles.badge, styles.formatBadge]}>
+                Format: {question.questionFormat}
+              </Text>
+            )}
+            {question.priority !== undefined && (
+              <Text style={[styles.badge, styles.priorityBadge]}>
+                Priority: {question.priority}
+              </Text>
+            )}
           </View>
 
           <Text style={styles.answerLabel}>Suggested Answer:</Text>

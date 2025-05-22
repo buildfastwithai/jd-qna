@@ -11,6 +11,7 @@ import {
   Info,
   Trash2,
   GripVertical,
+  MessageSquare,
 } from "lucide-react";
 import PDFDoc from "./PDFDocument";
 import { Question as PDFQuestion } from "./ui/questions-display";
@@ -48,10 +49,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "./ui/tooltip";
-import { QuestionLikeButtons } from "./ui/question-like-buttons";
-import { SkillFeedbackDialog } from "./ui/skill-feedback-dialog";
-import { SkillFeedbackList } from "./ui/skill-feedback-list";
-import { SkillFeedbackViewDialog } from "./ui/skill-feedback-view-dialog";
 import { QuestionDialog } from "./ui/question-dialog";
 import { Badge } from "./ui/badge";
 import { Separator } from "./ui/separator";
@@ -65,17 +62,20 @@ import {
   DialogTitle,
 } from "./ui/dialog";
 import SkillsTable from "./SkillsTable";
+import { GlobalFeedbackDialog } from "./ui/global-feedback-dialog";
 
 // Define interfaces for the types from Prisma
 interface Skill {
   id: string;
   name: string;
-  level: "BEGINNER" | "INTERMEDIATE" | "PROFESSIONAL";
+  level: "BEGINNER" | "INTERMEDIATE" | "PROFESSIONAL" | "EXPERT";
   requirement: "MANDATORY" | "OPTIONAL";
   numQuestions: number;
   difficulty?: string;
   recordId: string;
   priority?: number;
+  category?: "TECHNICAL" | "FUNCTIONAL" | "BEHAVIORAL" | "COGNITIVE";
+  questionFormat?: string;
 }
 
 interface Question {
@@ -144,6 +144,10 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
   const [priorityMode, setPriorityMode] = useState(false);
   const [activeQuestion, setActiveQuestion] = useState<string | null>(null);
   const [feedbackDialogOpen, setFeedbackDialogOpen] = useState(false);
+  const [globalFeedbackDialogOpen, setGlobalFeedbackDialogOpen] =
+    useState(false);
+  const [globalFeedback, setGlobalFeedback] = useState("");
+  const [loadingGlobalFeedback, setLoadingGlobalFeedback] = useState(false);
 
   // Parse question content from JSON string
   function formatQuestions(questions: Question[]): QuestionData[] {
@@ -172,7 +176,14 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
   // Update skill level and requirement
   const updateSkill = async (
     skillId: string,
-    field: "level" | "requirement" | "numQuestions" | "difficulty" | "priority",
+    field:
+      | "level"
+      | "requirement"
+      | "numQuestions"
+      | "difficulty"
+      | "priority"
+      | "category"
+      | "questionFormat",
     value: string | number
   ) => {
     try {
@@ -320,7 +331,84 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
     }
   };
 
-  // Modify the regenerateAllQuestions function to focus on questions with feedback
+  // Auto-generate skills and questions in one go
+  const autoGenerateSkillsAndQuestions = async () => {
+    try {
+      setGeneratingQuestions(true);
+
+      // Call the API endpoint that handles both skill and question generation
+      const response = await fetch(`/api/records/${record.id}/auto-generate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          jobTitle: record.jobTitle,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to auto-generate skills and questions");
+      }
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Show success toast
+        toast.success(
+          `${data.message || "Successfully generated skills and questions!"}`
+        );
+
+        // Update the skills list
+        if (data.skills) {
+          setEditedSkills(data.skills);
+        }
+
+        // Fetch the latest questions
+        await fetchLatestQuestions();
+
+        // Switch to questions tab
+        setActiveTab("questions");
+
+        // Refresh the page to update all data
+        router.refresh();
+      } else {
+        throw new Error(data.error || "Failed to auto-generate");
+      }
+    } catch (error: any) {
+      console.error("Error auto-generating:", error);
+      toast.error(
+        error.message || "Error auto-generating skills and questions"
+      );
+    } finally {
+      setGeneratingQuestions(false);
+    }
+  };
+
+  // Add a new function to fetch global feedback
+  const fetchGlobalFeedback = async () => {
+    try {
+      setLoadingGlobalFeedback(true);
+      const response = await fetch(`/api/records/${record.id}/global-feedback`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.globalFeedback) {
+          setGlobalFeedback(data.globalFeedback.content || "");
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching global feedback:", error);
+    } finally {
+      setLoadingGlobalFeedback(false);
+    }
+  };
+
+  // Call fetchGlobalFeedback when component mounts
+  useEffect(() => {
+    fetchGlobalFeedback();
+  }, [record.id]);
+
+  // Update the regenerate function to include global feedback
   const regenerateAllQuestions = () => {
     // Show confirmation dialog
     if (
@@ -333,8 +421,10 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
         (q) => q.feedback && q.feedback.trim() !== ""
       );
 
-      if (questionsWithFeedback.length > 0) {
-        // If we have questions with feedback, regenerate those first
+      const hasGlobalFeedback = globalFeedback && globalFeedback.trim() !== "";
+
+      if (questionsWithFeedback.length > 0 || hasGlobalFeedback) {
+        // If we have questions with feedback or global feedback, regenerate with feedback
         regenerateQuestionsWithFeedback();
       } else {
         // Otherwise, generate all questions as usual
@@ -343,7 +433,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
     }
   };
 
-  // Add a new function to regenerate questions with feedback
+  // Update the regenerateQuestionsWithFeedback function to include global feedback
   const regenerateQuestionsWithFeedback = async () => {
     try {
       setQuestionsLoading(true);
@@ -366,6 +456,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
           },
           body: JSON.stringify({
             feedback: feedbackData,
+            globalFeedback: globalFeedback || null,
           }),
         }
       );
@@ -439,13 +530,20 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
       const filteredQuestions = questions.filter((q) => q.liked !== "DISLIKED");
 
       // Format questions for PDF
-      const pdfQuestions = filteredQuestions.map((q) => ({
-        question: q.question,
-        answer: q.answer,
-        category: q.category,
-        difficulty: q.difficulty,
-        skillName: getSkillName(q.skillId),
-      }));
+      const pdfQuestions = filteredQuestions.map((q) => {
+        // Get the skill data for this question
+        const skill = editedSkills.find((s) => s.id === q.skillId);
+
+        return {
+          question: q.question,
+          answer: q.answer,
+          category: q.category,
+          difficulty: q.difficulty,
+          skillName: getSkillName(q.skillId),
+          priority: skill?.priority,
+          questionFormat: skill?.questionFormat || "Scenario based",
+        };
+      });
 
       // Generate PDF
       const blob = await pdf(
@@ -491,6 +589,27 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
   // Get requirement label
   const getRequirementLabel = (requirement: string) => {
     return requirement === "MANDATORY" ? "Mandatory" : "Optional";
+  };
+
+  // Get category label
+  const getCategoryLabel = (category?: string) => {
+    switch (category) {
+      case "TECHNICAL":
+        return "Technical";
+      case "FUNCTIONAL":
+        return "Functional";
+      case "BEHAVIORAL":
+        return "Behavioral";
+      case "COGNITIVE":
+        return "Cognitive";
+      default:
+        return "Not Specified";
+    }
+  };
+
+  // Get question format label
+  const getQuestionFormatLabel = (format?: string) => {
+    return format || "Scenario based";
   };
 
   // Count questions for each skill
@@ -973,22 +1092,38 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
             Created: {new Date(record.createdAt).toLocaleDateString()}
           </p>
         </div>
-        <Button
-          onClick={handleGeneratePDF}
-          disabled={pdfLoading || questions.length === 0}
-        >
-          {pdfLoading ? (
-            <>
-              <Spinner size="sm" className="mr-2" />
-              Preparing PDF...
-            </>
-          ) : (
-            <>
-              <Download className="mr-2 h-4 w-4" />
-              Download PDF
-            </>
-          )}
-        </Button>
+        <div className="flex gap-2">
+          {/* <Button
+            onClick={autoGenerateSkillsAndQuestions}
+            disabled={generatingQuestions}
+            variant="default"
+          >
+            {generatingQuestions ? (
+              <>
+                <Spinner size="sm" className="mr-2" />
+                Auto-Generating...
+              </>
+            ) : (
+              <>Auto-Generate All</>
+            )}
+          </Button> */}
+          <Button
+            onClick={handleGeneratePDF}
+            disabled={pdfLoading || questions.length === 0}
+          >
+            {pdfLoading ? (
+              <>
+                <Spinner size="sm" className="mr-2" />
+                Preparing PDF...
+              </>
+            ) : (
+              <>
+                <Download className="mr-2 h-4 w-4" />
+                Download PDF
+              </>
+            )}
+          </Button>
+        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -1015,11 +1150,27 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
               <div>
                 <CardTitle>Skills Management</CardTitle>
                 <CardDescription>
-                  Edit skill levels, requirements, and priorities. Mark skills
-                  as mandatory to include them in interview questions.
+                  Edit skill levels, requirements, priorities, and question
+                  formats. Mark skills as mandatory to include them in interview
+                  questions.
                 </CardDescription>
               </div>
               <div className="flex items-center gap-2">
+                {/* <Button
+                  variant="default"
+                  onClick={() => autoGenerateSkillsAndQuestions()}
+                  disabled={generatingQuestions}
+                  className="mr-2"
+                >
+                  {generatingQuestions ? (
+                    <>
+                      <Spinner size="sm" className="mr-2" />
+                      Auto-Generating...
+                    </>
+                  ) : (
+                    "Auto-Generate Questions"
+                  )}
+                </Button> */}
                 <Button
                   variant={priorityMode ? "secondary" : "outline"}
                   onClick={() => setPriorityMode(!priorityMode)}
@@ -1049,7 +1200,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                         </div>
 
                         <Droppable droppableId="mandatory-skills">
-                          {(provided) => (
+                          {(provided: any) => (
                             <div
                               {...provided.droppableProps}
                               ref={provided.innerRef}
@@ -1061,7 +1212,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                                   draggableId={skill.id}
                                   index={index}
                                 >
-                                  {(provided) => (
+                                  {(provided: any) => (
                                     <div
                                       ref={provided.innerRef}
                                       {...provided.draggableProps}
@@ -1133,7 +1284,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                         </div>
 
                         <Droppable droppableId="optional-skills">
-                          {(provided) => (
+                          {(provided: any) => (
                             <div
                               {...provided.droppableProps}
                               ref={provided.innerRef}
@@ -1145,7 +1296,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                                   draggableId={skill.id}
                                   index={index}
                                 >
-                                  {(provided) => (
+                                  {(provided: any) => (
                                     <div
                                       ref={provided.innerRef}
                                       {...provided.draggableProps}
@@ -1241,7 +1392,8 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                     </TooltipTrigger>
                     <TooltipContent className="max-w-sm">
                       <p>
-                        Questions are generated for mandatory skills. Select
+                        Questions are generated for mandatory skills and
+                        optional skills with questions count &gt; 0. Select
                         "Generate Questions" to create questions for skills that
                         don't have any yet. Use "Regenerate All Questions" to
                         create new questions for all skills, replacing existing
@@ -1266,7 +1418,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                 </Button>
                 <Button
                   onClick={regenerateAllQuestions}
-                  disabled={generatingQuestions}
+                  disabled={generatingQuestions || questions.length === 0}
                 >
                   {generatingQuestions ? (
                     <>
@@ -1304,6 +1456,15 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                     }`}
                   />
                   Refresh
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setGlobalFeedbackDialogOpen(true)}
+                  disabled={questionsLoading}
+                >
+                  <MessageSquare className="h-4 w-4 mr-2" />
+                  Global Feedback
                 </Button>
                 {hasDislikedQuestions() && (
                   <Button
@@ -1647,25 +1808,6 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                                       </Tooltip>
                                     </TooltipProvider>
                                   </Button>
-                                  {/* <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() =>
-                                      handleRegenerateQuestion(question.id)
-                                    }
-                                    className="h-8 w-8"
-                                  >
-                                    <TooltipProvider>
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <RefreshCw className="h-4 w-4" />
-                                        </TooltipTrigger>
-                                        <TooltipContent>
-                                          Regenerate this question
-                                        </TooltipContent>
-                                      </Tooltip>
-                                    </TooltipProvider>
-                                  </Button> */}
                                 </div>
                               </TableCell>
                             </TableRow>
@@ -1681,22 +1823,6 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
               <Button variant="outline" onClick={() => setActiveTab("skills")}>
                 Back to Skills
               </Button>
-              {/* <Button
-                onClick={handleGeneratePDF}
-                disabled={pdfLoading || questions.length === 0}
-              >
-                {pdfLoading ? (
-                  <>
-                    <Spinner size="sm" className="mr-2" />
-                    Preparing PDF...
-                  </>
-                ) : (
-                  <>
-                    <Download className="mr-2 h-4 w-4" />
-                    Download PDF
-                  </>
-                )}
-              </Button> */}
             </CardFooter>
           </Card>
         </TabsContent>
@@ -1749,6 +1875,20 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Global Feedback Dialog */}
+      <GlobalFeedbackDialog
+        open={globalFeedbackDialogOpen}
+        onOpenChange={setGlobalFeedbackDialogOpen}
+        recordId={record.id}
+        existingFeedback={globalFeedback}
+        onFeedbackSubmitted={() => {
+          fetchGlobalFeedback();
+          toast.success(
+            "Global feedback saved. It will be used when regenerating questions."
+          );
+        }}
+      />
 
       {/* Add the FeedbackDialog component */}
       <FeedbackDialog />

@@ -30,19 +30,28 @@ import { toast } from "sonner";
 interface Skill {
   id: string;
   name: string;
-  level: "BEGINNER" | "INTERMEDIATE" | "PROFESSIONAL";
+  level: "BEGINNER" | "INTERMEDIATE" | "PROFESSIONAL" | "EXPERT";
   requirement: "MANDATORY" | "OPTIONAL";
   numQuestions: number;
   difficulty?: string;
   recordId: string;
   priority?: number;
+  category?: "TECHNICAL" | "FUNCTIONAL" | "BEHAVIORAL" | "COGNITIVE";
+  questionFormat?: string;
 }
 
 interface SkillsTableProps {
   skills: Skill[];
   onUpdateSkill: (
     skillId: string,
-    field: "level" | "requirement" | "numQuestions" | "difficulty" | "priority",
+    field:
+      | "level"
+      | "requirement"
+      | "numQuestions"
+      | "difficulty"
+      | "priority"
+      | "category"
+      | "questionFormat",
     value: string | number
   ) => Promise<void>;
   getSkillQuestionCount: (skillId: string) => number;
@@ -69,8 +78,26 @@ export default function SkillsTable({
         return "Intermediate";
       case "PROFESSIONAL":
         return "Professional";
+      case "EXPERT":
+        return "Expert";
       default:
         return level;
+    }
+  };
+
+  // Get category label
+  const getCategoryLabel = (category?: string) => {
+    switch (category) {
+      case "TECHNICAL":
+        return "Technical";
+      case "FUNCTIONAL":
+        return "Functional";
+      case "BEHAVIORAL":
+        return "Behavioral";
+      case "COGNITIVE":
+        return "Cognitive";
+      default:
+        return "Not Specified";
     }
   };
 
@@ -85,6 +112,36 @@ export default function SkillsTable({
           </div>
         ),
         size: 150,
+      }),
+      columnHelper.accessor("category", {
+        header: "Category",
+        cell: (info) => (
+          <Select
+            value={info.getValue() || "TECHNICAL"}
+            onValueChange={(value) =>
+              onUpdateSkill(info.row.original.id, "category", value)
+            }
+            disabled={loading}
+          >
+            <SelectTrigger
+              className="w-full"
+              aria-label={`Select category for ${info.row.original.name}`}
+            >
+              <SelectValue placeholder="Select category" />
+            </SelectTrigger>
+            <SelectContent
+              className="w-[160px]"
+              position="popper"
+              sideOffset={5}
+            >
+              <SelectItem value="TECHNICAL">Technical</SelectItem>
+              <SelectItem value="FUNCTIONAL">Functional</SelectItem>
+              <SelectItem value="BEHAVIORAL">Behavioral</SelectItem>
+              <SelectItem value="COGNITIVE">Cognitive</SelectItem>
+            </SelectContent>
+          </Select>
+        ),
+        size: 120,
       }),
       columnHelper.accessor("level", {
         header: "Level",
@@ -110,6 +167,7 @@ export default function SkillsTable({
               <SelectItem value="BEGINNER">Beginner</SelectItem>
               <SelectItem value="INTERMEDIATE">Intermediate</SelectItem>
               <SelectItem value="PROFESSIONAL">Professional</SelectItem>
+              <SelectItem value="EXPERT">Expert</SelectItem>
             </SelectContent>
           </Select>
         ),
@@ -120,9 +178,27 @@ export default function SkillsTable({
         cell: (info) => (
           <Select
             value={info.getValue()}
-            onValueChange={(value) =>
-              onUpdateSkill(info.row.original.id, "requirement", value)
-            }
+            onValueChange={(value) => {
+              // When changing to OPTIONAL, also set numQuestions to 0 if it's mandatory
+              if (
+                value === "OPTIONAL" &&
+                info.row.original.requirement === "MANDATORY"
+              ) {
+                // First update requirement
+                onUpdateSkill(info.row.original.id, "requirement", value)
+                  .then(() => {
+                    // Then update numQuestions to 0
+                    onUpdateSkill(info.row.original.id, "numQuestions", 0);
+                  })
+                  .catch((err) => {
+                    console.error("Error updating skill:", err);
+                    toast.error("Failed to update skill requirement");
+                  });
+              } else {
+                // Just update requirement
+                onUpdateSkill(info.row.original.id, "requirement", value);
+              }
+            }}
             disabled={loading}
           >
             <SelectTrigger
@@ -172,37 +248,42 @@ export default function SkillsTable({
       }),
       columnHelper.accessor("numQuestions", {
         header: "Num. of Qs",
-        cell: (info) => (
-          <Select
-            defaultValue={String(info.getValue())}
-            onValueChange={(value) =>
-              onUpdateSkill(
-                info.row.original.id,
-                "numQuestions",
-                parseInt(value)
-              )
-            }
-            disabled={loading}
-          >
-            <SelectTrigger
-              className="w-full"
-              aria-label={`Select number of questions for ${info.row.original.name}`}
+        cell: (info) => {
+          const isOptional = info.row.original.requirement === "OPTIONAL";
+          const defaultValue = isOptional ? "0" : String(info.getValue());
+
+          return (
+            <Select
+              defaultValue={defaultValue}
+              onValueChange={(value) =>
+                onUpdateSkill(
+                  info.row.original.id,
+                  "numQuestions",
+                  parseInt(value)
+                )
+              }
+              disabled={loading}
             >
-              <SelectValue placeholder="Count" />
-            </SelectTrigger>
-            <SelectContent
-              className="w-[160px]"
-              position="popper"
-              sideOffset={5}
-            >
-              {[1, 2, 3, 4, 5].map((num) => (
-                <SelectItem key={num} value={String(num)}>
-                  {num}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        ),
+              <SelectTrigger
+                className="w-full"
+                aria-label={`Select number of questions for ${info.row.original.name}`}
+              >
+                <SelectValue placeholder="Count" />
+              </SelectTrigger>
+              <SelectContent
+                className="w-[160px]"
+                position="popper"
+                sideOffset={5}
+              >
+                {[0, 1, 2, 3, 4, 5].map((num) => (
+                  <SelectItem key={num} value={String(num)}>
+                    {num}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          );
+        },
         size: 100,
       }),
       columnHelper.accessor("difficulty", {
@@ -233,6 +314,37 @@ export default function SkillsTable({
           </Select>
         ),
         size: 100,
+      }),
+      columnHelper.accessor("questionFormat", {
+        header: "Question Format",
+        cell: (info) => (
+          <Select
+            value={info.getValue() || "Scenario based"}
+            onValueChange={(value) =>
+              onUpdateSkill(info.row.original.id, "questionFormat", value)
+            }
+            disabled={loading}
+          >
+            <SelectTrigger
+              className="w-full"
+              aria-label={`Select question format for ${info.row.original.name}`}
+            >
+              <SelectValue placeholder="Format" />
+            </SelectTrigger>
+            <SelectContent
+              className="w-[160px]"
+              position="popper"
+              sideOffset={5}
+            >
+              <SelectItem value="Scenario based">Scenario based</SelectItem>
+              <SelectItem value="Theoretical">Theoretical</SelectItem>
+              <SelectItem value="Coding challenge">Coding challenge</SelectItem>
+              <SelectItem value="Behavioral">Behavioral</SelectItem>
+              <SelectItem value="System design">System design</SelectItem>
+            </SelectContent>
+          </Select>
+        ),
+        size: 130,
       }),
       columnHelper.accessor((row) => row.id, {
         id: "actions",
