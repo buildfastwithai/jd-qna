@@ -4,10 +4,10 @@ import { SkillLevel, Requirement, SkillCategory } from "@prisma/client";
 
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id: recordId } = params;
+    const { id: recordId } = await params;
 
     if (!recordId) {
       return NextResponse.json(
