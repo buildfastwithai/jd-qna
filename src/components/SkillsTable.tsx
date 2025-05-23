@@ -145,6 +145,8 @@ export default function SkillsTable({
     }
   };
 
+  console.log(skills);
+
   // Define columns
   const columns = useMemo(
     () => [
@@ -293,12 +295,12 @@ export default function SkillsTable({
       columnHelper.accessor("numQuestions", {
         header: "Num. of Qs",
         cell: (info) => {
-          const isOptional = info.row.original.requirement === "OPTIONAL";
-          const defaultValue = isOptional ? "0" : String(info.getValue());
+          const skill = info.row.original;
+          const value = String(skill.numQuestions || 0);
 
           return (
             <Select
-              defaultValue={defaultValue}
+              value={value}
               onValueChange={(value) =>
                 onUpdateSkill(
                   info.row.original.id,

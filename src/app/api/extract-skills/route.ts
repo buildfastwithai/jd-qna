@@ -178,7 +178,7 @@ export async function POST(request: Request) {
                   name: skill.name,
                   level: skill.level,
                   requirement: skill.requirement,
-                  numQuestions: 1, // Default to 1 question
+                  numQuestions: skill.requirement === "MANDATORY" ? 1 : 0, // Default to 1 question
                   difficulty: "Medium", // Default to Medium difficulty
                   recordId: skillRecord.id,
                   priority: index + 1, // Priority based on sorted order
