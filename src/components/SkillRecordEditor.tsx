@@ -1109,7 +1109,12 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
           </Button> */}
           <Button
             onClick={handleGeneratePDF}
-            disabled={pdfLoading || questions.length === 0}
+            disabled={
+              pdfLoading ||
+              questions.length === 0 ||
+              generatingQuestions ||
+              questionsLoading
+            }
           >
             {pdfLoading ? (
               <>
@@ -1436,7 +1441,9 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                 </TooltipProvider>
                 <Button
                   onClick={() => generateQuestionsForRecord(false)}
-                  disabled={generatingQuestions}
+                  disabled={
+                    generatingQuestions || questionsLoading || pdfLoading
+                  }
                   variant="outline"
                 >
                   {generatingQuestions ? (
@@ -1450,7 +1457,12 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                 </Button>
                 <Button
                   onClick={regenerateAllQuestions}
-                  disabled={generatingQuestions || questions.length === 0}
+                  disabled={
+                    generatingQuestions ||
+                    questionsLoading ||
+                    pdfLoading ||
+                    questions.length === 0
+                  }
                 >
                   {generatingQuestions ? (
                     <>
@@ -1480,7 +1492,9 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                   variant="outline"
                   size="sm"
                   onClick={fetchLatestQuestions}
-                  disabled={questionsLoading}
+                  disabled={
+                    questionsLoading || generatingQuestions || pdfLoading
+                  }
                 >
                   <RefreshCw
                     className={`h-4 w-4 mr-2 ${
@@ -1493,7 +1507,9 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                   variant="outline"
                   size="sm"
                   onClick={() => setGlobalFeedbackDialogOpen(true)}
-                  disabled={questionsLoading}
+                  disabled={
+                    questionsLoading || generatingQuestions || pdfLoading
+                  }
                 >
                   <MessageSquare className="h-4 w-4 mr-2" />
                   Global Feedback
@@ -1503,7 +1519,9 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                     variant="outline"
                     size="sm"
                     onClick={regenerateAllDislikedQuestions}
-                    disabled={questionsLoading || generatingQuestions}
+                    disabled={
+                      questionsLoading || generatingQuestions || pdfLoading
+                    }
                   >
                     {questionsLoading ? (
                       <>
@@ -1523,7 +1541,9 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                     variant="outline"
                     size="sm"
                     onClick={regenerateAllQuestions}
-                    disabled={questionsLoading || generatingQuestions}
+                    disabled={
+                      questionsLoading || generatingQuestions || pdfLoading
+                    }
                   >
                     {generatingQuestions ? (
                       <>
@@ -1539,7 +1559,9 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                   variant="outline"
                   size="sm"
                   onClick={handleGeneratePDF}
-                  disabled={pdfLoading}
+                  disabled={
+                    pdfLoading || questionsLoading || generatingQuestions
+                  }
                 >
                   {pdfLoading ? (
                     <>
@@ -1569,7 +1591,9 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                   <div className="flex items-center justify-center gap-2">
                     <Button
                       onClick={() => generateQuestionsForRecord(false)}
-                      disabled={generatingQuestions}
+                      disabled={
+                        generatingQuestions || questionsLoading || pdfLoading
+                      }
                       variant="outline"
                     >
                       {generatingQuestions ? (
@@ -1583,7 +1607,9 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                     </Button>
                     <Button
                       onClick={regenerateAllQuestions}
-                      disabled={generatingQuestions}
+                      disabled={
+                        generatingQuestions || questionsLoading || pdfLoading
+                      }
                     >
                       {generatingQuestions ? (
                         <>
