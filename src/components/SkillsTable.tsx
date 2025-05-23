@@ -361,37 +361,37 @@ export default function SkillsTable({
         ),
         size: 100,
       }),
-      columnHelper.accessor("questionFormat", {
-        header: "Question Format",
-        cell: (info) => (
-          <Select
-            value={info.getValue() || "Scenario based"}
-            onValueChange={(value) =>
-              onUpdateSkill(info.row.original.id, "questionFormat", value)
-            }
-            disabled={loading}
-          >
-            <SelectTrigger
-              className="w-full"
-              aria-label={`Select question format for ${info.row.original.name}`}
-            >
-              <SelectValue placeholder="Format" />
-            </SelectTrigger>
-            <SelectContent
-              className="w-[160px]"
-              position="popper"
-              sideOffset={5}
-            >
-              <SelectItem value="Scenario based">Scenario based</SelectItem>
-              <SelectItem value="Theoretical">Theoretical</SelectItem>
-              <SelectItem value="Coding challenge">Coding challenge</SelectItem>
-              <SelectItem value="Behavioral">Behavioral</SelectItem>
-              <SelectItem value="System design">System design</SelectItem>
-            </SelectContent>
-          </Select>
-        ),
-        size: 130,
-      }),
+      // columnHelper.accessor("questionFormat", {
+      //   header: "Question Format",
+      //   cell: (info) => (
+      //     <Select
+      //       value={info.getValue() || "Scenario based"}
+      //       onValueChange={(value) =>
+      //         onUpdateSkill(info.row.original.id, "questionFormat", value)
+      //       }
+      //       disabled={loading}
+      //     >
+      //       <SelectTrigger
+      //         className="w-full"
+      //         aria-label={`Select question format for ${info.row.original.name}`}
+      //       >
+      //         <SelectValue placeholder="Format" />
+      //       </SelectTrigger>
+      //       <SelectContent
+      //         className="w-[160px]"
+      //         position="popper"
+      //         sideOffset={5}
+      //       >
+      //         <SelectItem value="Scenario based">Scenario based</SelectItem>
+      //         <SelectItem value="Theoretical">Theoretical</SelectItem>
+      //         <SelectItem value="Coding challenge">Coding challenge</SelectItem>
+      //         <SelectItem value="Behavioral">Behavioral</SelectItem>
+      //         <SelectItem value="System design">System design</SelectItem>
+      //       </SelectContent>
+      //     </Select>
+      //   ),
+      //   size: 130,
+      // }),
       columnHelper.accessor((row) => row.id, {
         id: "feedback",
         header: "Feedback",

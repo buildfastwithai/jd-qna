@@ -230,7 +230,7 @@ export function AddSkillDialog({
             </Select>
           </div>
 
-          <div className="space-y-2">
+          {/* <div className="space-y-2">
             <Label htmlFor="questionFormat">Question Format</Label>
             <Select
               value={skillData.questionFormat}
@@ -249,7 +249,7 @@ export function AddSkillDialog({
                 <SelectItem value="System design">System design</SelectItem>
               </SelectContent>
             </Select>
-          </div>
+          </div> */}
         </div>
         <DialogFooter>
           <DialogClose asChild>
