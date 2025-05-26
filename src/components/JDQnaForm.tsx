@@ -161,7 +161,7 @@ export function JDQnaForm() {
         body: JSON.stringify({
           jobDescription: jobDescription,
           jobTitle: form.getValues().jobRole,
-          interviewLength: form.getValues().interviewLength,
+          interviewLength: Number(form.getValues().interviewLength),
         }),
       });
 
@@ -232,7 +232,7 @@ export function JDQnaForm() {
           jobDescription: jobDescription,
           skills: prioritizedSkills,
           recordId: recordId,
-          interviewLength: interviewLength,
+          interviewLength: Number(interviewLength),
           maxQuestions: maxQuestions,
           customInstructions: `Focus on these specific skills: ${mandatorySkills.join(
             ", "
@@ -345,7 +345,7 @@ export function JDQnaForm() {
         body: JSON.stringify({
           jobRole: form.getValues().jobRole,
           jobDescription: jobDescription,
-          interviewLength: form.getValues().interviewLength || 60,
+          interviewLength: Number(form.getValues().interviewLength || 60),
           customInstructions: form.getValues().customInstructions || "",
         }),
       });
