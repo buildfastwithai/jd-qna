@@ -58,6 +58,15 @@ export async function POST(
       prompt += `\nDifficulty level: ${question.skill.difficulty}`;
     }
 
+    // Add question format instructions
+    prompt += `\n\nFor the question format, randomly choose one of these and design the question accordingly:
+1. "Open-ended" - Requires a descriptive or narrative answer. Useful for assessing communication, reasoning, or opinion-based responses.
+2. "Coding" - Candidate writes or debugs code. Used for evaluating problem-solving skills, algorithms, and programming language proficiency.
+3. "Scenario" - Presents a short, realistic situation and asks how the candidate would respond or act. Tests decision-making, ethics, soft skills, or role-specific judgment.
+4. "Case Study" - In-depth problem based on a real or simulated business/technical challenge. Requires analysis, synthesis of information, and a structured response. Often multi-step.
+5. "Design" - Asks the candidate to architect a system, process, or solution. Often used in software/system design, business process optimization, or operational planning.
+6. "Live Assessment" - Real-time tasks like pair programming, whiteboarding, or collaborative exercises. Tests real-world working ability and communication under pressure.`;
+
     // Generate a new question using OpenAI
     const response = await openai.chat.completions.create({
       model: "gpt-4.1",
@@ -65,7 +74,7 @@ export async function POST(
         {
           role: "system",
           content:
-            "You are an expert interviewer creating high-quality interview questions. Format your response as a JSON object with fields: question, answer, category (Technical/Experience/Problem Solving/Soft Skills), and difficulty (Easy/Medium/Hard).",
+            "You are an expert interviewer creating high-quality interview questions. Format your response as a JSON object with fields: question, answer, category (Technical/Experience/Problem Solving/Soft Skills), difficulty (Easy/Medium/Hard), and questionFormat (Open-ended/Coding/Scenario/Case Study/Design/Live Assessment).",
         },
         { role: "user", content: prompt },
       ],
@@ -90,6 +99,7 @@ export async function POST(
       const answerMatch = content?.match(/answer":\s*"([^"]+)"/);
       const categoryMatch = content?.match(/category":\s*"([^"]+)"/);
       const difficultyMatch = content?.match(/difficulty":\s*"([^"]+)"/);
+      const formatMatch = content?.match(/questionFormat":\s*"([^"]+)"/);
 
       newQuestionData = {
         question: questionMatch ? questionMatch[1] : "Generated question",
@@ -100,6 +110,9 @@ export async function POST(
         difficulty: difficultyMatch
           ? difficultyMatch[1]
           : questionContent.difficulty || "Medium",
+        questionFormat: formatMatch
+          ? formatMatch[1]
+          : questionContent.questionFormat || "Scenario",
       };
     }
 

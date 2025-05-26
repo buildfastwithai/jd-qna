@@ -21,6 +21,7 @@ interface QuestionDialogProps {
   answer: string;
   category: string;
   difficulty: string;
+  questionFormat?: string;
   liked?: "LIKED" | "DISLIKED" | "NONE";
   feedback?: string;
   onStatusChange?: (status: "LIKED" | "DISLIKED" | "NONE") => void;
@@ -34,6 +35,7 @@ export function QuestionDialog({
   answer,
   category,
   difficulty,
+  questionFormat = "Scenario",
   liked = "NONE",
   feedback = "",
   onStatusChange,
@@ -80,6 +82,26 @@ export function QuestionDialog({
     }
   };
 
+  // Helper function to get CSS class based on question format
+  const getQuestionFormatClass = (format: string) => {
+    switch (format.toLowerCase()) {
+      case "open-ended":
+        return "bg-emerald-50 text-emerald-800 border-emerald-200";
+      case "coding":
+        return "bg-violet-50 text-violet-800 border-violet-200";
+      case "scenario":
+        return "bg-amber-50 text-amber-800 border-amber-200";
+      case "case study":
+        return "bg-cyan-50 text-cyan-800 border-cyan-200";
+      case "design":
+        return "bg-rose-50 text-rose-800 border-rose-200";
+      case "live assessment":
+        return "bg-teal-50 text-teal-800 border-teal-200";
+      default:
+        return "bg-amber-50 text-amber-800 border-amber-200";
+    }
+  };
+
   // Handle regenerate question
   const handleRegenerateQuestion = async (id: string) => {
     if (!onRegenerateQuestion) return;
@@ -111,6 +133,13 @@ export function QuestionDialog({
             >
               {difficulty}
             </span>
+            <span
+              className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${getQuestionFormatClass(
+                questionFormat
+              )}`}
+            >
+              {questionFormat}
+            </span>
           </div>
         </DialogHeader>
         <div className="py-4">
@@ -126,14 +155,14 @@ export function QuestionDialog({
             </DialogClose>
           </div>
           <div>
-            <QuestionLikeButtons
+            {/* <QuestionLikeButtons
               questionId={questionId}
               initialStatus={liked}
               initialFeedback={feedback}
               onStatusChange={onStatusChange}
               onFeedbackChange={onFeedbackChange}
               onRegenerateQuestion={handleRegenerateQuestion}
-            />
+            /> */}
           </div>
         </DialogFooter>
       </DialogContent>

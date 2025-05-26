@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
             recordId: record.id,
             priority: index + 1,
             category: category,
-            questionFormat: "Scenario based",
+            questionFormat: "Scenario",
           },
         });
       })
@@ -111,11 +111,21 @@ ${skillsForQuestions
   .join("\n")}
 
 Generate questions for each skill according to the number specified in parentheses. 
+
+For each question, randomly choose one of these question formats and design the question accordingly:
+1. "Open-ended" - Requires a descriptive or narrative answer. Useful for assessing communication, reasoning, or opinion-based responses.
+2. "Coding" - Candidate writes or debugs code. Used for evaluating problem-solving skills, algorithms, and programming language proficiency.
+3. "Scenario" - Presents a short, realistic situation and asks how the candidate would respond or act. Tests decision-making, ethics, soft skills, or role-specific judgment.
+4. "Case Study" - In-depth problem based on a real or simulated business/technical challenge. Requires analysis, synthesis of information, and a structured response. Often multi-step.
+5. "Design" - Asks the candidate to architect a system, process, or solution. Often used in software/system design, business process optimization, or operational planning.
+6. "Live Assessment" - Real-time tasks like pair programming, whiteboarding, or collaborative exercises. Tests real-world working ability and communication under pressure.
+
 Each question should:
 - Be relevant to the skill
 - Match the appropriate difficulty level
 - Include a detailed suggested answer for the interviewer
 - Be categorized as either Technical, Experience, Problem Solving, or Soft Skills
+- Follow the chosen question format
 
 ${customInstructions ? `Additional instructions: ${customInstructions}` : ""}`;
 
@@ -130,7 +140,8 @@ Format your response as a JSON array where each object has:
 - answer: A comprehensive suggested answer for the interviewer
 - skillName: The name of the skill this question tests (must match one of the provided skills exactly)
 - category: One of: Technical, Experience, Problem Solving, Soft Skills, Functional, Behavioral, Cognitive
-- difficulty: One of: Easy, Medium, Hard`,
+- difficulty: One of: Easy, Medium, Hard
+- questionFormat: One of: Open-ended, Coding, Scenario, Case Study, Design, Live Assessment`,
         },
         { role: "user", content: questionPrompt },
       ],
@@ -180,6 +191,7 @@ Format your response as a JSON array where each object has:
               answer: question.answer,
               category: question.category || "Technical",
               difficulty: question.difficulty || "Medium",
+              questionFormat: question.questionFormat || "Scenario",
             }),
             skillId: skill.id,
             recordId: record.id,

@@ -86,7 +86,7 @@ export async function POST(
             difficulty: skill.difficulty || "Medium",
             priority: index + 1,
             category: category,
-            questionFormat: "Scenario based",
+            questionFormat: "Scenario",
           },
           create: {
             name: skill.name,
@@ -97,7 +97,7 @@ export async function POST(
             recordId: id,
             priority: index + 1,
             category: category,
-            questionFormat: "Scenario based",
+            questionFormat: "Scenario",
           },
         });
       })
@@ -115,7 +115,7 @@ export async function POST(
       id: skill.id,
       numQuestions: skill.numQuestions || 2,
       difficulty: skill.difficulty || "Medium",
-      questionFormat: skill.questionFormat || "Scenario based",
+      questionFormat: skill.questionFormat || "Scenario",
       category: skill.category,
     }));
 

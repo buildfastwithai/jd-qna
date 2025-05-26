@@ -35,12 +35,21 @@ Create questions that test the candidate's knowledge and experience:
 - For INTERMEDIATE level skills, create moderately difficult questions.
 - For BEGINNER level skills, create basic but relevant questions.
 
+For each question, randomly choose one of these question formats and design the question accordingly:
+1. "Open-ended" - Requires a descriptive or narrative answer. Useful for assessing communication, reasoning, or opinion-based responses.
+2. "Coding" - Candidate writes or debugs code. Used for evaluating problem-solving skills, algorithms, and programming language proficiency.
+3. "Scenario" - Presents a short, realistic situation and asks how the candidate would respond or act. Tests decision-making, ethics, soft skills, or role-specific judgment.
+4. "Case Study" - In-depth problem based on a real or simulated business/technical challenge. Requires analysis, synthesis of information, and a structured response. Often multi-step.
+5. "Design" - Asks the candidate to architect a system, process, or solution. Often used in software/system design, business process optimization, or operational planning.
+6. "Live Assessment" - Real-time tasks like pair programming, whiteboarding, or collaborative exercises. Tests real-world working ability and communication under pressure.
+
 Format your response as a JSON object with a 'questions' key containing an array of question objects, where each object has:
 1. A "question" field with the interview question
 2. A "answer" field with a suggested model answer for the interviewer
 3. A "category" field with one of: "Technical", "Experience", "Problem Solving", or "Soft Skills"
 4. A "difficulty" field matching the skill's specified difficulty
 5. A "skillName" field that specifies which skill from the list this question is targeting (must match exactly one of the skill names provided)
+6. A "questionFormat" field with one of: "Open-ended", "Coding", "Scenario", "Case Study", "Design", or "Live Assessment"
 
 Example:
 {"questions": [
@@ -49,7 +58,8 @@ Example:
     "answer": "A strong answer would demonstrate hands-on experience with Docker, including creating Dockerfiles, managing containers, using Docker Compose for multi-container applications, and understanding Docker networking and volumes. The candidate should explain specific projects where they've used Docker in production environments, challenges they faced, and how they solved them. Knowledge of Docker orchestration with Kubernetes or Docker Swarm would be a plus.",
     "category": "Technical",
     "difficulty": "Medium",
-    "skillName": "Docker"
+    "skillName": "Docker",
+    "questionFormat": "Open-ended"
   }
 ]}
 
@@ -219,6 +229,7 @@ export async function POST(
                   category: question.category,
                   difficulty:
                     question.difficulty || skill.difficulty || "Medium",
+                  questionFormat: question.questionFormat || "Scenario",
                 }),
                 skillId: skillId,
                 recordId: id,

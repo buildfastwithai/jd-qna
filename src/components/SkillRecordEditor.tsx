@@ -110,6 +110,7 @@ interface QuestionData {
   answer: string;
   category: string;
   difficulty: string;
+  questionFormat?: string;
   liked?: "LIKED" | "DISLIKED" | "NONE";
   feedback?: string;
 }
@@ -162,6 +163,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
             answer: content.answer,
             category: content.category,
             difficulty: content.difficulty,
+            questionFormat: content.questionFormat || "Scenario",
             liked: q.liked || "NONE",
             feedback: q.feedback || "",
           };
@@ -541,7 +543,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
           difficulty: q.difficulty,
           skillName: getSkillName(q.skillId),
           priority: skill?.priority,
-          questionFormat: skill?.questionFormat || "Scenario based",
+          questionFormat: q.questionFormat || "Scenario",
         };
       });
 
@@ -663,6 +665,26 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
         return "bg-pink-50 text-pink-800 border-pink-200";
       default:
         return "bg-gray-50 text-gray-800 border-gray-200";
+    }
+  };
+
+  // Add a helper function to get a CSS class based on question format
+  const getQuestionFormatClass = (format: string) => {
+    switch (format.toLowerCase()) {
+      case "open-ended":
+        return "bg-emerald-50 text-emerald-800 border-emerald-200";
+      case "coding":
+        return "bg-violet-50 text-violet-800 border-violet-200";
+      case "scenario":
+        return "bg-amber-50 text-amber-800 border-amber-200";
+      case "case study":
+        return "bg-cyan-50 text-cyan-800 border-cyan-200";
+      case "design":
+        return "bg-rose-50 text-rose-800 border-rose-200";
+      case "live assessment":
+        return "bg-teal-50 text-teal-800 border-teal-200";
+      default:
+        return "bg-amber-50 text-amber-800 border-amber-200";
     }
   };
 
@@ -789,6 +811,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                   answer: newContent.answer,
                   category: newContent.category,
                   difficulty: newContent.difficulty,
+                  questionFormat: newContent.questionFormat || "Scenario",
                   liked: "NONE",
                   feedback: "",
                 }
@@ -1093,7 +1116,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
           </p>
         </div>
         <div className="flex gap-2">
-          {/* <Button
+          <Button
             onClick={autoGenerateSkillsAndQuestions}
             disabled={generatingQuestions}
             variant="default"
@@ -1106,7 +1129,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
             ) : (
               <>Auto-Generate All</>
             )}
-          </Button> */}
+          </Button>
           <Button
             onClick={handleGeneratePDF}
             disabled={
@@ -1161,7 +1184,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                 </CardDescription>
               </div>
               <div className="flex items-center gap-2">
-                {/* <Button
+                <Button
                   variant="default"
                   onClick={() => autoGenerateSkillsAndQuestions()}
                   disabled={generatingQuestions}
@@ -1175,7 +1198,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                   ) : (
                     "Auto-Generate Questions"
                   )}
-                </Button> */}
+                </Button>
                 <Button
                   variant={priorityMode ? "secondary" : "outline"}
                   onClick={() => setPriorityMode(!priorityMode)}
@@ -1630,10 +1653,11 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                   <Table className="w-full table-fixed">
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="w-[15%]">Skill</TableHead>
+                        <TableHead className="w-[12%]">Skill</TableHead>
                         <TableHead className="w-[10%]">Category</TableHead>
-                        <TableHead className="w-[10%]">Difficulty</TableHead>
-                        <TableHead className="w-[50%]">Question</TableHead>
+                        <TableHead className="w-[8%]">Difficulty</TableHead>
+                        <TableHead className="w-[12%]">Format</TableHead>
+                        <TableHead className="w-[43%]">Question</TableHead>
                         <TableHead className="w-[15%] text-right">
                           Actions
                         </TableHead>
@@ -1651,7 +1675,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                           <Fragment key={question.id}>
                             {isNewSkillGroup && (
                               <TableRow className="bg-muted/30">
-                                <TableCell colSpan={5} className="py-2">
+                                <TableCell colSpan={6} className="py-2">
                                   <div className="flex items-center justify-between">
                                     <div>
                                       <span className="font-semibold">
@@ -1752,6 +1776,15 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                                   {question.difficulty}
                                 </span>
                               </TableCell>
+                              <TableCell>
+                                <span
+                                  className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${getQuestionFormatClass(
+                                    question.questionFormat || "Scenario"
+                                  )}`}
+                                >
+                                  {question.questionFormat || "Scenario"}
+                                </span>
+                              </TableCell>
                               <TableCell className="font-medium">
                                 <div className="whitespace-normal break-words">
                                   <QuestionDialog
@@ -1760,6 +1793,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                                     answer={question.answer}
                                     category={question.category}
                                     difficulty={question.difficulty}
+                                    questionFormat={question.questionFormat}
                                     liked={question.liked}
                                     feedback={question.feedback}
                                     onStatusChange={(status) =>

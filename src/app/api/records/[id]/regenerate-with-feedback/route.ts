@@ -122,8 +122,15 @@ export async function POST(
         skill.name
       }" at ${skill.level} level.
 Difficulty: ${skillContext.difficulty}
-Question format: ${skillContext.questionFormat}
 Category: ${getCategoryLabel(skillContext.category)}
+
+For each question, randomly choose one of these question formats and design the question accordingly:
+1. "Open-ended" - Requires a descriptive or narrative answer. Useful for assessing communication, reasoning, or opinion-based responses.
+2. "Coding" - Candidate writes or debugs code. Used for evaluating problem-solving skills, algorithms, and programming language proficiency.
+3. "Scenario" - Presents a short, realistic situation and asks how the candidate would respond or act. Tests decision-making, ethics, soft skills, or role-specific judgment.
+4. "Case Study" - In-depth problem based on a real or simulated business/technical challenge. Requires analysis, synthesis of information, and a structured response. Often multi-step.
+5. "Design" - Asks the candidate to architect a system, process, or solution. Often used in software/system design, business process optimization, or operational planning.
+6. "Live Assessment" - Real-time tasks like pair programming, whiteboarding, or collaborative exercises. Tests real-world working ability and communication under pressure.
 
 ${globalFeedbackPrompt}
 
@@ -139,9 +146,10 @@ ${q.feedback ? `Feedback: ${q.feedback}` : "No specific feedback"}`
 Please generate exactly ${
         questionsWithFeedback.length
       } new and improved questions based on the feedback provided. 
-Format your response as a JSON array where each object has: question, answer, category, and difficulty fields.
+Format your response as a JSON array where each object has: question, answer, category, difficulty, and questionFormat fields.
 Category should be one of: Technical, Experience, Problem Solving, Soft Skills, Functional, Behavioral, Cognitive.
-Difficulty should be one of: Easy, Medium, Hard.`;
+Difficulty should be one of: Easy, Medium, Hard.
+QuestionFormat should be one of: Open-ended, Coding, Scenario, Case Study, Design, Live Assessment.`;
 
       // Call OpenAI
       const chatCompletion = await openai.chat.completions.create({
@@ -208,6 +216,7 @@ You must generate exactly the requested number of questions.`,
                 answer: newQuestion.answer,
                 category: newQuestion.category,
                 difficulty: newQuestion.difficulty,
+                questionFormat: newQuestion.questionFormat || "Scenario",
               }),
               liked: "NONE",
               feedback: null, // Clear feedback after regeneration

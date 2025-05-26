@@ -227,11 +227,11 @@ const PDFDoc: React.FC<PDFDocumentProps> = ({ jobRole, questions }) => (
             >
               {question.difficulty}
             </Text>
-            {/* {question.questionFormat && (
+            {question.questionFormat && (
               <Text style={[styles.badge, styles.formatBadge]}>
                 Format: {question.questionFormat}
               </Text>
-            )} */}
+            )}
             {question.priority !== undefined && (
               <Text style={[styles.badge, styles.priorityBadge]}>
                 Priority: {question.priority}
