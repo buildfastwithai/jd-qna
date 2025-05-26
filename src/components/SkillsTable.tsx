@@ -332,35 +332,35 @@ export default function SkillsTable({
         },
         size: 100,
       }),
-      columnHelper.accessor("difficulty", {
-        header: "Difficulty",
-        cell: (info) => (
-          <Select
-            value={info.getValue() || "Medium"}
-            onValueChange={(value) =>
-              onUpdateSkill(info.row.original.id, "difficulty", value)
-            }
-            disabled={loading}
-          >
-            <SelectTrigger
-              className="w-full"
-              aria-label={`Select difficulty for ${info.row.original.name}`}
-            >
-              <SelectValue placeholder="Difficulty" />
-            </SelectTrigger>
-            <SelectContent
-              className="w-[160px]"
-              position="popper"
-              sideOffset={5}
-            >
-              <SelectItem value="Easy">Easy</SelectItem>
-              <SelectItem value="Medium">Medium</SelectItem>
-              <SelectItem value="Hard">Hard</SelectItem>
-            </SelectContent>
-          </Select>
-        ),
-        size: 100,
-      }),
+      // columnHelper.accessor("difficulty", {
+      //   header: "Difficulty",
+      //   cell: (info) => (
+      //     <Select
+      //       value={info.getValue() || "Medium"}
+      //       onValueChange={(value) =>
+      //         onUpdateSkill(info.row.original.id, "difficulty", value)
+      //       }
+      //       disabled={loading}
+      //     >
+      //       <SelectTrigger
+      //         className="w-full"
+      //         aria-label={`Select difficulty for ${info.row.original.name}`}
+      //       >
+      //         <SelectValue placeholder="Difficulty" />
+      //       </SelectTrigger>
+      //       <SelectContent
+      //         className="w-[160px]"
+      //         position="popper"
+      //         sideOffset={5}
+      //       >
+      //         <SelectItem value="Easy">Easy</SelectItem>
+      //         <SelectItem value="Medium">Medium</SelectItem>
+      //         <SelectItem value="Hard">Hard</SelectItem>
+      //       </SelectContent>
+      //     </Select>
+      //   ),
+      //   size: 100,
+      // }),
       // columnHelper.accessor("questionFormat", {
       //   header: "Question Format",
       //   cell: (info) => (

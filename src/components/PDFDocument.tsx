@@ -219,14 +219,14 @@ const PDFDoc: React.FC<PDFDocumentProps> = ({ jobRole, questions }) => (
             >
               {question.category}
             </Text>
-            <Text
+            {/* <Text
               style={[
                 styles.badge,
                 getDifficultyBadgeStyle(question.difficulty as any),
               ]}
             >
               {question.difficulty}
-            </Text>
+            </Text> */}
             {question.questionFormat && (
               <Text style={[styles.badge, styles.formatBadge]}>
                 Format: {question.questionFormat}
