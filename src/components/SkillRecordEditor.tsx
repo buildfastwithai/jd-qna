@@ -1728,7 +1728,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                       <TableRow>
                         <TableHead className="w-[12%]">Skill</TableHead>
                         <TableHead className="w-[10%]">Category</TableHead>
-                        <TableHead className="w-[8%]">Difficulty</TableHead>
+                        {/* <TableHead className="w-[8%]">Difficulty</TableHead> */}
                         <TableHead className="w-[12%]">Format</TableHead>
                         <TableHead className="w-[43%]">Question</TableHead>
                         <TableHead className="w-[15%] text-right">
@@ -1840,7 +1840,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                                   {question.category}
                                 </span>
                               </TableCell>
-                              <TableCell>
+                              {/* <TableCell>
                                 <span
                                   className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${getDifficultyClass(
                                     question.difficulty
@@ -1848,7 +1848,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                                 >
                                   {question.difficulty}
                                 </span>
-                              </TableCell>
+                              </TableCell> */}
                               <TableCell>
                                 <span
                                   className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${getQuestionFormatClass(
