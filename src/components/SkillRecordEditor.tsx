@@ -63,6 +63,7 @@ import {
 } from "./ui/dialog";
 import SkillsTable from "./SkillsTable";
 import { GlobalFeedbackDialog } from "./ui/global-feedback-dialog";
+import { QuestionGenerationDialog } from "./ui/question-generation-dialog";
 
 // Define interfaces for the types from Prisma
 interface Skill {
@@ -149,6 +150,16 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
     useState(false);
   const [globalFeedback, setGlobalFeedback] = useState("");
   const [loadingGlobalFeedback, setLoadingGlobalFeedback] = useState(false);
+  const [questionGenerationDialogOpen, setQuestionGenerationDialogOpen] =
+    useState(false);
+  const [generationProgress, setGenerationProgress] = useState({
+    title: "Generating Questions",
+    description:
+      "Please wait while we generate interview questions for your skills...",
+    showProgress: false,
+    progressValue: 0,
+    progressText: "",
+  });
 
   // Parse question content from JSON string
   function formatQuestions(questions: Question[]): QuestionData[] {
@@ -230,6 +241,14 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
 
     try {
       setGeneratingQuestions(true);
+      setQuestionGenerationDialogOpen(true);
+      setGenerationProgress({
+        title: "Generating Questions",
+        description: "Analyzing skills and creating interview questions...",
+        showProgress: false,
+        progressValue: 0,
+        progressText: "",
+      });
 
       // Find skills that need questions (mandatory skills with no questions)
       const skillsNeedingQuestions = editedSkills.filter(
@@ -241,6 +260,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
       if (skillsNeedingQuestions.length === 0) {
         toast.info("All mandatory skills already have questions!");
         setGeneratingQuestions(false);
+        setQuestionGenerationDialogOpen(false);
         return;
       }
 
@@ -286,6 +306,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
       toast.error(error.message || "Error generating questions");
     } finally {
       setGeneratingQuestions(false);
+      setQuestionGenerationDialogOpen(false);
     }
   };
 
@@ -293,6 +314,16 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
   const generateQuestionsForRecord = async (force = false) => {
     try {
       setGeneratingQuestions(true);
+      setQuestionGenerationDialogOpen(true);
+      setGenerationProgress({
+        title: force ? "Regenerating All Questions" : "Generating Questions",
+        description: force
+          ? "Regenerating all interview questions with fresh content..."
+          : "Creating interview questions for your skills...",
+        showProgress: false,
+        progressValue: 0,
+        progressText: "",
+      });
 
       const response = await fetch(
         `/api/records/${record.id}/generate-questions`,
@@ -330,6 +361,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
       toast.error(error.message || "Error generating questions");
     } finally {
       setGeneratingQuestions(false);
+      setQuestionGenerationDialogOpen(false);
     }
   };
 
@@ -337,6 +369,22 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
   const autoGenerateSkillsAndQuestions = async () => {
     try {
       setGeneratingQuestions(true);
+      setQuestionGenerationDialogOpen(true);
+      setGenerationProgress({
+        title: "Auto-Generating Skills & Questions",
+        description:
+          "Analyzing job requirements and creating comprehensive interview content...",
+        showProgress: true,
+        progressValue: 10,
+        progressText: "Extracting skills from job description...",
+      });
+
+      // Update progress
+      setGenerationProgress((prev) => ({
+        ...prev,
+        progressValue: 30,
+        progressText: "Generating interview questions...",
+      }));
 
       // Call the API endpoint that handles both skill and question generation
       const response = await fetch(`/api/records/${record.id}/auto-generate`, {
@@ -356,6 +404,13 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
       const data = await response.json();
 
       if (data.success) {
+        // Update progress
+        setGenerationProgress((prev) => ({
+          ...prev,
+          progressValue: 80,
+          progressText: "Finalizing questions...",
+        }));
+
         // Show success toast
         toast.success(
           `${data.message || "Successfully generated skills and questions!"}`
@@ -368,6 +423,13 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
 
         // Fetch the latest questions
         await fetchLatestQuestions();
+
+        // Final progress update
+        setGenerationProgress((prev) => ({
+          ...prev,
+          progressValue: 100,
+          progressText: "Complete!",
+        }));
 
         // Switch to questions tab
         setActiveTab("questions");
@@ -384,6 +446,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
       );
     } finally {
       setGeneratingQuestions(false);
+      setQuestionGenerationDialogOpen(false);
     }
   };
 
@@ -439,6 +502,15 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
   const regenerateQuestionsWithFeedback = async () => {
     try {
       setQuestionsLoading(true);
+      setQuestionGenerationDialogOpen(true);
+      setGenerationProgress({
+        title: "Regenerating with Feedback",
+        description:
+          "Applying your feedback to improve the interview questions...",
+        showProgress: false,
+        progressValue: 0,
+        progressText: "",
+      });
 
       // Collect the feedback for API
       const feedbackData = questions
@@ -491,6 +563,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
       generateQuestionsForRecord(true);
     } finally {
       setQuestionsLoading(false);
+      setQuestionGenerationDialogOpen(false);
     }
   };
 
@@ -1984,6 +2057,16 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
 
       {/* Add the FeedbackDialog component */}
       <FeedbackDialog />
+
+      {/* Question Generation Dialog */}
+      <QuestionGenerationDialog
+        open={questionGenerationDialogOpen}
+        title={generationProgress.title}
+        description={generationProgress.description}
+        showProgress={generationProgress.showProgress}
+        progressValue={generationProgress.progressValue}
+        progressText={generationProgress.progressText}
+      />
     </div>
   );
 }

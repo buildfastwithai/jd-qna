@@ -32,6 +32,7 @@ import { saveAs } from "file-saver";
 import { useRouter } from "next/navigation";
 import { SkillLevel, Requirement } from "@prisma/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
+import { QuestionGenerationDialog } from "./ui/question-generation-dialog";
 
 // Form validation schema
 const formSchema = z.object({
@@ -69,6 +70,16 @@ export function JDQnaForm() {
   const [skillsDialogOpen, setSkillsDialogOpen] = useState(false);
   const [recordId, setRecordId] = useState<string | null>(null);
   const [inputMethod, setInputMethod] = useState<"file" | "text">("file");
+  const [questionGenerationDialogOpen, setQuestionGenerationDialogOpen] =
+    useState(false);
+  const [generationProgress, setGenerationProgress] = useState({
+    title: "Auto-Generating",
+    description:
+      "Creating skills and interview questions from your job description...",
+    showProgress: true,
+    progressValue: 0,
+    progressText: "",
+  });
 
   const router = useRouter();
 
@@ -315,6 +326,15 @@ export function JDQnaForm() {
     }
 
     setLoading(true);
+    setQuestionGenerationDialogOpen(true);
+    setGenerationProgress({
+      title: "Auto-Generating Skills & Questions",
+      description:
+        "Analyzing your job description and creating comprehensive interview content...",
+      showProgress: true,
+      progressValue: 10,
+      progressText: "Extracting skills from job description...",
+    });
 
     try {
       const response = await fetch("/api/auto-generate", {
@@ -351,6 +371,7 @@ export function JDQnaForm() {
       alert("Error auto-generating skills and questions. Please try again.");
     } finally {
       setLoading(false);
+      setQuestionGenerationDialogOpen(false);
     }
   };
 
@@ -580,6 +601,16 @@ export function JDQnaForm() {
           </Button>
         </div>
       )}
+
+      {/* Question Generation Dialog */}
+      <QuestionGenerationDialog
+        open={questionGenerationDialogOpen}
+        title={generationProgress.title}
+        description={generationProgress.description}
+        showProgress={generationProgress.showProgress}
+        progressValue={generationProgress.progressValue}
+        progressText={generationProgress.progressText}
+      />
     </div>
   );
 }

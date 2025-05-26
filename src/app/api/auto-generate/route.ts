@@ -57,9 +57,11 @@ export async function POST(req: NextRequest) {
     // Step 3: Save extracted skills to the database
     const skills = await Promise.all(
       extractedSkills.map(async (skill: any, index: number) => {
-        // Default values based on requirements
-        const isOptional = skill.importance === "low" || index >= 5;
-        const numQuestions = isOptional ? 0 : 2;
+        // Ensure at least the first 3 skills are mandatory with questions
+        // and at least 1 question for the first 8 skills
+        const isHighPriority = index < 3 || skill.importance === "high";
+        const isOptional = !isHighPriority && index >= 3;
+        const numQuestions = index < 8 ? (isOptional ? 1 : 2) : 0;
         const level = skill.level || "INTERMEDIATE";
         const category = skill.category || "TECHNICAL";
 
@@ -87,12 +89,18 @@ export async function POST(req: NextRequest) {
 
     // Skip if no skills need questions
     if (skillsForQuestions.length === 0) {
+      console.log("No skills found for question generation");
       return NextResponse.json({
         success: true,
         recordId: record.id,
         message: "Skills extracted but no questions to generate",
       });
     }
+
+    console.log(
+      `Generating questions for ${skillsForQuestions.length} skills:`,
+      skillsForQuestions.map((s) => `${s.name} (${s.numQuestions} questions)`)
+    );
 
     // Calculate the total questions based on interview length
     const totalAvailableTime = interviewLength - 10; // Reserve 10 min for intro/wrap-up
@@ -176,13 +184,19 @@ Format your response as a JSON array where each object has:
       }
 
       // Save questions to the database
+      let savedQuestions = 0;
       for (const question of questions) {
         // Find the matching skill
         const skill = skills.find(
           (s) => s.name.toLowerCase() === question.skillName?.toLowerCase()
         );
 
-        if (!skill) continue;
+        if (!skill) {
+          console.log(
+            `No matching skill found for question: ${question.skillName}`
+          );
+          continue;
+        }
 
         await prisma.question.create({
           data: {
@@ -197,15 +211,32 @@ Format your response as a JSON array where each object has:
             recordId: record.id,
           },
         });
+        savedQuestions++;
       }
+
+      console.log(`Successfully saved ${savedQuestions} questions to database`);
     } catch (error) {
       console.error("Error processing questions:", error);
+      // Don't fail the entire request if question parsing fails
+      console.log(
+        "Continuing with skills only due to question generation error"
+      );
     }
+
+    // Get final counts for response
+    const finalSkillCount = await prisma.skill.count({
+      where: { recordId: record.id },
+    });
+    const finalQuestionCount = await prisma.question.count({
+      where: { recordId: record.id },
+    });
 
     return NextResponse.json({
       success: true,
       recordId: record.id,
-      message: "Skills and questions generated successfully",
+      message: `Generated ${finalSkillCount} skills and ${finalQuestionCount} questions successfully`,
+      skillCount: finalSkillCount,
+      questionCount: finalQuestionCount,
     });
   } catch (error: any) {
     console.error("Error auto-generating:", error);
