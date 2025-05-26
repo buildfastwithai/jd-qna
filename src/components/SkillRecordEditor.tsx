@@ -1189,7 +1189,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button
+          {/* <Button
             onClick={autoGenerateSkillsAndQuestions}
             disabled={generatingQuestions}
             variant="default"
@@ -1202,7 +1202,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
             ) : (
               <>Auto-Generate All</>
             )}
-          </Button>
+          </Button> */}
           <Button
             onClick={handleGeneratePDF}
             disabled={
@@ -1257,7 +1257,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                 </CardDescription>
               </div>
               <div className="flex items-center gap-2">
-                <Button
+                {/* <Button
                   variant="default"
                   onClick={() => autoGenerateSkillsAndQuestions()}
                   disabled={generatingQuestions}
@@ -1271,7 +1271,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                   ) : (
                     "Auto-Generate Questions"
                   )}
-                </Button>
+                </Button> */}
                 <Button
                   variant={priorityMode ? "secondary" : "outline"}
                   onClick={() => setPriorityMode(!priorityMode)}
