@@ -98,19 +98,38 @@ export default function DashboardPage() {
     },
   ];
 
-  const skillLevelData = statistics.skillLevelDistribution.map((item) => ({
+  const skillLevelData = statistics.skillLevelDistribution.map((item: any) => ({
     level: item.level.charAt(0) + item.level.slice(1).toLowerCase(),
-    count: item.count,
+    count: item.count!,
   }));
 
   const skillCategoryData = statistics.skillCategoryDistribution.map(
-    (item) => ({
+    (item: any) => ({
       category:
-        item.category?.charAt(0) + item.category?.slice(1).toLowerCase() ||
-        "Unknown",
-      count: item.count,
+        (item.category?.charAt(0) ?? "") +
+          (item.category?.slice(1).toLowerCase() ?? "") || "Unknown",
+      count: item.count!,
     })
   );
+
+  // Calculate dislike ratio data
+  const totalFeedback =
+    statistics.questionLikes.liked +
+    statistics.questionLikes.disliked +
+    statistics.questionLikes.neutral;
+  const likedAndNeutral =
+    statistics.questionLikes.liked + statistics.questionLikes.neutral;
+  const dislikedCount = statistics.questionLikes.disliked;
+
+  const dislikeRatio =
+    totalFeedback > 0 ? (dislikedCount / totalFeedback) * 100 : 0;
+  const positiveRatio =
+    totalFeedback > 0 ? (likedAndNeutral / totalFeedback) * 100 : 0;
+
+  const dislikeRatioData = [
+    { name: "Positive/Neutral", value: positiveRatio, color: "#10B981" },
+    { name: "Disliked", value: dislikeRatio, color: "#EF4444" },
+  ];
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -131,7 +150,9 @@ export default function DashboardPage() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Records</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Job Description Generated
+            </CardTitle>
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -187,7 +208,7 @@ export default function DashboardPage() {
       {/* Charts Section */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {/* Question Likes Chart */}
-        <Card className="col-span-1">
+        {/* <Card className="col-span-1">
           <CardHeader>
             <CardTitle>Question Feedback</CardTitle>
             <CardDescription>
@@ -225,6 +246,58 @@ export default function DashboardPage() {
                   </span>
                 </div>
               ))}
+            </div>
+          </CardContent>
+        </Card> */}
+
+        {/* Dislike Ratio Chart */}
+        <Card className="col-span-1">
+          <CardHeader>
+            <CardTitle>Question Feedback</CardTitle>
+            <CardDescription>
+              Percentage of dislikes vs positive feedback
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={200}>
+              <PieChart>
+                <Pie
+                  data={dislikeRatioData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={40}
+                  outerRadius={80}
+                  paddingAngle={5}
+                  dataKey="value"
+                >
+                  {dislikeRatioData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  formatter={(value) =>
+                    `${typeof value === "number" ? value.toFixed(1) : value}%`
+                  }
+                />
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="flex justify-center space-x-2 mt-2">
+              {dislikeRatioData.map((entry, index) => (
+                <div key={index} className="flex items-center space-x-1">
+                  <div
+                    className="w-3 h-3 rounded-full"
+                    style={{ backgroundColor: entry.color }}
+                  />
+                  <span className="text-sm">
+                    {entry.name}: {entry.value.toFixed(1)}%
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div className="text-center mt-2">
+              <div className="text-lg font-semibold text-red-600">
+                {dislikeRatio.toFixed(1)}% Dislike Rate
+              </div>
             </div>
           </CardContent>
         </Card>
