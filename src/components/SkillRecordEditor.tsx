@@ -64,8 +64,6 @@ import {
 import SkillsTable from "./SkillsTable";
 import { GlobalFeedbackDialog } from "./ui/global-feedback-dialog";
 import { QuestionGenerationDialog } from "./ui/question-generation-dialog";
-import { RegenerationDialog } from "./RegenerationDialog";
-import { RegenerationFeedback } from "./RegenerationFeedback";
 
 // Define interfaces for the types from Prisma
 interface Skill {
@@ -140,11 +138,6 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
   const [skillFeedbackCounts, setSkillFeedbackCounts] = useState<
     Record<string, number>
   >({});
-  const [skillBeingDeleted, setSkillBeingDeleted] = useState<string | null>(
-    null
-  );
-  const [deleteSkillDialogOpen, setDeleteSkillDialogOpen] = useState(false);
-  const [deletingSkill, setDeletingSkill] = useState(false);
   const [priorityMode, setPriorityMode] = useState(false);
   const [activeQuestion, setActiveQuestion] = useState<string | null>(null);
   const [feedbackDialogOpen, setFeedbackDialogOpen] = useState(false);
@@ -162,14 +155,6 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
     progressValue: 0,
     progressText: "",
   });
-
-  // Regeneration state
-  const [regenerationDialogOpen, setRegenerationDialogOpen] = useState(false);
-  const [questionToRegenerate, setQuestionToRegenerate] =
-    useState<QuestionData | null>(null);
-  const [regenerationFeedbacks, setRegenerationFeedbacks] = useState<
-    Record<string, string>
-  >({});
 
   // Parse question content from JSON string
   function formatQuestions(questions: Question[]): QuestionData[] {
@@ -866,53 +851,61 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
   const handleRegenerateQuestion = async (
     questionId: string
   ): Promise<void> => {
-    const question = questions.find((q) => q.id === questionId);
-    if (question) {
-      setQuestionToRegenerate(question);
-      setRegenerationDialogOpen(true);
+    if (!questionId) return;
+
+    try {
+      setQuestionsLoading(true);
+
+      const response = await fetch(`/api/questions/${questionId}/regenerate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to regenerate question");
+      }
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Parse the new content
+        const newContent =
+          typeof data.question.content === "string"
+            ? JSON.parse(data.question.content)
+            : data.question.content;
+
+        // Update the questions list with the new question
+        setQuestions((prevQuestions) =>
+          prevQuestions.map((q) =>
+            q.id === questionId
+              ? {
+                  ...q,
+                  question: newContent.question,
+                  answer: newContent.answer,
+                  category: newContent.category,
+                  difficulty: newContent.difficulty,
+                  liked: "NONE",
+                  feedback: "",
+                }
+              : q
+          )
+        );
+
+        toast.success("Question regenerated successfully");
+
+        // Refresh the questions data
+        fetchLatestQuestions();
+      } else {
+        throw new Error(data.error || "Failed to regenerate question");
+      }
+    } catch (error) {
+      console.error("Error regenerating question:", error);
+      toast.error("Failed to regenerate question");
+    } finally {
+      setQuestionsLoading(false);
     }
-  };
-
-  // Handle successful regeneration
-  const handleRegenerationSuccess = (
-    newQuestion: any,
-    regenerationId: string
-  ) => {
-    // Parse the new content
-    const newContent =
-      typeof newQuestion.content === "string"
-        ? JSON.parse(newQuestion.content)
-        : newQuestion.content;
-
-    // Update the questions list with the new question
-    setQuestions((prevQuestions) => [
-      ...prevQuestions.filter((q) => q.id !== questionToRegenerate?.id),
-      {
-        id: newQuestion.id,
-        question: newContent.question,
-        answer: newContent.answer,
-        category: newContent.category,
-        difficulty: newContent.difficulty,
-        questionFormat: newContent.questionFormat || "Scenario",
-        liked: "NONE",
-        feedback: "",
-        skillId: newQuestion.skillId,
-        recordId: newQuestion.recordId,
-      },
-    ]);
-
-    // Store the regeneration ID for feedback
-    setRegenerationFeedbacks((prev) => ({
-      ...prev,
-      [newQuestion.id]: regenerationId,
-    }));
-
-    toast.success("Question regenerated successfully");
-
-    // Force re-render and fetch latest data
-    setQuestionsLoading(true);
-    setQuestionsLoading(false);
-    fetchLatestQuestions();
   };
 
   // Get number of liked/disliked questions for a skill
@@ -965,7 +958,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
   // Add a function to handle skill deletion
   const handleDeleteSkill = async (skillId: string) => {
     try {
-      setDeletingSkill(true);
+      setLoading(true);
 
       const response = await fetch(`/api/skills/${skillId}`, {
         method: "DELETE",
@@ -985,16 +978,13 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
         questions.filter((question) => question.skillId !== skillId)
       );
 
-      // Close dialog
-      setDeleteSkillDialogOpen(false);
-
       // Refresh the page to get updated data
       router.refresh();
     } catch (error) {
       console.error("Error deleting skill:", error);
       toast.error("Failed to delete skill. Please try again.");
     } finally {
-      setDeletingSkill(false);
+      setLoading(false);
     }
   };
 
@@ -1358,8 +1348,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                                           variant="ghost"
                                           size="icon"
                                           onClick={() => {
-                                            setSkillBeingDeleted(skill.id);
-                                            setDeleteSkillDialogOpen(true);
+                                            handleDeleteSkill(skill.id);
                                           }}
                                         >
                                           <Trash2 className="h-4 w-4 text-destructive" />
@@ -1442,8 +1431,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                                           variant="ghost"
                                           size="icon"
                                           onClick={() => {
-                                            setSkillBeingDeleted(skill.id);
-                                            setDeleteSkillDialogOpen(true);
+                                            handleDeleteSkill(skill.id);
                                           }}
                                         >
                                           <Trash2 className="h-4 w-4 text-destructive" />
@@ -1469,8 +1457,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                   onUpdateSkill={updateSkill}
                   getSkillQuestionCount={getSkillQuestionCount}
                   onDeleteSkill={(skillId) => {
-                    setSkillBeingDeleted(skillId);
-                    setDeleteSkillDialogOpen(true);
+                    handleDeleteSkill(skillId);
                   }}
                   onSkillAdded={() => {
                     // Fetch the latest skills data from the server
@@ -1982,27 +1969,6 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                                 </div>
                               </TableCell>
                             </TableRow>
-
-                            {/* Show regeneration feedback if this question was regenerated */}
-                            {regenerationFeedbacks[question.id] && (
-                              <TableRow>
-                                <TableCell colSpan={6} className="p-4">
-                                  <RegenerationFeedback
-                                    regenerationId={
-                                      regenerationFeedbacks[question.id]
-                                    }
-                                    onFeedbackSubmitted={() => {
-                                      // Remove from tracking once feedback is submitted
-                                      setRegenerationFeedbacks((prev) => {
-                                        const updated = { ...prev };
-                                        delete updated[question.id];
-                                        return updated;
-                                      });
-                                    }}
-                                  />
-                                </TableCell>
-                              </TableRow>
-                            )}
                           </Fragment>
                         );
                       })}
@@ -2019,54 +1985,6 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
           </Card>
         </TabsContent>
       </Tabs>
-
-      {/* Delete skill confirmation dialog */}
-      {skillBeingDeleted && (
-        <Dialog
-          open={deleteSkillDialogOpen}
-          onOpenChange={setDeleteSkillDialogOpen}
-        >
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Delete Skill</DialogTitle>
-              <DialogDescription>
-                Are you sure you want to delete this skill? This action cannot
-                be undone.
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="pt-4 pb-2">
-              <p className="text-sm text-red-500 font-medium">
-                Warning: This will also delete all questions associated with
-                this skill.
-              </p>
-            </div>
-
-            <DialogFooter className="flex items-center justify-end gap-2 pt-4">
-              <Button
-                variant="outline"
-                onClick={() => setDeleteSkillDialogOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={() => handleDeleteSkill(skillBeingDeleted)}
-                disabled={deletingSkill}
-              >
-                {deletingSkill ? (
-                  <>
-                    <Spinner size="sm" className="mr-2" />
-                    Deleting...
-                  </>
-                ) : (
-                  "Delete Skill"
-                )}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
 
       {/* Global Feedback Dialog */}
       <GlobalFeedbackDialog
@@ -2094,19 +2012,6 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
         progressValue={generationProgress.progressValue}
         progressText={generationProgress.progressText}
       />
-
-      {/* Regeneration Dialog */}
-      {questionToRegenerate && (
-        <RegenerationDialog
-          question={questionToRegenerate as any}
-          isOpen={regenerationDialogOpen}
-          onClose={() => {
-            setRegenerationDialogOpen(false);
-            setQuestionToRegenerate(null);
-          }}
-          onSuccess={handleRegenerationSuccess}
-        />
-      )}
     </div>
   );
 }
