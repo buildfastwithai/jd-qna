@@ -31,6 +31,8 @@ export interface Question {
   recordId: string;
   liked?: LikeStatus;
   feedback?: string;
+  regenerations?: Regeneration[];
+  regeneratedFrom?: Regeneration[];
 }
 
 export interface Feedback {
@@ -45,6 +47,23 @@ export interface GlobalFeedback {
   id: string;
   content: string;
   recordId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Regeneration {
+  id: string;
+  originalQuestionId: string;
+  originalQuestion?: Question;
+  newQuestionId: string;
+  newQuestion?: Question;
+  reason?: string;
+  userFeedback?: string;
+  liked?: LikeStatus;
+  skillId: string;
+  skill?: Skill;
+  recordId: string;
+  record?: SkillRecord;
   createdAt: string;
   updatedAt: string;
 }
@@ -67,10 +86,19 @@ export interface DashboardStatistics {
   totalSkills: number;
   totalQuestions: number;
   totalFeedbacks: number;
+  totalRegenerations: number;
   questionLikes: {
     liked: number;
     disliked: number;
     neutral: number;
+  };
+  regenerationStats: {
+    totalRegenerations: number;
+    averageRegenerationsPerQuestion: number;
+    mostRegeneratedSkills: Array<{
+      skillName: string;
+      regenerationCount: number;
+    }>;
   };
   skillLevelDistribution: Array<{
     level: SkillLevel;

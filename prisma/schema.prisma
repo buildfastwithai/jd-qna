@@ -23,6 +23,7 @@ model SkillRecord {
   interviewLength Int?     // Interview length in minutes
   rawJobDescription String? @db.Text // Raw job description text
   globalFeedback GlobalFeedback?
+  regenerations  Regeneration[]
 }
 
 model Skill {
@@ -36,6 +37,7 @@ model Skill {
   record       SkillRecord  @relation(fields: [recordId], references: [id], onDelete: Cascade)
   questions    Question[]
   feedbacks    Feedback[]
+  regenerations Regeneration[]
   priority     Int?         // Priority order for sequencing questions
   category     SkillCategory? @default(TECHNICAL)
   questionFormat String?    @default("Scenario based")
@@ -52,6 +54,8 @@ model Question {
   record       SkillRecord  @relation(fields: [recordId], references: [id], onDelete: Cascade)
   liked        LikeStatus?  @default(NONE)
   feedback     String?      @db.Text
+  regenerations Regeneration[] @relation("OriginalQuestion")
+  regeneratedFrom Regeneration[] @relation("RegeneratedQuestion")
 }
 
 model Feedback {
@@ -70,6 +74,25 @@ model GlobalFeedback {
   record       SkillRecord  @relation(fields: [recordId], references: [id], onDelete: Cascade)
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
+}
+
+model Regeneration {
+  id                String       @id @default(uuid())
+  originalQuestionId String
+  originalQuestion   Question     @relation("OriginalQuestion", fields: [originalQuestionId], references: [id], onDelete: Cascade)
+  newQuestionId     String
+  newQuestion       Question     @relation("RegeneratedQuestion", fields: [newQuestionId], references: [id], onDelete: Cascade)
+  reason            String?      @db.Text // Reason for regeneration
+  userFeedback      String?      @db.Text // User's feedback on the regeneration
+  liked             LikeStatus?  @default(NONE) // User's preference for the new question
+  skillId           String
+  skill             Skill        @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  recordId          String
+  record            SkillRecord  @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  
+  @@unique([originalQuestionId, newQuestionId])
 }
 
 enum SkillLevel {

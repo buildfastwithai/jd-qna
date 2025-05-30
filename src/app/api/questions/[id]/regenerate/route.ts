@@ -13,6 +13,8 @@ export async function POST(
 ) {
   try {
     const { id: questionId } = await params;
+    const body = await request.json();
+    const { reason, userFeedback } = body;
 
     if (!questionId) {
       return NextResponse.json(
@@ -45,6 +47,12 @@ export async function POST(
     // Add the old question for context
     prompt += `\nOriginal question: ${questionContent.question}`;
 
+    // Add reason for regeneration if provided
+    if (reason) {
+      prompt += `\n\nReason for regeneration: "${reason}"`;
+      prompt += `\nPlease address this specific concern in the new question.`;
+    }
+
     // Add feedback if available - emphasize this importance
     if (question.feedback) {
       prompt += `\n\nUser feedback on original question: "${question.feedback}"`;
@@ -69,7 +77,7 @@ export async function POST(
 
     // Generate a new question using OpenAI
     const response = await openai.chat.completions.create({
-      model: "gpt-4.1",
+      model: "gpt-4o",
       messages: [
         {
           role: "system",
@@ -116,22 +124,46 @@ export async function POST(
       };
     }
 
-    // Update the question in the database
-    const updatedQuestion = await prisma.question.update({
-      where: { id: questionId },
-      data: {
-        content: JSON.stringify(newQuestionData),
-        liked: "NONE",
-        feedback: null,
-      },
+    // Use a transaction to create the new question and regeneration record
+    const result = await prisma.$transaction(async (tx) => {
+      // Create the new question
+      const newQuestion = await tx.question.create({
+        data: {
+          content: JSON.stringify(newQuestionData),
+          skillId: question.skillId,
+          recordId: question.recordId,
+          liked: "NONE",
+        },
+      });
+
+      // Create the regeneration record
+      const regeneration = await tx.regeneration.create({
+        data: {
+          originalQuestionId: questionId,
+          newQuestionId: newQuestion.id,
+          reason: reason || null,
+          userFeedback: userFeedback || null,
+          skillId: question.skillId,
+          recordId: question.recordId,
+        },
+        include: {
+          originalQuestion: true,
+          newQuestion: true,
+          skill: true,
+        },
+      });
+
+      return { newQuestion, regeneration };
     });
 
     return NextResponse.json({
       success: true,
       question: {
-        ...updatedQuestion,
-        newContent: newQuestionData,
+        ...result.newQuestion,
+        content: newQuestionData,
       },
+      regeneration: result.regeneration,
+      message: "Question regenerated successfully",
     });
   } catch (error: any) {
     console.error("Error regenerating question:", error);

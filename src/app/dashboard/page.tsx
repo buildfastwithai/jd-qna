@@ -43,6 +43,8 @@ import {
   Clock,
   Users,
   Activity,
+  RefreshCw,
+  BarChart3,
 } from "lucide-react";
 import Link from "next/link";
 import { useDashboard } from "@/hooks/useDashboard";
@@ -163,7 +165,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        {/* <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Skills</CardTitle>
             <Brain className="h-4 w-4 text-muted-foreground" />
@@ -172,7 +174,7 @@ export default function DashboardPage() {
             <div className="text-2xl font-bold">{statistics.totalSkills}</div>
             <p className="text-xs text-muted-foreground">Extracted skills</p>
           </CardContent>
-        </Card>
+        </Card> */}
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -203,10 +205,121 @@ export default function DashboardPage() {
             <p className="text-xs text-muted-foreground">Feedback entries</p>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Total Regenerations
+            </CardTitle>
+            <RefreshCw className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {statistics.totalRegenerations || 0}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Question regenerations
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Avg Regenerations
+            </CardTitle>
+            <BarChart3 className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {statistics.regenerationStats?.averageRegenerationsPerQuestion ||
+                0}
+            </div>
+            <p className="text-xs text-muted-foreground">Per question</p>
+          </CardContent>
+        </Card> */}
       </div>
 
+      {/* Regeneration Analytics Section */}
+      {statistics.totalRegenerations > 0 && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <RefreshCw className="h-5 w-5" />
+                Question Regeneration Analytics
+              </CardTitle>
+              <CardDescription>
+                Insights into question regeneration patterns and quality
+                improvements
+              </CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-6 md:grid-cols-2">
+              {/* Regeneration Summary */}
+              <div className="space-y-4">
+                <h4 className="text-sm font-medium text-muted-foreground">
+                  Quick Stats
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="text-center p-3 border rounded-lg">
+                    <div className="text-2xl font-bold text-blue-600">
+                      {statistics.totalRegenerations}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Total Regenerations
+                    </div>
+                  </div>
+                  <div className="text-center p-3 border rounded-lg">
+                    <div className="text-2xl font-bold text-green-600">
+                      {statistics.regenerationStats
+                        ?.averageRegenerationsPerQuestion || 0}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Avg per Question
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Most Regenerated Skills */}
+              <div className="space-y-4">
+                <h4 className="text-sm font-medium text-muted-foreground">
+                  Top Regenerated Skills
+                </h4>
+                <div className="space-y-2">
+                  {statistics.regenerationStats?.mostRegeneratedSkills
+                    ?.slice(0, 4)
+                    .map((skill, index) => (
+                      <div
+                        key={index}
+                        className="flex justify-between items-center p-2 bg-gray-50 rounded-lg"
+                      >
+                        <span className="text-sm font-medium truncate">
+                          {skill.skillName}
+                        </span>
+                        <Badge
+                          variant="outline"
+                          className="text-xs font-semibold"
+                        >
+                          {skill.regenerationCount}
+                        </Badge>
+                      </div>
+                    )) || (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      No data available
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Charts Section */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2">
         {/* Question Likes Chart */}
         {/* <Card className="col-span-1">
           <CardHeader>
@@ -339,6 +452,48 @@ export default function DashboardPage() {
             </ResponsiveContainer>
           </CardContent>
         </Card>
+
+        {/* Regeneration Insights Chart */}
+        {statistics.totalRegenerations > 0 &&
+          statistics.regenerationStats?.mostRegeneratedSkills && (
+            <Card className="col-span-1">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <RefreshCw className="h-4 w-4" />
+                  Most Regenerated Skills
+                </CardTitle>
+                <CardDescription>
+                  Skills requiring the most question regenerations
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart
+                    data={statistics.regenerationStats.mostRegeneratedSkills.slice(
+                      0,
+                      5
+                    )}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis
+                      dataKey="skillName"
+                      tick={{ fontSize: 12 }}
+                      angle={-45}
+                      textAnchor="end"
+                      height={60}
+                    />
+                    <YAxis />
+                    <Tooltip />
+                    <Bar dataKey="regenerationCount" fill="#f59e0b" />
+                  </BarChart>
+                </ResponsiveContainer>
+                <div className="text-xs text-muted-foreground mt-2 text-center">
+                  Higher regeneration counts may indicate opportunities for
+                  question quality improvement
+                </div>
+              </CardContent>
+            </Card>
+          )}
       </div>
 
       {/* Detailed Tables */}
@@ -347,6 +502,9 @@ export default function DashboardPage() {
           <TabsTrigger value="records">Skill Records</TabsTrigger>
           <TabsTrigger value="questions">Questions & Feedback</TabsTrigger>
           <TabsTrigger value="recent">Recent Activity</TabsTrigger>
+          {statistics.totalRegenerations > 0 && (
+            <TabsTrigger value="regenerations">Regenerations</TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="records" className="space-y-4">
@@ -534,6 +692,193 @@ export default function DashboardPage() {
                   </div>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="regenerations" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <RefreshCw className="h-5 w-5" />
+                Question Regeneration Overview
+              </CardTitle>
+              <CardDescription>
+                Comprehensive view of question regeneration activity and
+                insights
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Regeneration Statistics Grid */}
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <div className="text-center p-4 border rounded-lg">
+                  <div className="text-2xl font-bold text-blue-600">
+                    {statistics.totalRegenerations}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Total Regenerations
+                  </div>
+                </div>
+
+                <div className="text-center p-4 border rounded-lg">
+                  <div className="text-2xl font-bold text-green-600">
+                    {statistics.regenerationStats
+                      ?.averageRegenerationsPerQuestion || 0}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Avg per Question
+                  </div>
+                </div>
+
+                <div className="text-center p-4 border rounded-lg">
+                  <div className="text-2xl font-bold text-purple-600">
+                    {statistics.regenerationStats?.mostRegeneratedSkills
+                      ?.length || 0}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Skills with Regenerations
+                  </div>
+                </div>
+
+                {/* <div className="text-center p-4 border rounded-lg">
+                  <div className="text-2xl font-bold text-orange-600">
+                    {statistics.totalQuestions > 0
+                      ? (
+                          (statistics.totalRegenerations /
+                            statistics.totalQuestions) *
+                          100
+                        ).toFixed(1)
+                      : 0}
+                    %
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Regeneration Rate
+                  </div>
+                </div> */}
+              </div>
+
+              {/* Top Regenerated Skills Table */}
+              {statistics.regenerationStats?.mostRegeneratedSkills && (
+                <div>
+                  <h3 className="text-lg font-semibold mb-3">
+                    Most Regenerated Skills
+                  </h3>
+                  <div className="border rounded-lg overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Skill Name</TableHead>
+                          <TableHead className="text-center">
+                            Regeneration Count
+                          </TableHead>
+                          <TableHead className="text-center">
+                            Regeneration Rate
+                          </TableHead>
+                          {/* <TableHead>Impact</TableHead> */}
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {statistics.regenerationStats.mostRegeneratedSkills
+                          .slice(0, 5)
+                          .map((skill, index) => {
+                            const regenerationRate =
+                              statistics.totalRegenerations > 0
+                                ? (
+                                    (skill.regenerationCount /
+                                      statistics.totalRegenerations) *
+                                    100
+                                  ).toFixed(1)
+                                : 0;
+                            const impact =
+                              skill.regenerationCount > 3
+                                ? "High"
+                                : skill.regenerationCount > 1
+                                ? "Medium"
+                                : "Low";
+                            const impactColor =
+                              impact === "High"
+                                ? "text-red-600"
+                                : impact === "Medium"
+                                ? "text-yellow-600"
+                                : "text-green-600";
+
+                            return (
+                              <TableRow key={index}>
+                                <TableCell className="font-medium">
+                                  {skill.skillName}
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  <Badge variant="outline">
+                                    {skill.regenerationCount}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  {regenerationRate}%
+                                </TableCell>
+                                {/* <TableCell>
+                                  <span
+                                    className={`font-medium ${impactColor}`}
+                                  >
+                                    {impact}
+                                  </span>
+                                </TableCell> */}
+                              </TableRow>
+                            );
+                          })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              {/* <div className="flex gap-3 pt-4">
+                <Link href="/analytics/regenerations">
+                  <Button className="flex items-center gap-2">
+                    <BarChart3 className="h-4 w-4" />
+                    View Detailed Analytics
+                  </Button>
+                </Link>
+                <Link href="/regeneration-demo">
+                  <Button variant="outline" className="flex items-center gap-2">
+                    <RefreshCw className="h-4 w-4" />
+                    Try Regeneration Demo
+                  </Button>
+                </Link>
+              </div> */}
+
+              {/* Insights and Recommendations */}
+              {/* <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                <h4 className="font-semibold text-blue-900 mb-2">
+                  💡 Insights & Recommendations
+                </h4>
+                <div className="text-sm text-blue-800 space-y-1">
+                  {statistics.totalRegenerations === 0 ? (
+                    <p>
+                      No regenerations yet. This indicates good initial question
+                      quality.
+                    </p>
+                  ) : (
+                    <>
+                      <p>
+                        •{" "}
+                        {statistics.regenerationStats
+                          ?.averageRegenerationsPerQuestion > 1
+                          ? "High regeneration rate suggests opportunities for improving initial question generation."
+                          : "Low regeneration rate indicates good question quality."}
+                      </p>
+                      <p>
+                        • Focus on improving questions for skills with highest
+                        regeneration counts.
+                      </p>
+                      <p>
+                        • Use regeneration feedback to enhance AI prompts and
+                        question templates.
+                      </p>
+                    </>
+                  )}
+                </div>
+              </div> */}
             </CardContent>
           </Card>
         </TabsContent>

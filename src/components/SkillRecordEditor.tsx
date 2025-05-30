@@ -64,6 +64,8 @@ import {
 import SkillsTable from "./SkillsTable";
 import { GlobalFeedbackDialog } from "./ui/global-feedback-dialog";
 import { QuestionGenerationDialog } from "./ui/question-generation-dialog";
+import { RegenerationDialog } from "./RegenerationDialog";
+import { RegenerationFeedback } from "./RegenerationFeedback";
 
 // Define interfaces for the types from Prisma
 interface Skill {
@@ -160,6 +162,14 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
     progressValue: 0,
     progressText: "",
   });
+
+  // Regeneration state
+  const [regenerationDialogOpen, setRegenerationDialogOpen] = useState(false);
+  const [questionToRegenerate, setQuestionToRegenerate] =
+    useState<QuestionData | null>(null);
+  const [regenerationFeedbacks, setRegenerationFeedbacks] = useState<
+    Record<string, string>
+  >({});
 
   // Parse question content from JSON string
   function formatQuestions(questions: Question[]): QuestionData[] {
@@ -856,57 +866,53 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
   const handleRegenerateQuestion = async (
     questionId: string
   ): Promise<void> => {
-    try {
-      const response = await fetch(`/api/questions/${questionId}/regenerate`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to regenerate question");
-      }
-
-      const data = await response.json();
-
-      if (data.success) {
-        // Parse the new content
-        const newContent = data.question.newContent;
-
-        // Update the question locally
-        setQuestions((prevQuestions) =>
-          prevQuestions.map((q) =>
-            q.id === questionId
-              ? {
-                  ...q,
-                  question: newContent.question,
-                  answer: newContent.answer,
-                  category: newContent.category,
-                  difficulty: newContent.difficulty,
-                  questionFormat: newContent.questionFormat || "Scenario",
-                  liked: "NONE",
-                  feedback: "",
-                }
-              : q
-          )
-        );
-
-        // Force re-render by triggering a state update
-        setQuestionsLoading(true);
-        setQuestionsLoading(false);
-
-        toast.success("Question regenerated successfully");
-
-        // Update the questions list with the latest data to ensure everything is in sync
-        fetchLatestQuestions();
-      } else {
-        throw new Error(data.error || "Failed to regenerate question");
-      }
-    } catch (error) {
-      console.error("Error regenerating question:", error);
-      toast.error("Failed to regenerate question");
+    const question = questions.find((q) => q.id === questionId);
+    if (question) {
+      setQuestionToRegenerate(question);
+      setRegenerationDialogOpen(true);
     }
+  };
+
+  // Handle successful regeneration
+  const handleRegenerationSuccess = (
+    newQuestion: any,
+    regenerationId: string
+  ) => {
+    // Parse the new content
+    const newContent =
+      typeof newQuestion.content === "string"
+        ? JSON.parse(newQuestion.content)
+        : newQuestion.content;
+
+    // Update the questions list with the new question
+    setQuestions((prevQuestions) => [
+      ...prevQuestions.filter((q) => q.id !== questionToRegenerate?.id),
+      {
+        id: newQuestion.id,
+        question: newContent.question,
+        answer: newContent.answer,
+        category: newContent.category,
+        difficulty: newContent.difficulty,
+        questionFormat: newContent.questionFormat || "Scenario",
+        liked: "NONE",
+        feedback: "",
+        skillId: newQuestion.skillId,
+        recordId: newQuestion.recordId,
+      },
+    ]);
+
+    // Store the regeneration ID for feedback
+    setRegenerationFeedbacks((prev) => ({
+      ...prev,
+      [newQuestion.id]: regenerationId,
+    }));
+
+    toast.success("Question regenerated successfully");
+
+    // Force re-render and fetch latest data
+    setQuestionsLoading(true);
+    setQuestionsLoading(false);
+    fetchLatestQuestions();
   };
 
   // Get number of liked/disliked questions for a skill
@@ -1584,7 +1590,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                 </CardDescription>
               </div>
               <div className="flex gap-2">
-                <Button
+                {/* <Button
                   variant="outline"
                   size="sm"
                   onClick={fetchLatestQuestions}
@@ -1598,7 +1604,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                     }`}
                   />
                   Refresh
-                </Button>
+                </Button> */}
                 <Button
                   variant="outline"
                   size="sm"
@@ -1976,6 +1982,27 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                                 </div>
                               </TableCell>
                             </TableRow>
+
+                            {/* Show regeneration feedback if this question was regenerated */}
+                            {regenerationFeedbacks[question.id] && (
+                              <TableRow>
+                                <TableCell colSpan={6} className="p-4">
+                                  <RegenerationFeedback
+                                    regenerationId={
+                                      regenerationFeedbacks[question.id]
+                                    }
+                                    onFeedbackSubmitted={() => {
+                                      // Remove from tracking once feedback is submitted
+                                      setRegenerationFeedbacks((prev) => {
+                                        const updated = { ...prev };
+                                        delete updated[question.id];
+                                        return updated;
+                                      });
+                                    }}
+                                  />
+                                </TableCell>
+                              </TableRow>
+                            )}
                           </Fragment>
                         );
                       })}
@@ -2067,6 +2094,19 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
         progressValue={generationProgress.progressValue}
         progressText={generationProgress.progressText}
       />
+
+      {/* Regeneration Dialog */}
+      {questionToRegenerate && (
+        <RegenerationDialog
+          question={questionToRegenerate as any}
+          isOpen={regenerationDialogOpen}
+          onClose={() => {
+            setRegenerationDialogOpen(false);
+            setQuestionToRegenerate(null);
+          }}
+          onSuccess={handleRegenerationSuccess}
+        />
+      )}
     </div>
   );
 }
