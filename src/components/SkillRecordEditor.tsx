@@ -64,6 +64,7 @@ import {
 import SkillsTable from "./SkillsTable";
 import { GlobalFeedbackDialog } from "./ui/global-feedback-dialog";
 import { QuestionGenerationDialog } from "./ui/question-generation-dialog";
+import { Checkbox } from "./ui/checkbox";
 
 // Define interfaces for the types from Prisma
 interface Skill {
@@ -155,6 +156,11 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
     progressValue: 0,
     progressText: "",
   });
+
+  // Multi-select state for priority mode
+  const [selectedSkillsInPriorityMode, setSelectedSkillsInPriorityMode] =
+    useState<Set<string>>(new Set());
+  const [confirmBulkDeleteOpen, setConfirmBulkDeleteOpen] = useState(false);
 
   // Parse question content from JSON string
   function formatQuestions(questions: Question[]): QuestionData[] {
@@ -988,6 +994,105 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
     }
   };
 
+  // Add bulk delete function
+  const handleBulkDeleteSkills = async (skillIds: string[]) => {
+    try {
+      setLoading(true);
+
+      // Delete skills in parallel
+      const deletePromises = skillIds.map((skillId) =>
+        fetch(`/api/skills/${skillId}`, {
+          method: "DELETE",
+        })
+      );
+
+      const responses = await Promise.all(deletePromises);
+
+      // Check if all deletions were successful
+      const failedDeletions = responses.filter((response) => !response.ok);
+
+      if (failedDeletions.length > 0) {
+        throw new Error(`Failed to delete ${failedDeletions.length} skill(s)`);
+      }
+
+      toast.success(`Successfully deleted ${skillIds.length} skill(s)`);
+
+      // Update local state to remove the deleted skills
+      setEditedSkills(
+        editedSkills.filter((skill) => !skillIds.includes(skill.id))
+      );
+
+      // Remove related questions
+      setQuestions(
+        questions.filter((question) => !skillIds.includes(question.skillId))
+      );
+
+      // Refresh the page to get updated data
+      router.refresh();
+    } catch (error) {
+      console.error("Error deleting skills:", error);
+      toast.error("Failed to delete some skills. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle skill selection in priority mode
+  const handleSkillSelectInPriorityMode = (
+    skillId: string,
+    checked: boolean
+  ) => {
+    const newSelected = new Set(selectedSkillsInPriorityMode);
+    if (checked) {
+      newSelected.add(skillId);
+    } else {
+      newSelected.delete(skillId);
+    }
+    setSelectedSkillsInPriorityMode(newSelected);
+  };
+
+  // Handle select all in priority mode
+  const handleSelectAllInPriorityMode = (checked: boolean) => {
+    if (checked) {
+      setSelectedSkillsInPriorityMode(
+        new Set(editedSkills.map((skill) => skill.id))
+      );
+    } else {
+      setSelectedSkillsInPriorityMode(new Set());
+    }
+  };
+
+  // Handle bulk delete in priority mode
+  const handleBulkDeleteInPriorityMode = () => {
+    if (selectedSkillsInPriorityMode.size === 0) {
+      toast.warning("Please select skills to delete");
+      return;
+    }
+    setConfirmBulkDeleteOpen(true);
+  };
+
+  // Confirm and execute bulk delete in priority mode
+  const confirmBulkDeleteInPriorityMode = async () => {
+    await handleBulkDeleteSkills(Array.from(selectedSkillsInPriorityMode));
+    setSelectedSkillsInPriorityMode(new Set());
+    setConfirmBulkDeleteOpen(false);
+  };
+
+  // Get selected skill names for confirmation dialog
+  const getSelectedSkillNamesInPriorityMode = () => {
+    return editedSkills
+      .filter((skill) => selectedSkillsInPriorityMode.has(skill.id))
+      .map((skill) => skill.name);
+  };
+
+  // Check if all skills are selected in priority mode
+  const isAllSelectedInPriorityMode =
+    editedSkills.length > 0 &&
+    selectedSkillsInPriorityMode.size === editedSkills.length;
+  const isIndeterminateInPriorityMode =
+    selectedSkillsInPriorityMode.size > 0 &&
+    selectedSkillsInPriorityMode.size < editedSkills.length;
+
   // Add an onDragEnd function for drag and drop
   const onDragEnd = async (result: any) => {
     if (!result.destination) return;
@@ -1284,171 +1389,229 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                 </p>
               ) : priorityMode ? (
                 // Drag and drop priority mode
-                <DragDropContext onDragEnd={onDragEnd}>
-                  <div className="space-y-6">
-                    {mandatorySkills.length > 0 && (
-                      <div>
-                        <div className="flex items-center gap-2 mb-4">
-                          <Badge variant="default">Mandatory Skills</Badge>
-                          <span className="text-xs text-muted-foreground">
-                            Drag to reorder - these skills will be prioritized
-                            in question generation
-                          </span>
-                        </div>
-
-                        <Droppable droppableId="mandatory-skills">
-                          {(provided: any) => (
-                            <div
-                              {...provided.droppableProps}
-                              ref={provided.innerRef}
-                              className="space-y-2"
-                            >
-                              {mandatorySkills.map((skill, index) => (
-                                <Draggable
-                                  key={skill.id}
-                                  draggableId={skill.id}
-                                  index={index}
-                                >
-                                  {(provided: any) => (
-                                    <div
-                                      ref={provided.innerRef}
-                                      {...provided.draggableProps}
-                                      className="flex items-center p-3 border rounded-md bg-muted/20"
-                                    >
-                                      <div
-                                        {...provided.dragHandleProps}
-                                        className="cursor-grab mr-2"
-                                      >
-                                        <GripVertical className="h-5 w-5 text-muted-foreground" />
-                                      </div>
-
-                                      <div className="flex-1 min-w-0">
-                                        <div className="font-medium overflow-hidden break-words">
-                                          {skill.name}
-                                        </div>
-                                        <div className="text-sm text-muted-foreground flex items-center gap-2">
-                                          <span>
-                                            Level: {getLevelLabel(skill.level)}
-                                          </span>
-                                          <span>•</span>
-                                          <span>
-                                            Priority:{" "}
-                                            {skill.priority || index + 1}
-                                          </span>
-                                          <span>•</span>
-                                          <span>
-                                            Questions:{" "}
-                                            {getSkillNumQuestions(skill.id)}
-                                          </span>
-                                        </div>
-                                      </div>
-
-                                      <div className="ml-2">
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          onClick={() => {
-                                            handleDeleteSkill(skill.id);
-                                          }}
-                                        >
-                                          <Trash2 className="h-4 w-4 text-destructive" />
-                                        </Button>
-                                      </div>
-                                    </div>
-                                  )}
-                                </Draggable>
-                              ))}
-                              {provided.placeholder}
-                            </div>
-                          )}
-                        </Droppable>
+                <div className="space-y-4">
+                  {/* Bulk operations controls */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          checked={isAllSelectedInPriorityMode}
+                          onCheckedChange={handleSelectAllInPriorityMode}
+                          {...(isIndeterminateInPriorityMode && {
+                            "data-state": "indeterminate",
+                          })}
+                        />
+                        <span className="text-sm">
+                          Select All ({selectedSkillsInPriorityMode.size}{" "}
+                          selected)
+                        </span>
                       </div>
-                    )}
+                      {selectedSkillsInPriorityMode.size > 0 && (
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={handleBulkDeleteInPriorityMode}
+                          disabled={loading}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete Selected ({selectedSkillsInPriorityMode.size})
+                        </Button>
+                      )}
+                    </div>
+                  </div>
 
-                    {mandatorySkills.length > 0 &&
-                      optionalSkills.length > 0 && (
-                        <Separator className="my-6" />
+                  <DragDropContext onDragEnd={onDragEnd}>
+                    <div className="space-y-6">
+                      {mandatorySkills.length > 0 && (
+                        <div>
+                          <div className="flex items-center gap-2 mb-4">
+                            <Badge variant="default">Mandatory Skills</Badge>
+                            <span className="text-xs text-muted-foreground">
+                              Drag to reorder - these skills will be prioritized
+                              in question generation
+                            </span>
+                          </div>
+
+                          <Droppable droppableId="mandatory-skills">
+                            {(provided: any) => (
+                              <div
+                                {...provided.droppableProps}
+                                ref={provided.innerRef}
+                                className="space-y-2"
+                              >
+                                {mandatorySkills.map((skill, index) => (
+                                  <Draggable
+                                    key={skill.id}
+                                    draggableId={skill.id}
+                                    index={index}
+                                  >
+                                    {(provided: any) => (
+                                      <div
+                                        ref={provided.innerRef}
+                                        {...provided.draggableProps}
+                                        className="flex items-center p-3 border rounded-md bg-muted/20"
+                                      >
+                                        <Checkbox
+                                          checked={selectedSkillsInPriorityMode.has(
+                                            skill.id
+                                          )}
+                                          onCheckedChange={(checked) =>
+                                            handleSkillSelectInPriorityMode(
+                                              skill.id,
+                                              checked as boolean
+                                            )
+                                          }
+                                          className="mr-3"
+                                        />
+                                        <div
+                                          {...provided.dragHandleProps}
+                                          className="cursor-grab mr-2"
+                                        >
+                                          <GripVertical className="h-5 w-5 text-muted-foreground" />
+                                        </div>
+
+                                        <div className="flex-1 min-w-0">
+                                          <div className="font-medium overflow-hidden break-words">
+                                            {skill.name}
+                                          </div>
+                                          <div className="text-sm text-muted-foreground flex items-center gap-2">
+                                            <span>
+                                              Level:{" "}
+                                              {getLevelLabel(skill.level)}
+                                            </span>
+                                            <span>•</span>
+                                            <span>
+                                              Priority:{" "}
+                                              {skill.priority || index + 1}
+                                            </span>
+                                            <span>•</span>
+                                            <span>
+                                              Questions:{" "}
+                                              {getSkillNumQuestions(skill.id)}
+                                            </span>
+                                          </div>
+                                        </div>
+
+                                        <div className="ml-2">
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() => {
+                                              handleDeleteSkill(skill.id);
+                                            }}
+                                          >
+                                            <Trash2 className="h-4 w-4 text-destructive" />
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </Draggable>
+                                ))}
+                                {provided.placeholder}
+                              </div>
+                            )}
+                          </Droppable>
+                        </div>
                       )}
 
-                    {optionalSkills.length > 0 && (
-                      <div>
-                        <div className="flex items-center gap-2 mb-4">
-                          <Badge variant="outline">Optional Skills</Badge>
-                          <span className="text-xs text-muted-foreground">
-                            These skills will be used if time permits
-                          </span>
-                        </div>
+                      {mandatorySkills.length > 0 &&
+                        optionalSkills.length > 0 && (
+                          <Separator className="my-6" />
+                        )}
 
-                        <Droppable droppableId="optional-skills">
-                          {(provided: any) => (
-                            <div
-                              {...provided.droppableProps}
-                              ref={provided.innerRef}
-                              className="space-y-2"
-                            >
-                              {optionalSkills.map((skill, index) => (
-                                <Draggable
-                                  key={skill.id}
-                                  draggableId={skill.id}
-                                  index={index}
-                                >
-                                  {(provided: any) => (
-                                    <div
-                                      ref={provided.innerRef}
-                                      {...provided.draggableProps}
-                                      className="flex items-center p-3 border rounded-md"
-                                    >
+                      {optionalSkills.length > 0 && (
+                        <div>
+                          <div className="flex items-center gap-2 mb-4">
+                            <Badge variant="outline">Optional Skills</Badge>
+                            <span className="text-xs text-muted-foreground">
+                              These skills will be used if time permits
+                            </span>
+                          </div>
+
+                          <Droppable droppableId="optional-skills">
+                            {(provided: any) => (
+                              <div
+                                {...provided.droppableProps}
+                                ref={provided.innerRef}
+                                className="space-y-2"
+                              >
+                                {optionalSkills.map((skill, index) => (
+                                  <Draggable
+                                    key={skill.id}
+                                    draggableId={skill.id}
+                                    index={index}
+                                  >
+                                    {(provided: any) => (
                                       <div
-                                        {...provided.dragHandleProps}
-                                        className="cursor-grab mr-2"
+                                        ref={provided.innerRef}
+                                        {...provided.draggableProps}
+                                        className="flex items-center p-3 border rounded-md"
                                       >
-                                        <GripVertical className="h-5 w-5 text-muted-foreground" />
-                                      </div>
-
-                                      <div className="flex-1 min-w-0">
-                                        <div className="font-medium overflow-hidden break-words">
-                                          {skill.name}
-                                        </div>
-                                        <div className="text-sm text-muted-foreground flex items-center gap-2">
-                                          <span>
-                                            Level: {getLevelLabel(skill.level)}
-                                          </span>
-                                          <span>•</span>
-                                          <span>
-                                            Priority:{" "}
-                                            {skill.priority || index + 1}
-                                          </span>
-                                          <span>•</span>
-                                          <span>
-                                            Questions:{" "}
-                                            {getSkillNumQuestions(skill.id)}
-                                          </span>
-                                        </div>
-                                      </div>
-
-                                      <div className="ml-2">
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          onClick={() => {
-                                            handleDeleteSkill(skill.id);
-                                          }}
+                                        <Checkbox
+                                          checked={selectedSkillsInPriorityMode.has(
+                                            skill.id
+                                          )}
+                                          onCheckedChange={(checked) =>
+                                            handleSkillSelectInPriorityMode(
+                                              skill.id,
+                                              checked as boolean
+                                            )
+                                          }
+                                          className="mr-3"
+                                        />
+                                        <div
+                                          {...provided.dragHandleProps}
+                                          className="cursor-grab mr-2"
                                         >
-                                          <Trash2 className="h-4 w-4 text-destructive" />
-                                        </Button>
+                                          <GripVertical className="h-5 w-5 text-muted-foreground" />
+                                        </div>
+
+                                        <div className="flex-1 min-w-0">
+                                          <div className="font-medium overflow-hidden break-words">
+                                            {skill.name}
+                                          </div>
+                                          <div className="text-sm text-muted-foreground flex items-center gap-2">
+                                            <span>
+                                              Level:{" "}
+                                              {getLevelLabel(skill.level)}
+                                            </span>
+                                            <span>•</span>
+                                            <span>
+                                              Priority:{" "}
+                                              {skill.priority || index + 1}
+                                            </span>
+                                            <span>•</span>
+                                            <span>
+                                              Questions:{" "}
+                                              {getSkillNumQuestions(skill.id)}
+                                            </span>
+                                          </div>
+                                        </div>
+
+                                        <div className="ml-2">
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() => {
+                                              handleDeleteSkill(skill.id);
+                                            }}
+                                          >
+                                            <Trash2 className="h-4 w-4 text-destructive" />
+                                          </Button>
+                                        </div>
                                       </div>
-                                    </div>
-                                  )}
-                                </Draggable>
-                              ))}
-                              {provided.placeholder}
-                            </div>
-                          )}
-                        </Droppable>
-                      </div>
-                    )}
-                  </div>
-                </DragDropContext>
+                                    )}
+                                  </Draggable>
+                                ))}
+                                {provided.placeholder}
+                              </div>
+                            )}
+                          </Droppable>
+                        </div>
+                      )}
+                    </div>
+                  </DragDropContext>
+                </div>
               ) : (
                 // TanStack table implementation
                 <SkillsTable
@@ -1459,6 +1622,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                   onDeleteSkill={(skillId) => {
                     handleDeleteSkill(skillId);
                   }}
+                  onBulkDeleteSkills={handleBulkDeleteSkills}
                   onSkillAdded={() => {
                     // Fetch the latest skills data from the server
                     fetch(`/api/records/${record.id}`)
@@ -2012,6 +2176,51 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
         progressValue={generationProgress.progressValue}
         progressText={generationProgress.progressText}
       />
+
+      {/* Bulk Delete Confirmation Dialog for Priority Mode */}
+      <Dialog
+        open={confirmBulkDeleteOpen}
+        onOpenChange={setConfirmBulkDeleteOpen}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirm Bulk Delete</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete the following{" "}
+              {selectedSkillsInPriorityMode.size} skill
+              {selectedSkillsInPriorityMode.size > 1 ? "s" : ""}? This action
+              cannot be undone and will also remove all related questions.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <div className="max-h-32 overflow-y-auto">
+              <ul className="list-disc list-inside space-y-1">
+                {getSelectedSkillNamesInPriorityMode().map((name, index) => (
+                  <li key={index} className="text-sm text-muted-foreground">
+                    {name}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setConfirmBulkDeleteOpen(false)}
+              disabled={loading}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmBulkDeleteInPriorityMode}
+              disabled={loading}
+            >
+              {loading ? "Deleting..." : "Delete All"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

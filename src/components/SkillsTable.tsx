@@ -28,6 +28,15 @@ import { toast } from "sonner";
 import { SkillFeedbackDialog } from "./ui/skill-feedback-dialog";
 import { SkillFeedbackViewDialog } from "./ui/skill-feedback-view-dialog";
 import { AddSkillDialog } from "./ui/add-skill-dialog";
+import { Checkbox } from "./ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "./ui/dialog";
 
 // Define interfaces for the types from Prisma
 interface Skill {
@@ -61,6 +70,7 @@ interface SkillsTableProps {
   ) => Promise<void>;
   getSkillQuestionCount: (skillId: string) => number;
   onDeleteSkill: (skillId: string) => void;
+  onBulkDeleteSkills?: (skillIds: string[]) => void;
   onSkillAdded: () => void;
   loading: boolean;
 }
@@ -71,6 +81,7 @@ export default function SkillsTable({
   onUpdateSkill,
   getSkillQuestionCount,
   onDeleteSkill,
+  onBulkDeleteSkills,
   onSkillAdded,
   loading,
 }: SkillsTableProps) {
@@ -79,6 +90,10 @@ export default function SkillsTable({
     {}
   );
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  // Multi-select state
+  const [selectedSkills, setSelectedSkills] = useState<Set<string>>(new Set());
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   // Fetch feedback counts for each skill
   useEffect(() => {
@@ -147,9 +162,87 @@ export default function SkillsTable({
 
   console.log(skills);
 
+  // Handle select all checkbox
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedSkills(new Set(skills.map((skill) => skill.id)));
+    } else {
+      setSelectedSkills(new Set());
+    }
+  };
+
+  // Handle individual skill selection
+  const handleSkillSelect = (skillId: string, checked: boolean) => {
+    const newSelected = new Set(selectedSkills);
+    if (checked) {
+      newSelected.add(skillId);
+    } else {
+      newSelected.delete(skillId);
+    }
+    setSelectedSkills(newSelected);
+  };
+
+  // Handle bulk delete
+  const handleBulkDelete = () => {
+    if (selectedSkills.size === 0) {
+      toast.warning("Please select skills to delete");
+      return;
+    }
+    setConfirmDeleteOpen(true);
+  };
+
+  // Confirm and execute bulk delete
+  const confirmBulkDelete = () => {
+    if (onBulkDeleteSkills) {
+      onBulkDeleteSkills(Array.from(selectedSkills));
+    } else {
+      // Fallback to individual deletions if bulk delete not provided
+      selectedSkills.forEach((skillId) => onDeleteSkill(skillId));
+    }
+    setSelectedSkills(new Set());
+    setConfirmDeleteOpen(false);
+  };
+
+  // Get selected skills for confirmation dialog
+  const getSelectedSkillNames = () => {
+    return skills
+      .filter((skill) => selectedSkills.has(skill.id))
+      .map((skill) => skill.name);
+  };
+
+  // Check if all skills are selected
+  const isAllSelected =
+    skills.length > 0 && selectedSkills.size === skills.length;
+  const isIndeterminate =
+    selectedSkills.size > 0 && selectedSkills.size < skills.length;
+
   // Define columns
   const columns = useMemo(
     () => [
+      // Selection column
+      columnHelper.display({
+        id: "select",
+        header: () => (
+          <Checkbox
+            checked={isAllSelected}
+            onCheckedChange={handleSelectAll}
+            aria-label="Select all skills"
+            className="translate-y-[2px]"
+            {...(isIndeterminate && { "data-state": "indeterminate" })}
+          />
+        ),
+        cell: ({ row }) => (
+          <Checkbox
+            checked={selectedSkills.has(row.original.id)}
+            onCheckedChange={(checked) =>
+              handleSkillSelect(row.original.id, checked as boolean)
+            }
+            aria-label={`Select ${row.original.name}`}
+            className="translate-y-[2px]"
+          />
+        ),
+        size: 50,
+      }),
       columnHelper.accessor("name", {
         header: "Skill Name",
         cell: (info) => (
@@ -461,7 +554,20 @@ export default function SkillsTable({
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
+      <div className="flex justify-between items-center">
+        <div className="flex items-center gap-2">
+          {selectedSkills.size > 0 && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleBulkDelete}
+              disabled={loading}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete Selected ({selectedSkills.size})
+            </Button>
+          )}
+        </div>
         <AddSkillDialog recordId={recordId} onSkillAdded={onSkillAdded} />
       </div>
       <div className="rounded-md border overflow-hidden">
@@ -523,6 +629,47 @@ export default function SkillsTable({
           </Table>
         </div>
       </div>
+
+      {/* Confirmation Dialog */}
+      <Dialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirm Bulk Delete</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete the following{" "}
+              {selectedSkills.size} skill{selectedSkills.size > 1 ? "s" : ""}?
+              This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <div className="max-h-32 overflow-y-auto">
+              <ul className="list-disc list-inside space-y-1">
+                {getSelectedSkillNames().map((name, index) => (
+                  <li key={index} className="text-sm text-muted-foreground">
+                    {name}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setConfirmDeleteOpen(false)}
+              disabled={loading}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmBulkDelete}
+              disabled={loading}
+            >
+              {loading ? "Deleting..." : "Delete All"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
