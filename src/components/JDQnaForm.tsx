@@ -80,6 +80,9 @@ export function JDQnaForm() {
     progressValue: 0,
     progressText: "",
   });
+  const [useLearningMode, setUseLearningMode] = useState(true);
+  const [similarJobDescriptions, setSimilarJobDescriptions] = useState<any[]>([]);
+  const [sourcingStatus, setSourcingStatus] = useState<"idle" | "loading" | "complete">("idle");
 
   const router = useRouter();
 
@@ -328,15 +331,54 @@ export function JDQnaForm() {
     setLoading(true);
     setQuestionGenerationDialogOpen(true);
     setGenerationProgress({
-      title: "Auto-Generating Skills & Questions",
-      description:
-        "Analyzing your job description and creating comprehensive interview content...",
+      title: useLearningMode 
+        ? "Auto-Generating with Learning Mode" 
+        : "Auto-Generating Skills & Questions",
+      description: useLearningMode 
+        ? "Analyzing your job description, finding similar past jobs, and creating optimized interview content..." 
+        : "Analyzing your job description and creating comprehensive interview content...",
       showProgress: true,
       progressValue: 10,
-      progressText: "Extracting skills from job description...",
+      progressText: useLearningMode 
+        ? "Finding similar job descriptions..." 
+        : "Extracting skills from job description...",
     });
 
     try {
+      // If learning mode is enabled, first check for similar JDs
+      if (useLearningMode) {
+        setSourcingStatus("loading");
+        setGenerationProgress(prev => ({
+          ...prev,
+          progressValue: 20,
+          progressText: "Finding similar job descriptions in the knowledge base..."
+        }));
+        
+        // Find similar JDs first (implemented in background)
+        const similarResponse = await fetch("/api/find-similar-jds", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            jobRole: form.getValues().jobRole,
+            jobDescription: jobDescription,
+          }),
+        });
+
+        if (similarResponse.ok) {
+          const data = await similarResponse.json();
+          setSimilarJobDescriptions(data.similarJobs || []);
+          setSourcingStatus("complete");
+          
+          setGenerationProgress(prev => ({
+            ...prev,
+            progressValue: 30,
+            progressText: `Found ${data.similarJobs.length} similar job descriptions. Learning from past interviews...`
+          }));
+        }
+      }
+
       const response = await fetch("/api/auto-generate", {
         method: "POST",
         headers: {
@@ -347,6 +389,7 @@ export function JDQnaForm() {
           jobDescription: jobDescription,
           interviewLength: Number(form.getValues().interviewLength || 60),
           customInstructions: form.getValues().customInstructions || "",
+          useLearningMode: useLearningMode,
         }),
       });
 
@@ -429,6 +472,19 @@ export function JDQnaForm() {
                   </FormItem>
                 )}
               />
+
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="useLearningMode"
+                  checked={useLearningMode}
+                  onChange={(e) => setUseLearningMode(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300"
+                />
+                <label htmlFor="useLearningMode" className="text-sm font-medium">
+                  Use Learning Mode (leverage past interview questions)
+                </label>
+              </div>
 
               <FormField
                 control={form.control}

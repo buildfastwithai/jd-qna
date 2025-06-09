@@ -29,7 +29,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} mx-auto max-w-7xl`}
+        className={`${geistSans.variable} ${geistMono.variable} h-screen`}
       >
         {children}
         <Toaster position="top-center" richColors />
