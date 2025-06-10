@@ -138,7 +138,7 @@ Each question should:
 ${customInstructions ? `Additional instructions: ${customInstructions}` : ""}`;
 
     const questionsResponse = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4.1",
       messages: [
         {
           role: "system",
@@ -252,7 +252,7 @@ async function extractSkillsWithAI(jobRole: string, jobDescription: string) {
   try {
     // Call OpenAI to extract skills
     const response = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4.1",
       messages: [
         {
           role: "system",

@@ -77,7 +77,7 @@ export async function POST(
 
     // Generate a new question using OpenAI
     const response = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4.1",
       messages: [
         {
           role: "system",

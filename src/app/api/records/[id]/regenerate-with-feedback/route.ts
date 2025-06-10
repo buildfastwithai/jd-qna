@@ -153,7 +153,7 @@ QuestionFormat should be one of: Open-ended, Coding, Scenario, Case Study, Desig
 
       // Call OpenAI
       const chatCompletion = await openai.chat.completions.create({
-        model: "gpt-4o",
+        model: "gpt-4.1",
         messages: [
           {
             role: "system",
