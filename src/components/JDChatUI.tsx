@@ -42,6 +42,29 @@ import {
   TooltipTrigger,
 } from "./ui/tooltip";
 
+// Define a PromptCard component for interactive options
+interface PromptCardProps {
+  text: string;
+  onClick: () => void;
+  selected?: boolean;
+  className?: string;
+}
+
+const PromptCard = ({ text, onClick, selected, className }: PromptCardProps) => {
+  return (
+    <button
+      className={cn(
+        "px-4 py-3 rounded-lg border text-left transition-all",
+        selected ? "bg-blue-50 border-blue-300 shadow-sm" : "bg-white hover:bg-gray-50 border-gray-200",
+        className
+      )}
+      onClick={onClick}
+    >
+      {text}
+    </button>
+  );
+};
+
 // Define interfaces similar to SkillRecordEditor
 interface Skill {
   id: string;
@@ -137,6 +160,10 @@ export default function JDChatUI() {
     interviewLength: 60,
     customInstructions: '',
   });
+
+  // Add state to manage UI prompts
+  const [showJobDescriptionCard, setShowJobDescriptionCard] = useState(false);
+  const [jobDescriptionText, setJobDescriptionText] = useState("");
 
   // Initialize the chat with the correct API endpoint
   const { messages, input, handleInputChange, handleSubmit, isLoading, error } = useChat({
@@ -560,7 +587,7 @@ export default function JDChatUI() {
           stage: 'jd_provided',
           jobDescription: message,
         });
-        return 'Would you like to use Learning Mode to leverage past interview questions? (yes/no)';
+        return 'Would you like to use Learning Mode to leverage past interview questions?';
         
       case 'jd_provided':
         // User answered about learning mode
@@ -570,7 +597,7 @@ export default function JDChatUI() {
           stage: 'learning_mode',
           useLearningMode,
         });
-        return 'Please specify the interview length in minutes (e.g., 60):';
+        return 'Please specify the interview length in minutes:';
         
       case 'learning_mode':
         // User specified interview length
@@ -580,7 +607,7 @@ export default function JDChatUI() {
           stage: 'interview_length',
           interviewLength,
         });
-        return 'Please provide any custom instructions or preferences (or type "none" if none):';
+        return 'Please provide any custom instructions or preferences:';
         
       case 'interview_length':
         // User provided custom instructions
@@ -589,11 +616,11 @@ export default function JDChatUI() {
           stage: 'custom_instructions',
           customInstructions: message === 'none' ? '' : message,
         });
-        return 'Would you like to: \n1. Extract skills only\n2. Auto-generate skills and questions';
+        return 'Would you like to extract skills only or auto-generate skills and questions?';
         
       case 'custom_instructions':
         // User selected option
-        const option = message.includes('1') ? 'extract' : 'auto';
+        const option = message.includes('extract') ? 'extract' : 'auto';
         
         // Process based on selected option
         if (option === 'extract') {
@@ -743,14 +770,54 @@ export default function JDChatUI() {
     }
     
     try {
-      // Add user message locally
-      const userMessage = {
-        id: Date.now().toString(),
-        role: 'user' as const,
-        content: input,
-      };
-      
-      setLocalMessages((prev) => [...prev, userMessage]);
+      // Check if this is a job description upload (longer text)
+      if (input.length > 500 && conversationState.stage === 'initial') {
+        // Store job description in state
+        setJobDescriptionText(input);
+        
+        // Add as a regular user message with metadata to identify it as a JD
+        const jdMessage = {
+          id: Date.now().toString(),
+          role: 'user' as const,
+          content: input,
+          isJobDescription: true, // Add metadata to identify as job description
+        };
+        
+        setLocalMessages((prev) => [...prev, jdMessage]);
+        
+        // Clear input
+        handleInputChange({ target: { value: '' } } as React.ChangeEvent<HTMLInputElement>);
+        
+        // Update conversation state
+        setConversationState({
+          ...conversationState,
+          stage: 'jd_provided',
+          jobDescription: input,
+        });
+        
+        // Add assistant response after a short delay
+        setTimeout(() => {
+          setLocalMessages((prev) => [
+            ...prev, 
+            { 
+              id: Date.now().toString(),
+              role: 'assistant',
+              content: 'Would you like to use Learning Mode to leverage past interview questions?'
+            }
+          ]);
+        }, 1000);
+        
+        return;
+      } else {
+        // Add user message locally
+        const userMessage = {
+          id: Date.now().toString(),
+          role: 'user' as const,
+          content: input,
+        };
+        
+        setLocalMessages((prev) => [...prev, userMessage]);
+      }
       
       // Clear input
       handleInputChange({ target: { value: '' } } as React.ChangeEvent<HTMLInputElement>);
@@ -759,7 +826,7 @@ export default function JDChatUI() {
       setLocalLoading(true);
       
       // Check if we need to handle message based on conversation state
-      const conversationalResponse = handleUserMessage(userMessage.content);
+      const conversationalResponse = handleUserMessage(input);
       
       if (conversationalResponse) {
         // Add assistant response for structured conversation
@@ -810,6 +877,30 @@ export default function JDChatUI() {
     } finally {
       setLocalLoading(false);
     }
+  };
+
+  // Handle job description submission from card - keeping for reference
+  const handleJobDescriptionSubmit = () => {
+    // Update conversation state with the job description
+    setConversationState({
+      ...conversationState,
+      stage: 'jd_provided',
+      jobDescription: jobDescriptionText,
+    });
+    
+    // Add assistant response for the next step
+    setTimeout(() => {
+      setLocalMessages(prev => [
+        ...prev,
+        {
+          id: Date.now().toString(),
+          role: 'assistant',
+          content: 'Would you like to use Learning Mode to leverage past interview questions?'
+        }
+      ]);
+      // Don't hide the job description card
+      // setShowJobDescriptionCard(false);
+    }, 500);
   };
 
   // Render the content of a message, possibly with a table for skills
@@ -909,9 +1000,9 @@ export default function JDChatUI() {
     const skillsData = assistantMessage ? extractSkillsData(assistantMessage.content) : null;
     
     return (
-      <div className="mt-4 border p-2 rounded bg-slate-50">
-        <div className="text-sm font-semibold mb-1">Debug: Skills JSON</div>
-        <pre className="text-xs overflow-auto max-h-[150px]">
+      <div className="mt-4 border border-gray-100 p-3 rounded-xl bg-gray-50/50 backdrop-blur-sm">
+        <div className="text-sm font-medium text-gray-700 mb-2">Debug: Skills JSON</div>
+        <pre className="text-xs overflow-auto max-h-[150px] bg-white p-3 rounded-lg border border-gray-100">
           {skillsData ? JSON.stringify(skillsData, null, 2) : "No skills data found"}
         </pre>
       </div>
@@ -977,68 +1068,189 @@ export default function JDChatUI() {
     );
   };
 
+  // Function to handle prompt card selections
+  const handlePromptCardSelection = (option: string) => {
+    // Create a simulated user message
+    const userMessage = {
+      id: Date.now().toString(),
+      role: 'user' as const, 
+      content: option
+    };
+    
+    // Add to the message history
+    setLocalMessages(prev => [...prev, userMessage]);
+    
+    // Use the existing logic to handle the user's message
+    const assistantResponse = handleUserMessage(option);
+    
+    if (assistantResponse) {
+      setTimeout(() => {
+        setLocalMessages(prev => [
+          ...prev,
+          {
+            id: Date.now().toString(),
+            role: 'assistant',
+            content: assistantResponse
+          }
+        ]);
+      }, 500);
+    }
+  };
+
+  // Render interactive prompt options based on conversation stage
+  const renderPromptOptions = () => {
+    const lastAssistantMessage = [...localMessages].reverse().find(m => m.role === 'assistant');
+    if (!lastAssistantMessage) return null;
+    
+    if (lastAssistantMessage.content.includes('Would you like to use Learning Mode')) {
+      return (
+        <div className="flex flex-wrap gap-2 mt-2">
+          <PromptCard 
+            text="Yes, use Learning Mode" 
+            onClick={() => handlePromptCardSelection("yes")}
+          />
+          <PromptCard 
+            text="No, don't use Learning Mode" 
+            onClick={() => handlePromptCardSelection("no")}
+          />
+        </div>
+      );
+    }
+    
+    if (lastAssistantMessage.content.includes('Please specify the interview length')) {
+      return (
+        <div className="flex flex-wrap gap-2 mt-2">
+          <PromptCard 
+            text="15 minutes" 
+            onClick={() => handlePromptCardSelection("15")}
+          />
+          <PromptCard 
+            text="30 minutes" 
+            onClick={() => handlePromptCardSelection("30")}
+          />
+          <PromptCard 
+            text="45 minutes" 
+            onClick={() => handlePromptCardSelection("45")}
+          />
+          <PromptCard 
+            text="60 minutes" 
+            onClick={() => handlePromptCardSelection("60")}
+          />
+        </div>
+      );
+    }
+    
+    if (lastAssistantMessage.content.includes('Please provide any custom instructions')) {
+      return (
+        <div className="flex flex-wrap gap-2 mt-2">
+          <PromptCard 
+            text="None" 
+            onClick={() => handlePromptCardSelection("none")}
+          />
+        </div>
+      );
+    }
+    
+    if (lastAssistantMessage.content.includes('extract skills only or auto-generate')) {
+      return (
+        <div className="flex flex-wrap gap-2 mt-2">
+          <PromptCard 
+            text="Extract skills only" 
+            onClick={() => handlePromptCardSelection("extract")}
+          />
+          <PromptCard 
+            text="Auto-generate skills and questions" 
+            onClick={() => handlePromptCardSelection("auto")}
+          />
+        </div>
+      );
+    }
+    
+    return null;
+  };
+
   return (
-    <div className="container mx-auto max-w-7xl">
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle>Job Description QnA</CardTitle>
-          <CardDescription>
-            Chat with AI about your job description to create interview questions
+    <div className="container mx-auto max-w-7xl p-4 md:p-6 lg:p-8">
+      <Card className="mb-8 border-0 shadow-sm bg-gradient-to-b from-white to-gray-50/50">
+        <CardHeader className="space-y-1 pb-6">
+          <CardTitle className="text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">Job Description QnA</CardTitle>
+          <CardDescription className="text-gray-500">
+            Chat with AI to analyze job descriptions and create tailored interview questions
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="h-[600px] overflow-y-auto border rounded-md p-4 mb-4">
+          <div className="h-[600px] overflow-y-auto border border-gray-100 rounded-xl p-4 mb-4 bg-white/80 backdrop-blur-sm shadow-[0_2px_8px_-3px_rgba(0,0,0,0.1)]">
             {localMessages.length === 0 ? (
-              <div className="text-center text-muted-foreground py-8">
+              <div className="text-center text-gray-400 py-8">
+                <MessageSquare className="w-12 h-12 mx-auto mb-3 opacity-20" />
                 Start a conversation by entering your job description
               </div>
             ) : (
-              localMessages.map((message, index) => (
-                <div
-                  key={index}
-                  className={cn(
-                    "mb-6 flex",
-                    message.role === "user"
-                      ? "justify-end"
-                      : "justify-start"
-                  )}
-                >
+              <>
+                {localMessages.map((message, index) => (
                   <div
+                    key={index}
                     className={cn(
+                      "mb-6 flex",
                       message.role === "user"
-                        ? "rounded-lg px-4 py-2 max-w-[85%] bg-primary text-primary-foreground"
-                        : extractSkillsData(message.content || "") 
-                          ? "rounded-lg px-4 py-4 max-w-[90%] bg-muted w-[90%]"
-                          : "rounded-lg px-4 py-2 max-w-[85%] bg-muted"
+                        ? "justify-end"
+                        : "justify-start"
                     )}
                   >
-                    {message.role === "user" ? 
-                      <div className="whitespace-pre-line">{message.content}</div> : 
-                      renderMessageContent(message.content || "")}
+                    <div
+                      className={cn(
+                        "shadow-sm transition-all duration-200",
+                        message.role === "user" && (message as any).isJobDescription 
+                          ? "rounded-2xl px-5 py-3 max-w-[85%] bg-blue-500 text-white"
+                          : message.role === "user"
+                          ? "rounded-2xl px-5 py-3 max-w-[85%] bg-blue-500 text-white"
+                          : extractSkillsData(message.content || "") 
+                            ? "rounded-2xl px-5 py-4 max-w-[90%] bg-gray-50/80 backdrop-blur-sm w-[90%] border border-gray-100"
+                            : "rounded-2xl px-5 py-3 max-w-[85%] bg-gray-50/80 backdrop-blur-sm border border-gray-100"
+                      )}
+                    >
+                      {message.role === "user" ? (
+                        (message as any).isJobDescription ? (
+                          <div>
+                            <div className="text-sm font-medium mb-2">Job Description</div>
+                            <div className="whitespace-pre-line max-h-[200px] overflow-y-auto bg-blue-600/30 p-3 rounded text-sm">{message.content}</div>
+                          </div>
+                        ) : (
+                          <div className="whitespace-pre-line">{message.content}</div>
+                        )
+                      ) : (
+                        renderMessageContent(message.content || "")
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))
-            )}
-            {(localLoading || isLoading) && (
-              <div className="flex justify-start mb-4">
-                <div className="rounded-lg px-4 py-2 max-w-[80%] bg-muted">
-                  <Spinner size="sm" className="mr-2" />
-                  Thinking...
-                </div>
-              </div>
+                ))}
+
+                {/* Render interactive prompt options */}
+                {renderPromptOptions()}
+
+                {(localLoading || isLoading) && (
+                  <div className="flex justify-start mb-4">
+                    <div className="rounded-2xl px-5 py-3 max-w-[80%] bg-gray-50/80 backdrop-blur-sm border border-gray-100 shadow-sm">
+                      <Spinner size="sm" className="mr-2 text-blue-500" />
+                      Thinking...
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
           
-          {/* Debug mode toggle */}
-          <div className="flex items-center justify-between">
+          {/* Debug mode toggle with improved styling */}
+          <div className="flex items-center justify-between px-1">
             <div className="flex items-center space-x-2">
               <input
                 type="checkbox" 
                 id="debug-mode"
                 checked={debugMode}
                 onChange={() => setDebugMode(!debugMode)}
+                className="rounded border-gray-300 text-blue-500 focus:ring-blue-500"
               />
-              <label htmlFor="debug-mode" className="text-sm text-muted-foreground">
+              <label htmlFor="debug-mode" className="text-sm text-gray-500 hover:text-gray-700">
                 Debug Mode ({debugMode ? "Test API" : "Real API"})
               </label>
             </div>
@@ -1049,39 +1261,42 @@ export default function JDChatUI() {
                 size="sm" 
                 onClick={handleManualSubmit}
                 disabled={!input.trim() || isLoading || localLoading}
+                className="border-gray-200 hover:bg-gray-50 text-gray-700"
               >
                 Test Send
               </Button>
             )}
           </div>
           
-          {/* Debug info panel */}
+          {/* Debug info panel with improved styling */}
           {debugMode && renderDebugSection()}
         </CardContent>
         <CardFooter>
-          <form onSubmit={customHandleSubmit} className="flex w-full gap-2">
+          <form onSubmit={customHandleSubmit} className="flex w-full gap-3">
             <Input
               placeholder="Type your job description or question here..."
               value={input}
               onChange={handleInputChange}
-              className="flex-1"
+              className="flex-1 border-gray-200 focus:ring-2 focus:ring-blue-500/20 rounded-xl placeholder:text-gray-400"
             />
-            <Button type="submit" disabled={isLoading || localLoading || !input.trim()}>
+            <Button 
+              type="submit" 
+              disabled={isLoading || localLoading || !input.trim()}
+              className="bg-blue-500 hover:bg-blue-600 text-white rounded-xl shadow-sm transition-colors"
+            >
               Send
             </Button>
           </form>
         </CardFooter>
       </Card>
 
-      {/* Skills card is now displayed directly within the chat messages rather than as a separate component */}
-
       {recordId && questions.length > 0 && (
-        <Card className="mb-8">
+        <Card className="mb-8 border-0 shadow-sm bg-gradient-to-b from-white to-gray-50/50">
           <CardHeader>
             <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Interview Questions</CardTitle>
-                <CardDescription>Generated questions for the skills</CardDescription>
+              <div className="space-y-1">
+                <CardTitle className="text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">Interview Questions</CardTitle>
+                <CardDescription className="text-gray-500">Generated questions based on identified skills</CardDescription>
               </div>
               <div className="flex items-center gap-2">
                 <Button
@@ -1089,6 +1304,7 @@ export default function JDChatUI() {
                   size="sm"
                   onClick={fetchLatestQuestions}
                   disabled={loading}
+                  className="border-gray-200 hover:bg-gray-50 text-gray-700"
                 >
                   <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
                   Refresh
@@ -1097,51 +1313,50 @@ export default function JDChatUI() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="rounded-md border relative overflow-x-auto">
+            <div className="rounded-xl border border-gray-100 relative overflow-x-auto bg-white/80 backdrop-blur-sm shadow-[0_2px_8px_-3px_rgba(0,0,0,0.1)]">
               <Table className="w-full table-fixed">
                 <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[12%]">Skill</TableHead>
-                    <TableHead className="w-[10%]">Category</TableHead>
-                    <TableHead className="w-[12%]">Format</TableHead>
-                    <TableHead className="w-[46%]">Question</TableHead>
-                    <TableHead className="w-[20%] text-right">Actions</TableHead>
+                  <TableRow className="hover:bg-gray-50/50">
+                    <TableHead className="w-[12%] text-gray-700">Skill</TableHead>
+                    <TableHead className="w-[10%] text-gray-700">Category</TableHead>
+                    <TableHead className="w-[12%] text-gray-700">Format</TableHead>
+                    <TableHead className="w-[46%] text-gray-700">Question</TableHead>
+                    <TableHead className="w-[20%] text-right text-gray-700">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {sortedQuestions.map((question, index) => {
-                    // Check if this is a new skill group
                     const isNewSkillGroup = question.skillId !== currentSkillId;
-                    // Update current skill
                     currentSkillId = question.skillId;
 
                     return (
                       <>
                         {isNewSkillGroup && (
-                          <TableRow key={`header-${question.skillId}`} className="bg-muted/30">
-                            <TableCell colSpan={5} className="py-2">
-                              <span className="font-semibold">{getSkillName(question.skillId)}</span>
+                          <TableRow key={`header-${question.skillId}`} className="bg-gray-50/50">
+                            <TableCell colSpan={5} className="py-3">
+                              <span className="font-semibold text-gray-700">{getSkillName(question.skillId)}</span>
                             </TableCell>
                           </TableRow>
                         )}
                         <TableRow 
                           key={question.id}
                           className={cn(
-                            "cursor-pointer hover:bg-muted/50",
-                            question.liked === "LIKED" && "bg-green-50",
-                            question.liked === "DISLIKED" && "bg-red-50"
+                            "cursor-pointer transition-colors",
+                            question.liked === "LIKED" && "bg-green-50/50 hover:bg-green-50/70",
+                            question.liked === "DISLIKED" && "bg-red-50/50 hover:bg-red-50/70",
+                            !question.liked && "hover:bg-gray-50/50"
                           )}
                         >
                           <TableCell>
                             <div className="pl-4">
-                              <span className="text-sm text-muted-foreground">
+                              <span className="text-sm text-gray-500">
                                 Question {index + 1}
                               </span>
                             </div>
                           </TableCell>
                           <TableCell>
                             <span
-                              className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${getCategoryClass(
+                              className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors ${getCategoryClass(
                                 question.category
                               )}`}
                             >
@@ -1150,14 +1365,14 @@ export default function JDChatUI() {
                           </TableCell>
                           <TableCell>
                             <span
-                              className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${getQuestionFormatClass(
+                              className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors ${getQuestionFormatClass(
                                 question.questionFormat || "Scenario"
                               )}`}
                             >
                               {question.questionFormat || "Scenario"}
                             </span>
                           </TableCell>
-                          <TableCell className="font-medium">
+                          <TableCell className="font-medium text-gray-700">
                             <div className="whitespace-normal break-words">
                               <QuestionDialog
                                 questionId={question.id}
@@ -1185,8 +1400,8 @@ export default function JDChatUI() {
                                 size="icon"
                                 onClick={() => handleQuestionStatusChange(question.id, "LIKED")}
                                 className={cn(
-                                  "h-8 w-8",
-                                  question.liked === "LIKED" && "bg-green-100 text-green-800"
+                                  "h-8 w-8 transition-colors",
+                                  question.liked === "LIKED" ? "bg-green-100 text-green-700 hover:bg-green-200" : "hover:bg-gray-100"
                                 )}
                               >
                                 <TooltipProvider>
@@ -1205,8 +1420,8 @@ export default function JDChatUI() {
                                 size="icon"
                                 onClick={() => handleQuestionStatusChange(question.id, "DISLIKED")}
                                 className={cn(
-                                  "h-8 w-8",
-                                  question.liked === "DISLIKED" && "bg-red-100 text-red-800"
+                                  "h-8 w-8 transition-colors",
+                                  question.liked === "DISLIKED" ? "bg-red-100 text-red-700 hover:bg-red-200" : "hover:bg-gray-100"
                                 )}
                               >
                                 <TooltipProvider>
@@ -1225,6 +1440,7 @@ export default function JDChatUI() {
                                 size="icon"
                                 onClick={() => handleRegenerateQuestion(question.id)}
                                 disabled={loading}
+                                className="hover:bg-gray-100 transition-colors"
                               >
                                 <TooltipProvider>
                                   <Tooltip>
