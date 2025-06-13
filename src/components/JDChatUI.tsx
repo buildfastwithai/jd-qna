@@ -1356,7 +1356,7 @@ export default function JDChatUI() {
             onClick={regenerateSkills}
             className={regeneratingSkills ? "opacity-70 cursor-not-allowed" : ""}
           />
-          <PromptCard 
+          {/* <PromptCard 
             text={regeneratingWithInstructions ? "Applying instructions..." : "Add custom instructions"}
             onClick={() => {
               if (regeneratingWithInstructions) return;
@@ -1381,7 +1381,7 @@ export default function JDChatUI() {
               ]);
             }}
             className={regeneratingWithInstructions ? "opacity-70 cursor-not-allowed" : ""}
-          />
+          /> */}
           <PromptCard 
             text="Restart" 
             onClick={restartConversation}
@@ -1398,16 +1398,16 @@ export default function JDChatUI() {
             text="Edit a skill" 
             onClick={handleEditSkill} 
           />
-          <PromptCard 
+          {/* <PromptCard 
             text="Edit a question" 
             onClick={handleEditQuestion}
-          />
+          /> */}
           <PromptCard 
             text={regeneratingAll ? "Regenerating all..." : "Regenerate all"}
             onClick={regenerateAll}
             className={regeneratingAll ? "opacity-70 cursor-not-allowed" : ""}
           />
-          <PromptCard 
+          {/* <PromptCard 
             text={regeneratingWithInstructions ? "Applying instructions..." : "Add custom instructions"}
             onClick={() => {
               if (regeneratingWithInstructions) return;
@@ -1432,7 +1432,7 @@ export default function JDChatUI() {
               ]);
             }}
             className={regeneratingWithInstructions ? "opacity-70 cursor-not-allowed" : ""}
-          />
+          /> */}
           <PromptCard 
             text="Restart" 
             onClick={restartConversation}
