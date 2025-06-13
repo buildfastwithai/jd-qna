@@ -162,16 +162,25 @@ export default function JDChatUI() {
 
   // Define conversation state management
   const [conversationState, setConversationState] = useState({
-    stage: 'initial', // initial, jd_provided, learning_mode, interview_length, custom_instructions, options
+    stage: 'initial', // initial, jd_provided, learning_mode, interview_length, custom_instructions, options, processing, skills_extracted, auto_generated, edit_skill
     jobDescription: '',
     useLearningMode: false,
     interviewLength: 60,
     customInstructions: '',
+    skillToEdit: '',
   });
 
   // Add state to manage UI prompts
   const [showJobDescriptionCard, setShowJobDescriptionCard] = useState(false);
   const [jobDescriptionText, setJobDescriptionText] = useState("");
+
+  // Add new state variable to track input placeholder
+  const [inputPlaceholder, setInputPlaceholder] = useState("Type your job description or question here...");
+
+  // Add new state variables to track specific loading operations
+  const [regeneratingSkills, setRegeneratingSkills] = useState(false);
+  const [regeneratingAll, setRegeneratingAll] = useState(false);
+  const [regeneratingWithInstructions, setRegeneratingWithInstructions] = useState(false);
 
   // Initialize the chat with the correct API endpoint
   const { messages, input, handleInputChange, handleSubmit, isLoading, error } = useChat({
@@ -592,7 +601,7 @@ export default function JDChatUI() {
     }
   };
 
-  // Handle user message based on current conversation stage
+  // Update the input placeholder in the return statement
   const handleUserMessage = (message: string) => {
     switch (conversationState.stage) {
       case 'initial':
@@ -602,6 +611,8 @@ export default function JDChatUI() {
           stage: 'jd_provided',
           jobDescription: message,
         });
+        // Reset placeholder text
+        setInputPlaceholder("Type your response here...");
         return 'Would you like to use Learning Mode to leverage past interview questions?';
         
       case 'jd_provided':
@@ -657,7 +668,53 @@ export default function JDChatUI() {
           stage: 'processing',
         });
         
+        setInputPlaceholder("Type your message here...");
         return "Processing your request...";
+        
+      case 'awaiting_custom_instructions_skills':
+        // User provided custom instructions for skills regeneration
+        applyCustomInstructions(message);
+        setConversationState({
+          ...conversationState,
+          stage: 'processing',
+        });
+        setInputPlaceholder("Type your message here...");
+        return `Processing your request with custom instructions: "${message}"...`;
+        
+      case 'awaiting_custom_instructions_auto':
+        // User provided custom instructions for auto regeneration
+        applyCustomInstructions(message);
+        setConversationState({
+          ...conversationState,
+          stage: 'processing',
+        });
+        setInputPlaceholder("Type your message here...");
+        return `Processing your request with custom instructions: "${message}"...`;
+
+      case 'edit_skill':
+        // User specified the skill to edit
+        setConversationState({
+          ...conversationState,
+          skillToEdit: message,
+          stage: 'processing_edit'
+        });
+
+        // Call API to edit skill
+        editSkill(message);
+        setInputPlaceholder("Type your message here...");
+        return `I'll help you edit the skill: ${message}. Processing your request...`;
+
+      case 'edit_question':
+        // User specified the question to edit
+        setConversationState({
+          ...conversationState,
+          stage: 'processing_edit'
+        });
+
+        // Call API to edit question
+        editQuestion(message);
+        setInputPlaceholder("Type your message here...");
+        return `I'll help you edit the question about ${message}. Processing your request...`;
         
       default:
         return null;
@@ -698,7 +755,6 @@ export default function JDChatUI() {
         throw new Error("Unexpected response format");
       }
       
-      setLoading(false);
     } catch (error) {
       console.error("Error extracting skills:", error);
       toast.error("Error extracting skills. Please try again.");
@@ -757,7 +813,6 @@ export default function JDChatUI() {
         throw new Error("Unexpected response format");
       }
       
-      setLoading(false);
     } catch (error) {
       console.error("Error auto-generating:", error);
       toast.error("Error generating skills and questions. Please try again.");
@@ -929,6 +984,25 @@ export default function JDChatUI() {
     
     // If no structured data, just render the content normally
     if (!skillsData && !questionsData) {
+      // Check if this is a response to an edit operation
+      if (conversationState.stage === 'processing_edit' && 
+          (content.includes("I've updated the skill") || 
+           content.includes("I've updated the question"))) {
+        
+        // Determine if we should go back to skills_extracted or auto_generated state
+        if (content.includes("I've updated the skill")) {
+          setConversationState({
+            ...conversationState,
+            stage: 'skills_extracted'
+          });
+        } else if (content.includes("I've updated the question")) {
+          setConversationState({
+            ...conversationState,
+            stage: 'auto_generated'
+          });
+        }
+      }
+      
       return <div className="whitespace-pre-line">{content}</div>;
     }
     
@@ -936,64 +1010,28 @@ export default function JDChatUI() {
     let cleanContent = content
       .replace(/<skills-data>.*?<\/skills-data>/gmi, '')
       .replace(/<questions-data>.*?<\/questions-data>/gmi, '');
+
+    // Update conversation state if skills or questions were extracted
+    if (skillsData && (conversationState.stage === 'processing' || conversationState.stage === 'processing_edit')) {
+      setConversationState({
+        ...conversationState,
+        stage: 'skills_extracted'
+      });
+    }
+
+    if (questionsData && (conversationState.stage === 'processing' || conversationState.stage === 'processing_edit')) {
+      setConversationState({
+        ...conversationState,
+        stage: 'auto_generated'
+      });
+    }
     
     return (
       <>
         <div className="whitespace-pre-line mb-4">{cleanContent}</div>
         
         {/* Render skills table if available */}
-        {skillsData && skillsData.skills && skillsData.skills.length > 0 && (
-          <div className="border rounded-md overflow-hidden mt-2 bg-white shadow">
-            <div className="bg-primary/10 px-3 py-2 text-sm font-medium border-b">
-              Skills Identified ({skillsData.skills.length})
-            </div>
-            <div className="max-h-[300px] overflow-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-primary/5">
-                    <TableHead className="w-[40%] py-2">Skill</TableHead>
-                    <TableHead className="w-[20%] py-2">Level</TableHead>
-                    <TableHead className="w-[20%] py-2">Required</TableHead>
-                    <TableHead className="w-[20%] py-2">Category</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {skillsData.skills.map((skill: any) => (
-                    <TableRow key={skill.id} className="hover:bg-muted/50">
-                      <TableCell className="font-medium py-2">{skill.name}</TableCell>
-                      <TableCell className="py-2">
-                        <Badge variant="outline" className={
-                          skill.level === "EXPERT" ? "bg-purple-50 text-purple-800 border-purple-200" :
-                          skill.level === "PROFESSIONAL" ? "bg-blue-50 text-blue-800 border-blue-200" :
-                          skill.level === "INTERMEDIATE" ? "bg-green-50 text-green-800 border-green-200" :
-                          "bg-gray-50 text-gray-800 border-gray-200"
-                        }>
-                          {skill.level.toLowerCase()}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="py-2">
-                        <Badge variant={skill.requirement === "MANDATORY" ? "default" : "outline"}>
-                          {skill.requirement === "MANDATORY" ? "Required" : "Optional"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="py-2">
-                        <Badge variant="outline" className={
-                          skill.category === "TECHNICAL" ? "bg-blue-50 text-blue-800 border-blue-200" :
-                          skill.category === "FUNCTIONAL" ? "bg-green-50 text-green-800 border-green-200" :
-                          skill.category === "BEHAVIORAL" ? "bg-purple-50 text-purple-800 border-purple-200" :
-                          skill.category === "COGNITIVE" ? "bg-amber-50 text-amber-800 border-amber-200" :
-                          ""
-                        }>
-                          {skill.category?.toLowerCase() || "Not specified"}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </div>
-        )}
+        {skillsData && skillsData.skills && skillsData.skills.length > 0 && renderSkillsTable(skillsData)}
         
         {/* Render questions table if available */}
         {questionsData && questionsData.questions && questionsData.questions.length > 0 && (
@@ -1045,32 +1083,56 @@ export default function JDChatUI() {
             </TableHeader>
             <TableBody>
               {questions.map((question: any, index: number) => {
-                const questionData = typeof question.content === 'string' 
-                  ? JSON.parse(question.content) 
-                  : question.content;
+                // Add null checking and default values
+                let questionData;
+                try {
+                  questionData = typeof question.content === 'string' 
+                    ? JSON.parse(question.content) 
+                    : question.content || {};
+                } catch (e) {
+                  console.error("Error parsing question content:", e);
+                  questionData = { 
+                    question: "Error loading question", 
+                    answer: "Error loading answer", 
+                    category: "General" 
+                  };
+                }
+                
+                // Make sure questionData.question exists
+                const questionText = questionData?.question || "Question not available";
                   
                 return (
-                  <TableRow key={question.id || index} className="hover:bg-muted/50">
+                  <TableRow 
+                    key={question.id || index} 
+                    className={cn(
+                      "hover:bg-muted/50",
+                      conversationState.stage === 'edit_question' && "cursor-pointer hover:bg-blue-50"
+                    )}
+                    onClick={() => handleQuestionClick(questionText)}
+                  >
                     <TableCell className="font-medium py-2">
                       {question.skillName || "General"}
                     </TableCell>
                     <TableCell className="py-2">
-                      {questionData.question}
+                      {questionText}
+                      {conversationState.stage === 'edit_question' && (
+                        <span className="ml-2 text-xs text-blue-500">(click to edit)</span>
+                      )}
                     </TableCell>
                     <TableCell className="py-2 text-sm">
                       <div className="max-h-[100px] overflow-auto">
-                        {questionData.answer}
+                        {questionData?.answer || "Answer not available"}
                       </div>
                     </TableCell>
                     <TableCell className="py-2">
                       <Badge variant="outline" className={
-                        questionData.category === "Technical" ? "bg-blue-50 text-blue-800 border-blue-200" :
-                        questionData.category === "Experience" ? "bg-green-50 text-green-800 border-green-200" :
-                        questionData.category === "Problem Solving" ? "bg-purple-50 text-purple-800 border-purple-200" :
-                        questionData.category === "Soft Skills" ? "bg-amber-50 text-amber-800 border-amber-200" :
+                        questionData?.category === "Technical" ? "bg-blue-50 text-blue-800 border-blue-200" :
+                        questionData?.category === "Experience" ? "bg-green-50 text-green-800 border-green-200" :
+                        questionData?.category === "Problem Solving" ? "bg-purple-50 text-purple-800 border-purple-200" :
+                        questionData?.category === "Soft Skills" ? "bg-amber-50 text-amber-800 border-amber-200" :
                         ""
                       }>
-                        {questionData.category || "General"}
+                        {questionData?.category || "General"}
                       </Badge>
                     </TableCell>
                   </TableRow>
@@ -1116,6 +1178,106 @@ export default function JDChatUI() {
   const renderPromptOptions = () => {
     const lastAssistantMessage = [...localMessages].reverse().find(m => m.role === 'assistant');
     if (!lastAssistantMessage) return null;
+    
+    // Check if the last message contains edit confirmation
+    if (lastAssistantMessage.content.includes("I've updated the skill")) {
+      // Show skills extracted prompt cards again
+      return (
+        <div className="flex flex-wrap gap-2 mt-4 justify-center py-2">
+          <PromptCard 
+            text="Edit a skill" 
+            onClick={handleEditSkill} 
+          />
+          <PromptCard 
+            text={regeneratingSkills ? "Regenerating skills..." : "Regenerate all skills"}
+            onClick={regenerateSkills}
+            className={regeneratingSkills ? "opacity-70 cursor-not-allowed" : ""}
+          />
+          {/* <PromptCard 
+            text={regeneratingWithInstructions ? "Applying instructions..." : "Add custom instructions"}
+            onClick={() => {
+              if (regeneratingWithInstructions) return;
+              
+              // Update stage to show we're waiting for custom instructions
+              setConversationState({
+                ...conversationState,
+                stage: 'awaiting_custom_instructions_skills'
+              });
+              
+              // Update placeholder text
+              setInputPlaceholder("Enter custom instructions (e.g., 'Generate more technical skills')...");
+              
+              // Add a message prompting for instructions
+              setLocalMessages(prev => [
+                ...prev,
+                {
+                  id: Date.now().toString(),
+                  role: 'assistant',
+                  content: "Please enter your custom instructions for regenerating skills:"
+                }
+              ]);
+            }}
+            className={regeneratingWithInstructions ? "opacity-70 cursor-not-allowed" : ""}
+          /> */}
+          <PromptCard 
+            text="Restart" 
+            onClick={restartConversation}
+          />
+        </div>
+      );
+    }
+    
+    // Check if the last message contains question edit confirmation
+    if (lastAssistantMessage.content.includes("I've updated the question")) {
+      // Show auto generated prompt cards again
+      return (
+        <div className="flex flex-wrap gap-2 mt-4 justify-center py-2">
+          <PromptCard 
+            text="Edit a skill" 
+            onClick={handleEditSkill} 
+          />
+          {/* <PromptCard 
+            text="Edit a question" 
+            onClick={handleEditQuestion}
+          /> */}
+          <PromptCard 
+            text={regeneratingAll ? "Regenerating all..." : "Regenerate all"}
+            onClick={regenerateAll}
+            className={regeneratingAll ? "opacity-70 cursor-not-allowed" : ""}
+          />
+          {/* <PromptCard 
+            text={regeneratingWithInstructions ? "Applying instructions..." : "Add custom instructions"}
+            onClick={() => {
+              if (regeneratingWithInstructions) return;
+              
+              // Update stage to show we're waiting for custom instructions
+              setConversationState({
+                ...conversationState,
+                stage: 'awaiting_custom_instructions_auto'
+              });
+              
+              // Update placeholder text
+              setInputPlaceholder("Enter custom instructions (e.g., 'Generate more technical questions')...");
+              
+              // Add a message prompting for instructions
+              setLocalMessages(prev => [
+                ...prev,
+                {
+                  id: Date.now().toString(),
+                  role: 'assistant',
+                  content: "Please enter your custom instructions for regenerating skills and questions:"
+                }
+              ]);
+            }}
+            className={regeneratingWithInstructions ? "opacity-70 cursor-not-allowed" : ""}
+          /> */}
+          <PromptCard 
+            text="Restart" 
+            onClick={restartConversation}
+          />
+        </div>
+      );
+    }
     
     if (lastAssistantMessage.content.includes('Would you like to use Learning Mode')) {
       return (
@@ -1181,7 +1343,627 @@ export default function JDChatUI() {
       );
     }
     
+    // Modify prompt options for 'skills_extracted'
+    if (conversationState.stage === 'skills_extracted') {
+      return (
+        <div className="flex flex-wrap gap-2 mt-4 justify-center py-2">
+          <PromptCard 
+            text="Edit a skill" 
+            onClick={handleEditSkill} 
+          />
+          <PromptCard 
+            text={regeneratingSkills ? "Regenerating skills..." : "Regenerate all skills"}
+            onClick={regenerateSkills}
+            className={regeneratingSkills ? "opacity-70 cursor-not-allowed" : ""}
+          />
+          <PromptCard 
+            text={regeneratingWithInstructions ? "Applying instructions..." : "Add custom instructions"}
+            onClick={() => {
+              if (regeneratingWithInstructions) return;
+              
+              // Update stage to show we're waiting for custom instructions
+              setConversationState({
+                ...conversationState,
+                stage: 'awaiting_custom_instructions_skills'
+              });
+              
+              // Update placeholder text
+              setInputPlaceholder("Enter custom instructions (e.g., 'Generate more technical skills')...");
+              
+              // Add a message prompting for instructions
+              setLocalMessages(prev => [
+                ...prev,
+                {
+                  id: Date.now().toString(),
+                  role: 'assistant',
+                  content: "Please enter your custom instructions for regenerating skills:"
+                }
+              ]);
+            }}
+            className={regeneratingWithInstructions ? "opacity-70 cursor-not-allowed" : ""}
+          />
+          <PromptCard 
+            text="Restart" 
+            onClick={restartConversation}
+          />
+        </div>
+      );
+    }
+    
+    // Modify prompt options for 'auto_generated'
+    if (conversationState.stage === 'auto_generated') {
+      return (
+        <div className="flex flex-wrap gap-2 mt-4 justify-center py-2">
+          <PromptCard 
+            text="Edit a skill" 
+            onClick={handleEditSkill} 
+          />
+          <PromptCard 
+            text="Edit a question" 
+            onClick={handleEditQuestion}
+          />
+          <PromptCard 
+            text={regeneratingAll ? "Regenerating all..." : "Regenerate all"}
+            onClick={regenerateAll}
+            className={regeneratingAll ? "opacity-70 cursor-not-allowed" : ""}
+          />
+          <PromptCard 
+            text={regeneratingWithInstructions ? "Applying instructions..." : "Add custom instructions"}
+            onClick={() => {
+              if (regeneratingWithInstructions) return;
+              
+              // Update stage to show we're waiting for custom instructions
+              setConversationState({
+                ...conversationState,
+                stage: 'awaiting_custom_instructions_auto'
+              });
+              
+              // Update placeholder text
+              setInputPlaceholder("Enter custom instructions (e.g., 'Generate more technical questions')...");
+              
+              // Add a message prompting for instructions
+              setLocalMessages(prev => [
+                ...prev,
+                {
+                  id: Date.now().toString(),
+                  role: 'assistant',
+                  content: "Please enter your custom instructions for regenerating skills and questions:"
+                }
+              ]);
+            }}
+            className={regeneratingWithInstructions ? "opacity-70 cursor-not-allowed" : ""}
+          />
+          <PromptCard 
+            text="Restart" 
+            onClick={restartConversation}
+          />
+        </div>
+      );
+    }
+    
     return null;
+  };
+
+  // Handle skill editing - restore original function that prompts for input
+  const handleEditSkill = async () => {
+    setConversationState({
+      ...conversationState,
+      stage: 'edit_skill'
+    });
+    
+    // Add a message to prompt the user
+    setLocalMessages(prev => [
+      ...prev,
+      {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: 'Please specify which skill you want to edit (You can click on the skill in the table to edit it):'
+      }
+    ]);
+    
+    // Update placeholder
+    setInputPlaceholder("Type the skill name you want to edit...");
+  };
+
+  // Handle question editing - restore original function that prompts for input
+  const handleEditQuestion = async () => {
+    setConversationState({
+      ...conversationState,
+      stage: 'edit_question'
+    });
+    
+    // Add a message to prompt the user
+    setLocalMessages(prev => [
+      ...prev,
+      {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: 'Please specify which question you want to edit (You can click on the question in the table to edit it):'
+      }
+    ]);
+    
+    // Update placeholder
+    setInputPlaceholder("Type the question topic you want to edit...");
+  };
+
+  // Function to actually edit a skill after user provides the name
+  const editSkill = async (skillName: string) => {
+    setLoading(true);
+    
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messages: localMessages,
+          operation: "edit-skill",
+          params: {
+            recordId: recordId,
+            skillName: skillName,
+            jobDescription: conversationState.jobDescription,
+          },
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error("Failed to edit skill");
+      }
+      
+      const data = await response.json();
+      
+      // Add the response to the chat
+      if (Array.isArray(data) && data.length > 0 && data[0].role === 'assistant') {
+        setLocalMessages((prev) => [...prev, data[0]]);
+        
+        // Check if we have skills data
+        const content = data[0].content || "";
+        if (content.includes('<skills-data>')) {
+          // Reset conversation state to show skills extracted
+          setConversationState({
+            ...conversationState,
+            stage: 'skills_extracted'
+          });
+        }
+      } else {
+        throw new Error("Unexpected response format");
+      }
+      
+    } catch (error) {
+      console.error("Error editing skill:", error);
+      toast.error("Error editing skill. Please try again.");
+      
+      // Add error message to chat
+      setLocalMessages((prev) => [
+        ...prev, 
+        { 
+          id: Date.now().toString(),
+          role: 'assistant',
+          content: "I'm sorry, I encountered an error while editing the skill. Please try again."
+        }
+      ]);
+    } finally {
+      setLoading(false);
+      // Reset placeholder
+      setInputPlaceholder("Type your message here...");
+    }
+  };
+
+  // Function to actually edit a question after user provides the topic
+  const editQuestion = async (questionTopic: string) => {
+    setLoading(true);
+    
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messages: localMessages,
+          operation: "edit-question",
+          params: {
+            recordId: recordId,
+            questionTopic: questionTopic,
+          },
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error("Failed to edit question");
+      }
+      
+      const data = await response.json();
+      
+      // Add the response to the chat
+      if (Array.isArray(data) && data.length > 0 && data[0].role === 'assistant') {
+        setLocalMessages((prev) => [...prev, data[0]]);
+        
+        // Check if we have questions data
+        const content = data[0].content || "";
+        if (content.includes('<questions-data>')) {
+          // Reset conversation state to show auto generated
+          setConversationState({
+            ...conversationState,
+            stage: 'auto_generated'
+          });
+        }
+      } else {
+        throw new Error("Unexpected response format");
+      }
+      
+    } catch (error) {
+      console.error("Error editing question:", error);
+      toast.error("Error editing question. Please try again.");
+      
+      // Add error message to chat
+      setLocalMessages((prev) => [
+        ...prev, 
+        { 
+          id: Date.now().toString(),
+          role: 'assistant',
+          content: "I'm sorry, I encountered an error while editing the question. Please try again."
+        }
+      ]);
+    } finally {
+      setLoading(false);
+      // Reset placeholder
+      setInputPlaceholder("Type your message here...");
+    }
+  };
+
+  // Handle skill regeneration
+  const regenerateSkills = async () => {
+    setLoading(true);
+    setRegeneratingSkills(true);
+    
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messages: localMessages,
+          operation: "regenerate-skills",
+          params: {
+            recordId: recordId,
+            jobDescription: conversationState.jobDescription,
+            useLearningMode: conversationState.useLearningMode,
+            interviewLength: conversationState.interviewLength,
+          },
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error("Failed to regenerate skills");
+      }
+      
+      const data = await response.json();
+      
+      // Add the response to the chat
+      if (Array.isArray(data) && data.length > 0 && data[0].role === 'assistant') {
+        setLocalMessages((prev) => [...prev, data[0]]);
+      } else {
+        throw new Error("Unexpected response format");
+      }
+      
+    } catch (error) {
+      console.error("Error regenerating skills:", error);
+      toast.error("Error regenerating skills. Please try again.");
+      
+      // Add error message to chat
+      setLocalMessages((prev) => [
+        ...prev, 
+        { 
+          id: Date.now().toString(),
+          role: 'assistant',
+          content: "I'm sorry, I encountered an error while regenerating skills. Please try again."
+        }
+      ]);
+    } finally {
+      setLoading(false);
+      setRegeneratingSkills(false);
+    }
+  };
+
+  // Handle applying custom instructions
+  const applyCustomInstructions = (instructions: string) => {
+    setConversationState({
+      ...conversationState,
+      customInstructions: instructions
+    });
+    
+    // If we have skills extracted, call regenerate with new instructions
+    if (conversationState.stage === 'skills_extracted') {
+      // Call API with custom instructions for skills
+      regenerateSkillsWithCustomInstructions(instructions);
+    } else if (conversationState.stage === 'auto_generated') {
+      // Call API with custom instructions for auto-generation
+      regenerateWithCustomInstructions(instructions);
+    }
+  };
+
+  // Regenerate skills with custom instructions
+  const regenerateSkillsWithCustomInstructions = async (instructions: string) => {
+    setLoading(true);
+    setRegeneratingWithInstructions(true);
+    
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messages: localMessages,
+          operation: "regenerate-skills",
+          params: {
+            recordId: recordId,
+            jobDescription: conversationState.jobDescription,
+            useLearningMode: conversationState.useLearningMode,
+            interviewLength: conversationState.interviewLength,
+            customInstructions: instructions,
+          },
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error("Failed to apply custom instructions");
+      }
+      
+      const data = await response.json();
+      
+      // Add the response to the chat
+      if (Array.isArray(data) && data.length > 0 && data[0].role === 'assistant') {
+        setLocalMessages((prev) => [...prev, data[0]]);
+      } else {
+        throw new Error("Unexpected response format");
+      }
+      
+    } catch (error) {
+      console.error("Error applying custom instructions:", error);
+      toast.error("Error applying custom instructions. Please try again.");
+      
+      // Add error message to chat
+      setLocalMessages((prev) => [
+        ...prev, 
+        { 
+          id: Date.now().toString(),
+          role: 'assistant',
+          content: "I'm sorry, I encountered an error while applying your custom instructions. Please try again."
+        }
+      ]);
+    } finally {
+      setLoading(false);
+      setRegeneratingWithInstructions(false);
+    }
+  };
+
+  // Regenerate auto-generated content with custom instructions
+  const regenerateWithCustomInstructions = async (instructions: string) => {
+    setLoading(true);
+    setRegeneratingWithInstructions(true);
+    
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messages: localMessages,
+          operation: "regenerate-auto",
+          params: {
+            recordId: recordId,
+            jobDescription: conversationState.jobDescription,
+            useLearningMode: conversationState.useLearningMode,
+            interviewLength: conversationState.interviewLength,
+            customInstructions: instructions,
+          },
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error("Failed to apply custom instructions");
+      }
+      
+      const data = await response.json();
+      
+      // Add the response to the chat
+      if (Array.isArray(data) && data.length > 0 && data[0].role === 'assistant') {
+        setLocalMessages((prev) => [...prev, data[0]]);
+      } else {
+        throw new Error("Unexpected response format");
+      }
+      
+    } catch (error) {
+      console.error("Error applying custom instructions:", error);
+      toast.error("Error applying custom instructions. Please try again.");
+      
+      // Add error message to chat
+      setLocalMessages((prev) => [
+        ...prev, 
+        { 
+          id: Date.now().toString(),
+          role: 'assistant',
+          content: "I'm sorry, I encountered an error while applying your custom instructions. Please try again."
+        }
+      ]);
+    } finally {
+      setLoading(false);
+      setRegeneratingWithInstructions(false);
+    }
+  };
+
+  // Handle restarting the conversation
+  const restartConversation = () => {
+    // Reset conversation state
+    setConversationState({
+      stage: 'initial',
+      jobDescription: '',
+      useLearningMode: false,
+      interviewLength: 60,
+      customInstructions: '',
+      skillToEdit: '',
+    });
+    
+    // Clear messages except the welcome message
+    setLocalMessages([{
+      id: 'welcome',
+      role: 'assistant',
+      content: "Welcome to the Job Description Analyzer! Please share your job description, and I'll help you extract key skills and generate relevant interview questions."
+    }]);
+    
+    // Reset record and skills
+    setRecordId(null);
+    setSkills([]);
+    setQuestions([]);
+  };
+
+  // Regenerate all content
+  const regenerateAll = async () => {
+    setLoading(true);
+    setRegeneratingAll(true);
+    
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messages: localMessages,
+          operation: "regenerate-all",
+          params: {
+            recordId: recordId,
+            jobDescription: conversationState.jobDescription,
+            useLearningMode: conversationState.useLearningMode,
+            interviewLength: conversationState.interviewLength,
+          },
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error("Failed to regenerate content");
+      }
+      
+      const data = await response.json();
+      
+      // Add the response to the chat
+      if (Array.isArray(data) && data.length > 0 && data[0].role === 'assistant') {
+        setLocalMessages((prev) => [...prev, data[0]]);
+      } else {
+        throw new Error("Unexpected response format");
+      }
+      
+    } catch (error) {
+      console.error("Error regenerating content:", error);
+      toast.error("Error regenerating content. Please try again.");
+      
+      // Add error message to chat
+      setLocalMessages((prev) => [
+        ...prev, 
+        { 
+          id: Date.now().toString(),
+          role: 'assistant',
+          content: "I'm sorry, I encountered an error while regenerating content. Please try again."
+        }
+      ]);
+    } finally {
+      setLoading(false);
+      setRegeneratingAll(false);
+    }
+  };
+
+  // Add function to handle skill click for editing
+  const handleSkillClick = (skillName: string) => {
+    if (conversationState.stage === 'edit_skill') {
+      // Set the input value to the clicked skill name
+      handleInputChange({ target: { value: skillName } } as React.ChangeEvent<HTMLInputElement>);
+    }
+  };
+
+  // Add function to handle question click for editing
+  const handleQuestionClick = (questionText: string) => {
+    if (conversationState.stage === 'edit_question') {
+      // Set the input value to the clicked question text (first 30 chars)
+      const shortQuestionText = questionText.length > 30 
+        ? questionText.substring(0, 30) + '...' 
+        : questionText;
+      handleInputChange({ target: { value: shortQuestionText } } as React.ChangeEvent<HTMLInputElement>);
+    }
+  };
+
+  // Update the skills table rendering in renderMessageContent function to make skills clickable
+  const renderSkillsTable = (skillsData: any) => {
+    if (!skillsData || !skillsData.skills || skillsData.skills.length === 0) return null;
+    
+    return (
+      <div className="border rounded-md overflow-hidden mt-2 bg-white shadow">
+        <div className="bg-primary/10 px-3 py-2 text-sm font-medium border-b">
+          Skills Identified ({skillsData.skills.length})
+        </div>
+        <div className="max-h-[300px] overflow-auto">
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-primary/5">
+                <TableHead className="w-[40%] py-2">Skill</TableHead>
+                <TableHead className="w-[20%] py-2">Level</TableHead>
+                <TableHead className="w-[20%] py-2">Required</TableHead>
+                <TableHead className="w-[20%] py-2">Category</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {skillsData.skills.map((skill: any) => (
+                <TableRow 
+                  key={skill.id} 
+                  className={cn(
+                    "hover:bg-muted/50",
+                    conversationState.stage === 'edit_skill' && "cursor-pointer hover:bg-blue-50"
+                  )}
+                  onClick={() => handleSkillClick(skill.name)}
+                >
+                  <TableCell className="font-medium py-2">
+                    {skill.name}
+                    {conversationState.stage === 'edit_skill' && (
+                      <span className="ml-2 text-xs text-blue-500">(click to edit)</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="py-2">
+                    <Badge variant="outline" className={
+                      skill.level === "EXPERT" ? "bg-purple-50 text-purple-800 border-purple-200" :
+                      skill.level === "PROFESSIONAL" ? "bg-blue-50 text-blue-800 border-blue-200" :
+                      skill.level === "INTERMEDIATE" ? "bg-green-50 text-green-800 border-green-200" :
+                      "bg-gray-50 text-gray-800 border-gray-200"
+                    }>
+                      {skill.level.toLowerCase()}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="py-2">
+                    <Badge variant={skill.requirement === "MANDATORY" ? "default" : "outline"}>
+                      {skill.requirement === "MANDATORY" ? "Required" : "Optional"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="py-2">
+                    <Badge variant="outline" className={
+                      skill.category === "TECHNICAL" ? "bg-blue-50 text-blue-800 border-blue-200" :
+                      skill.category === "FUNCTIONAL" ? "bg-green-50 text-green-800 border-green-200" :
+                      skill.category === "BEHAVIORAL" ? "bg-purple-50 text-purple-800 border-purple-200" :
+                      skill.category === "COGNITIVE" ? "bg-amber-50 text-amber-800 border-amber-200" :
+                      ""
+                    }>
+                      {skill.category?.toLowerCase() || "Not specified"}
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -1217,13 +1999,13 @@ export default function JDChatUI() {
                     <div
                       className={cn(
                         "shadow-sm transition-all duration-200",
-                        message.role === "user" && (message as any).isJobDescription 
-                          ? "rounded-2xl px-5 py-3 max-w-[85%] bg-blue-500 text-white"
-                          : message.role === "user"
-                          ? "rounded-2xl px-5 py-3 max-w-[85%] bg-blue-500 text-white"
-                          : extractSkillsData(message.content || "") 
-                            ? "rounded-2xl px-5 py-4 max-w-[90%] bg-gray-50/80 backdrop-blur-sm w-[90%] border border-gray-100"
-                            : "rounded-2xl px-5 py-3 max-w-[85%] bg-gray-50/80 backdrop-blur-sm border border-gray-100"
+                        message.role === "user" 
+                          ? ((message as any).isJobDescription 
+                              ? "rounded-2xl px-5 py-3 max-w-[85%] bg-blue-500 text-white"
+                              : "rounded-2xl px-5 py-3 max-w-[85%] bg-blue-500 text-white")
+                          : (extractSkillsData(message.content || "") 
+                              ? "rounded-2xl px-5 py-4 max-w-[90%] bg-gray-50/80 backdrop-blur-sm w-[90%] border border-gray-100"
+                              : "rounded-2xl px-5 py-3 max-w-[85%] bg-gray-50/80 backdrop-blur-sm border border-gray-100")
                       )}
                     >
                       {message.role === "user" ? (
@@ -1291,7 +2073,7 @@ export default function JDChatUI() {
         <CardFooter>
           <form onSubmit={customHandleSubmit} className="flex w-full gap-3">
             <Input
-              placeholder="Type your job description or question here..."
+              placeholder={inputPlaceholder}
               value={input}
               onChange={handleInputChange}
               className="flex-1 border-gray-200 focus:ring-2 focus:ring-blue-500/20 rounded-xl placeholder:text-gray-400"
@@ -1358,11 +2140,17 @@ export default function JDChatUI() {
                         <TableRow 
                           key={question.id}
                           className={cn(
-                            "cursor-pointer transition-colors",
+                            "transition-colors",
                             question.liked === "LIKED" && "bg-green-50/50 hover:bg-green-50/70",
                             question.liked === "DISLIKED" && "bg-red-50/50 hover:bg-red-50/70",
-                            !question.liked && "hover:bg-gray-50/50"
+                            !question.liked && "hover:bg-gray-50/50",
+                            conversationState.stage === 'edit_question' && "cursor-pointer hover:bg-blue-100"
                           )}
+                          onClick={() => {
+                            if (conversationState.stage === 'edit_question') {
+                              handleQuestionClick(question.question);
+                            }
+                          }}
                         >
                           <TableCell>
                             <div className="pl-4">
@@ -1415,7 +2203,10 @@ export default function JDChatUI() {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => handleQuestionStatusChange(question.id, "LIKED")}
+                                onClick={(e) => {
+                                  e.stopPropagation(); // Prevent row click
+                                  handleQuestionStatusChange(question.id, "LIKED");
+                                }}
                                 className={cn(
                                   "h-8 w-8 transition-colors",
                                   question.liked === "LIKED" ? "bg-green-100 text-green-700 hover:bg-green-200" : "hover:bg-gray-100"
@@ -1435,7 +2226,10 @@ export default function JDChatUI() {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => handleQuestionStatusChange(question.id, "DISLIKED")}
+                                onClick={(e) => {
+                                  e.stopPropagation(); // Prevent row click
+                                  handleQuestionStatusChange(question.id, "DISLIKED");
+                                }}
                                 className={cn(
                                   "h-8 w-8 transition-colors",
                                   question.liked === "DISLIKED" ? "bg-red-100 text-red-700 hover:bg-red-200" : "hover:bg-gray-100"
@@ -1455,7 +2249,10 @@ export default function JDChatUI() {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => handleRegenerateQuestion(question.id)}
+                                onClick={(e) => {
+                                  e.stopPropagation(); // Prevent row click
+                                  handleRegenerateQuestion(question.id);
+                                }}
                                 disabled={loading}
                                 className="hover:bg-gray-100 transition-colors"
                               >

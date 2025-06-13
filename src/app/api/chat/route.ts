@@ -32,6 +32,16 @@ export async function POST(req: Request) {
       return await handleExtractSkills(lastUserMessage.content, params);
     } else if (operation === 'auto-generate') {
       return await handleAutoGenerate(lastUserMessage.content, params);
+    } else if (operation === 'edit-skill') {
+      return await handleEditSkill(params);
+    } else if (operation === 'edit-question') {
+      return await handleEditQuestion(params);
+    } else if (operation === 'regenerate-skills') {
+      return await handleRegenerateSkills(params);
+    } else if (operation === 'regenerate-auto') {
+      return await handleRegenerateAuto(params);
+    } else if (operation === 'regenerate-all') {
+      return await handleRegenerateAll(params);
     }
     
     // If this appears to be a job description, try to extract skills
@@ -95,8 +105,11 @@ export async function POST(req: Request) {
           }
         ]
       }
-      
-      Extract 12-15 skills in total with a good mix of technical and non-technical skills.
+
+     Extract 12-15 skills according to the custom instructions,interview length and the job description in total with a good mix of technical and non-technical skills.
+
+   Number of skills: Depends on the interview length and the custom instructions.
+
       `;
       
       const skillCompletion = await openai.chat.completions.create({
@@ -136,7 +149,6 @@ export async function POST(req: Request) {
           const aiResponse = `
           I've analyzed the job description and extracted ${skills.length} key skills required for this role.
           
-          Job Title: ${jobTitle}
           Skills Identified: ${skills.length}
           
           I've saved this information with recordId: ${record.id}`;
@@ -163,7 +175,7 @@ export async function POST(req: Request) {
           });
           
           // Add the JSON data to the response for frontend parsing
-          const fullResponse = `${aiResponse}\n\n<skills-data>${skillsJson}</skills-data>\n\n${endResponse}`;
+          const fullResponse = `${aiResponse}\n\n<skills-data>${skillsJson}</skills-data>`;
           
           // For non-streaming response format that the AI SDK expects
           return NextResponse.json([{
@@ -184,17 +196,9 @@ export async function POST(req: Request) {
         {
           role: 'system',
           content: `You are a helpful AI assistant specialized in job interviews and recruitment.
-          You can analyze job descriptions, extract required skills, and generate relevant interview questions.
-          
-          Your capabilities include:
-          - Analyzing job descriptions to identify required skills
-          - Categorizing skills by level, importance, and type
-          - Generating tailored interview questions based on job requirements
-          - Providing guidance on interviewing techniques
-          
-          When responding to job descriptions, be specific about skills extracted and how they relate to the role.
-          Always format your responses in a clear, professional manner.
-          When displaying lists or tables, use proper formatting to enhance readability.`
+          This is the current chat history:
+          ${messages.map((m: any) => `${m.role}: ${m.content}`).join('\n')}
+          `
         },
         ...messages,
       ],
@@ -273,6 +277,8 @@ jobDescription
     
    Extract 12-15 skills according to the custom instructions,interview length and the job description in total with a good mix of technical and non-technical skills.
 
+   Number of skills: Depends on the interview length and the custom instructions.
+
 
     Here are 
     Job description: ${jobDescription}
@@ -330,7 +336,6 @@ jobDescription
         const aiResponse = `
         I've analyzed the job description and extracted ${skills.length} key skills required for this role.
         
-        Job Title: ${jobTitle}
         Skills Identified: ${skills.length}
         
         I've saved this information with recordId: ${record.id}`;
@@ -343,7 +348,7 @@ jobDescription
         `;
         
         // Add the JSON data to the response for frontend parsing
-        const fullResponse = `${aiResponse}\n\n<skills-data>${skillsJson}</skills-data>\n\n${endResponse}`;
+        const fullResponse = `${aiResponse}\n\n<skills-data>${skillsJson}</skills-data>`;
         
         // For non-streaming response format that the AI SDK expects
         return NextResponse.json([{
@@ -468,6 +473,8 @@ async function handleAutoGenerate(jobDescription: string, params: any) {
       
       Extract 12-15 skills according to the custom instructions,interview length and the job description in total with a good mix of technical and non-technical skills.
 
+      Number of skills: Depends on the interview length and the custom instructions.
+
 
       Here are 
       Job description: ${jobDescription}
@@ -544,14 +551,13 @@ async function handleAutoGenerate(jobDescription: string, params: any) {
     const aiResponse = `
     I've analyzed the job description and automatically generated both skills and interview questions.
     
-    Job Title: ${jobTitle}
     Skills Identified: ${createdSkills.length}
     Questions Generated: ${questions.length}
     
     I've saved this information with recordId: ${record.id}`;
     
     // Add the JSON data to the response for frontend parsing
-    const fullResponse = `${aiResponse}\n\n<skills-data>${skillsJson}</skills-data>\n\n<questions-data>${questionsJson}</questions-data>\n\nYou can now view the skills and questions I've created for this job. Would you like me to explain any specific skill or question in more detail?`;
+    const fullResponse = `${aiResponse}\n\n<skills-data>${skillsJson}</skills-data>\n\n<questions-data>${questionsJson}</questions-data>`;
     
     // For non-streaming response format that the AI SDK expects
     return NextResponse.json([{
@@ -597,7 +603,7 @@ Return a JSON object with a 'skills' array, where each skill has:
 - category: TECHNICAL, FUNCTIONAL, BEHAVIORAL, or COGNITIVE
 - difficulty: Easy, Medium, or Hard`;
 
-    let userPrompt = `Job Title: ${jobRole}\n\nJob Description:\n${jobDescription}\n\nExtract the key skills needed for this role.`;
+    let userPrompt = `Job Description:\n${jobDescription}\n\nExtract the key skills needed for this role.`;
 
     // If we have similar JDs, add them as context
     if (similarJDs && similarJDs.length > 0) {
@@ -927,4 +933,554 @@ The "questions" array MUST be the top-level property. Do not use any other forma
     console.error("Error generating questions:", error);
     return []; // Return empty array if generation fails
   }
+}
+
+// Handle edit-skill operation
+async function handleEditSkill(params: any) {
+  try {
+    const { recordId, skillName, jobDescription } = params || {};
+
+    if (!recordId) {
+      throw new Error("Record ID is required");
+    }
+
+    if (!skillName) {
+      throw new Error("Skill name is required");
+    }
+
+    // Get the record and skills from the database
+    const record = await prisma.skillRecord.findUnique({
+      where: { id: recordId },
+      include: { skills: true }
+    });
+
+    if (!record) {
+      throw new Error("Record not found");
+    }
+
+    // Find the skill that best matches the user's input
+    const skill = record.skills.find(s => 
+      s.name.toLowerCase().includes(skillName.toLowerCase()) || 
+      skillName.toLowerCase().includes(s.name.toLowerCase())
+    );
+
+    if (!skill) {
+      // If no matching skill found, return a message asking for clarification
+      return NextResponse.json([{
+        id: Date.now().toString(),
+        role: "assistant",
+        content: `I couldn't find a skill matching "${skillName}". Please specify one of the following skills:\n\n${record.skills.map(s => s.name).join('\n')}`
+      }]);
+    }
+
+    // Create a prompt for editing the skill
+    const editPrompt = `
+    You are editing a skill for a job interview preparation system. 
+    
+    User has requested to edit the skill name: ${skillName}
+
+    This is the current record:
+    ${JSON.stringify(record)}
+
+    
+    Please revise this skill based on the job description. You can adjust the name, level, requirement, or category.
+    Update the skill name that will suit the job description which is completely different from the current skill name.
+    
+    Job Description: ${jobDescription || record.rawJobDescription}
+    
+    Format your response as JSON:
+    {
+      "skill": {
+        "name": "Revised skill name",
+        "level": "BEGINNER|INTERMEDIATE|PROFESSIONAL|EXPERT",
+        "requirement": "MANDATORY|OPTIONAL",
+        "category": "TECHNICAL|FUNCTIONAL|BEHAVIORAL|COGNITIVE"
+      }
+    }
+    `;
+    
+    // Use AI to revise the skill
+    const skillCompletion = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        { role: 'system', content: editPrompt }
+      ],
+      temperature: 0.3,
+      response_format: { type: "json_object" },
+    });
+    
+    let updatedSkill;
+    
+    try {
+      if (skillCompletion.choices[0]?.message?.content) {
+        const parsedContent = JSON.parse(skillCompletion.choices[0].message.content);
+        updatedSkill = parsedContent.skill;
+        
+        // Update the skill in the database
+        await prisma.skill.update({
+          where: { id: skill.id },
+          data: {
+            name: updatedSkill.name,
+            level: updatedSkill.level,
+            requirement: updatedSkill.requirement,
+            category: updatedSkill.category,
+          },
+        });
+        
+        // Get all skills after update
+        const updatedRecord = await prisma.skillRecord.findUnique({
+          where: { id: recordId },
+          include: { skills: true }
+        });
+        
+        if (!updatedRecord) {
+          throw new Error("Failed to retrieve updated record");
+        }
+
+        // Add a JSON string representation for easier parsing on frontend
+        const skillsJson = JSON.stringify({
+          recordId: recordId,
+          jobTitle: record.jobTitle,
+          skills: updatedRecord.skills.map((s: any) => ({
+            id: s.id,
+            name: s.name,
+            level: s.level,
+            requirement: s.requirement,
+            category: s.category || 'TECHNICAL',
+            numQuestions: s.numQuestions || 1
+          }))
+        });
+        
+        // Generate a response
+        const aiResponse = `
+        I've updated the skill "${skill.name}" to "${updatedSkill.name}" with the following details:
+        
+        - Level: ${updatedSkill.level}
+        - Requirement: ${updatedSkill.requirement}
+        - Category: ${updatedSkill.category}
+        
+        All skills have been updated in your record.`;
+        
+        // Add the JSON data to the response for frontend parsing
+        const fullResponse = `${aiResponse}\n\n<skills-data>${skillsJson}</skills-data>\n\nIs there anything else you'd like to modify or edit?`;
+        
+        return NextResponse.json([{
+          id: Date.now().toString(),
+          role: "assistant",
+          content: fullResponse
+        }]);
+      }
+    } catch (parseError) {
+      console.error('Error parsing skill JSON:', parseError);
+      throw parseError;
+    }
+    
+    throw new Error("Failed to update skill");
+  } catch (error: any) {
+    console.error('Error in edit-skill handler:', error);
+    return NextResponse.json([{
+      id: Date.now().toString(),
+      role: "assistant",
+      content: `I'm sorry, I encountered an error while editing the skill: ${error.message}`
+    }]);
+  }
+}
+
+// Handle edit-question operation
+async function handleEditQuestion(params: any) {
+  try {
+    const { recordId, questionTopic } = params || {};
+
+    if (!recordId) {
+      throw new Error("Record ID is required");
+    }
+
+    if (!questionTopic) {
+      throw new Error("Question topic is required");
+    }
+
+    // Get the record and questions from the database
+    const record = await prisma.skillRecord.findUnique({
+      where: { id: recordId },
+      include: { 
+        skills: true,
+        questions: true 
+      }
+    });
+
+    if (!record) {
+      throw new Error("Record not found");
+    }
+
+    // Find all questions and parse their content
+    const questionsList = record.questions.map(q => {
+      try {
+        const content = JSON.parse(q.content);
+        return {
+          id: q.id,
+          skillId: q.skillId,
+          question: content.question,
+          answer: content.answer,
+          category: content.category,
+          difficulty: content.difficulty,
+          questionFormat: content.questionFormat
+        };
+      } catch (e) {
+        return null;
+      }
+    }).filter(Boolean);
+
+    // Find the question that best matches the user's input
+    const question = questionsList.find(q => 
+      q?.question.toLowerCase().includes(questionTopic.toLowerCase()) ||
+      questionTopic.toLowerCase().includes((q?.question || "").toLowerCase().substring(0, 20))
+    );
+
+    if (!question) {
+      // If no matching question found, return a message asking for clarification
+      return NextResponse.json([{
+        id: Date.now().toString(),
+        role: "assistant",
+        content: `I couldn't find a question matching "${questionTopic}". Please try to be more specific or mention a key part of the question text.`
+      }]);
+    }
+
+    // Find the skill related to this question
+    const relatedSkill = record.skills.find(s => s.id === question.skillId);
+    
+    // Create a prompt for editing the question
+    const editPrompt = `
+    You are editing an interview question for a job interview preparation system.
+    
+    User has requested to edit the question details:
+    - Question: ${question.question}
+    - Answer: ${question.answer}
+    - Category: ${question.category}
+    - Difficulty: ${question.difficulty}
+    - Format: ${question.questionFormat || "Open-ended"}
+    ${relatedSkill ? `- Related skill: ${relatedSkill.name} (${relatedSkill.level}, ${relatedSkill.category})` : ""}
+
+    This is the current record:
+    ${JSON.stringify(record)}
+    
+    Please revise this question to make it more effective for interviewing candidates.
+    You can adjust the question text, suggested answer, category, difficulty, or format.
+    Update the question text that will suit the job description.
+    
+    Format your response as JSON:
+    {
+      "question": {
+        "question": "Revised question text",
+        "answer": "Revised suggested answer",
+        "category": "One of: Technical, Experience, Problem Solving, Soft Skills",
+        "difficulty": "One of: Easy, Medium, Hard",
+        "questionFormat": "One of: Open-ended, Coding, Scenario, Case Study, Design, Live Assessment"
+      }
+    }
+    `;
+    
+    // Use AI to revise the question
+    const questionCompletion = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        { role: 'system', content: editPrompt }
+      ],
+      temperature: 0.3,
+      response_format: { type: "json_object" },
+    });
+    
+    let updatedQuestion;
+    
+    try {
+      if (questionCompletion.choices[0]?.message?.content) {
+        const parsedContent = JSON.parse(questionCompletion.choices[0].message.content);
+        updatedQuestion = parsedContent.question;
+        
+        // Update the question in the database
+        await prisma.question.update({
+          where: { id: question.id },
+          data: {
+            content: JSON.stringify({
+              question: updatedQuestion.question,
+              answer: updatedQuestion.answer,
+              category: updatedQuestion.category,
+              difficulty: updatedQuestion.difficulty,
+              questionFormat: updatedQuestion.questionFormat
+            }),
+          },
+        });
+        
+        // Get all questions after update
+        const updatedRecord = await prisma.skillRecord.findUnique({
+          where: { id: recordId },
+          include: { 
+            skills: true,
+            questions: true 
+          }
+        });
+        
+        if (!updatedRecord) {
+          throw new Error("Failed to retrieve updated record");
+        }
+
+        // Format questions for frontend
+        const questionsJson = JSON.stringify({
+          recordId: recordId,
+          questions: updatedRecord.questions.map((q: any) => {
+            try {
+              const content = JSON.parse(q.content);
+              return {
+                id: q.id,
+                skillId: q.skillId,
+                skillName: updatedRecord.skills.find(s => s.id === q.skillId)?.name || "Unknown",
+                question: content.question,
+                answer: content.answer,
+                category: content.category,
+                difficulty: content.difficulty,
+                questionFormat: content.questionFormat
+              };
+            } catch (e) {
+              return null;
+            }
+          }).filter(Boolean)
+        });
+        
+        // Generate a response
+        const aiResponse = `
+        I've updated the question to:
+        
+        "${updatedQuestion.question}"
+        
+        With the following details:
+        - Category: ${updatedQuestion.category}
+        - Difficulty: ${updatedQuestion.difficulty}
+        - Format: ${updatedQuestion.questionFormat}
+        
+        All questions have been updated in your record.`;
+        
+        // Add the JSON data to the response for frontend parsing
+        const fullResponse = `${aiResponse}\n\n<questions-data>${questionsJson}</questions-data>\n\nIs there anything else you'd like to modify or edit?`;
+        
+        return NextResponse.json([{
+          id: Date.now().toString(),
+          role: "assistant",
+          content: fullResponse
+        }]);
+      }
+    } catch (parseError) {
+      console.error('Error parsing question JSON:', parseError);
+      throw parseError;
+    }
+    
+    throw new Error("Failed to update question");
+  } catch (error: any) {
+    console.error('Error in edit-question handler:', error);
+    return NextResponse.json([{
+      id: Date.now().toString(),
+      role: "assistant",
+      content: `I'm sorry, I encountered an error while editing the question: ${error.message}`
+    }]);
+  }
+}
+
+// Handle regenerate-skills operation
+async function handleRegenerateSkills(params: any) {
+  try {
+    const { 
+      recordId,
+      jobDescription,
+      useLearningMode = false, 
+      interviewLength = 60,
+      customInstructions = '' 
+    } = params || {};
+
+    if (!recordId) {
+      throw new Error("Record ID is required");
+    }
+
+    // Get the record from the database
+    const record = await prisma.skillRecord.findUnique({
+      where: { id: recordId },
+      include: { skills: true }
+    });
+
+    if (!record) {
+      throw new Error("Record not found");
+    }
+
+    // Delete existing skills for this record
+    await prisma.skill.deleteMany({
+      where: { recordId: recordId }
+    });
+
+    // Process the job description with custom instructions
+    const skillPrompt = `
+    You are an expert job skills analyzer. Extract the key skills from this job description.
+    Categorize each skill by:
+    - Level (BEGINNER, INTERMEDIATE, PROFESSIONAL, EXPERT)
+    - Requirement (MANDATORY or OPTIONAL)
+    - Category (TECHNICAL, FUNCTIONAL, BEHAVIORAL, COGNITIVE)
+    
+    For technical skills, add context about the technology or framework (e.g., "React" should specify version or ecosystem).
+    For soft skills, be specific about the competency required.
+    
+    Format your response as JSON like this:
+    {
+      "skills": [
+        {
+          "name": "Skill name",
+          "level": "BEGINNER|INTERMEDIATE|PROFESSIONAL|EXPERT",
+          "requirement": "MANDATORY|OPTIONAL",
+          "category": "TECHNICAL|FUNCTIONAL|BEHAVIORAL|COGNITIVE"
+        }
+      ]
+    }
+    
+    Extract 12-15 skills according to the job description in total with a good mix of technical and non-technical skills.
+
+    ${customInstructions ? `Additional instructions: ${customInstructions}` : ''}
+
+    Job description: ${jobDescription || record.rawJobDescription}
+    `;
+    
+    const skillCompletion = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        { role: 'system', content: skillPrompt }
+      ],
+      temperature: 0.3,
+      response_format: { type: "json_object" },
+    });
+    
+    let skills = [];
+    
+    try {
+      if (skillCompletion.choices[0]?.message?.content) {
+        const parsedContent = JSON.parse(skillCompletion.choices[0].message.content);
+        skills = parsedContent.skills || [];
+        
+        // Save the skills to the database
+        for (let i = 0; i < skills.length; i++) {
+          const skill = skills[i];
+          await prisma.skill.create({
+            data: {
+              name: skill.name,
+              level: skill.level,
+              requirement: skill.requirement,
+              category: skill.category || 'TECHNICAL',
+              numQuestions: skill.requirement === "MANDATORY" ? 2 : 1,
+              priority: i + 1,
+              recordId: record.id,
+            },
+          });
+        }
+        
+        // Add a JSON string representation for easier parsing on frontend
+        const skillsJson = JSON.stringify({
+          recordId: record.id,
+          jobTitle: record.jobTitle,
+          skills: skills.map((skill: any, index: number) => ({
+            id: index.toString(),
+            name: skill.name,
+            level: skill.level,
+            requirement: skill.requirement,
+            category: skill.category || 'TECHNICAL',
+            numQuestions: skill.requirement === "MANDATORY" ? 2 : 1
+          }))
+        });
+        
+        // Generate a response that includes the recordId
+        const aiResponse = `
+        I've regenerated the skills based on the job description and ${customInstructions ? 'your custom instructions' : 'standard analysis'}.
+        
+        Skills Identified: ${skills.length}
+        `;
+        
+        const endResponse = `
+        Would you like me to:
+        1. Generate interview questions based on these skills?
+        2. Edit or refine the skill list further?
+        3. Get insights about specific skills?
+        `;
+        
+        // Add the JSON data to the response for frontend parsing
+        const fullResponse = `${aiResponse}\n\n<skills-data>${skillsJson}</skills-data>`;
+        
+        return NextResponse.json([{
+          id: Date.now().toString(),
+          role: "assistant",
+          content: fullResponse
+        }]);
+      }
+    } catch (parseError) {
+      console.error('Error parsing skills JSON:', parseError);
+      throw parseError;
+    }
+    
+    throw new Error("Failed to regenerate skills");
+  } catch (error: any) {
+    console.error('Error in regenerate-skills handler:', error);
+    return NextResponse.json([{
+      id: Date.now().toString(),
+      role: "assistant",
+      content: `I'm sorry, I encountered an error while regenerating skills: ${error.message}`
+    }]);
+  }
+}
+
+// Handle regenerate-auto operation
+async function handleRegenerateAuto(params: any) {
+  try {
+    const { 
+      recordId,
+      jobDescription,
+      useLearningMode = false, 
+      interviewLength = 60,
+      customInstructions = '' 
+    } = params || {};
+
+    if (!recordId) {
+      throw new Error("Record ID is required");
+    }
+
+    // Get the record from the database
+    const record = await prisma.skillRecord.findUnique({
+      where: { id: recordId },
+    });
+
+    if (!record) {
+      throw new Error("Record not found");
+    }
+
+    // Delete existing skills and questions for this record
+    await prisma.question.deleteMany({
+      where: { recordId: recordId }
+    });
+    
+    await prisma.skill.deleteMany({
+      where: { recordId: recordId }
+    });
+
+    // Reuse the auto-generate function with the custom instructions
+    return handleAutoGenerate(jobDescription || record.rawJobDescription, {
+      jobTitle: record.jobTitle,
+      useLearningMode,
+      interviewLength,
+      customInstructions,
+      jobDescription: jobDescription || record.rawJobDescription
+    });
+  } catch (error: any) {
+    console.error('Error in regenerate-auto handler:', error);
+    return NextResponse.json([{
+      id: Date.now().toString(),
+      role: "assistant",
+      content: `I'm sorry, I encountered an error while regenerating skills and questions: ${error.message}`
+    }]);
+  }
+}
+
+// Handle regenerate-all operation
+async function handleRegenerateAll(params: any) {
+  // This is just an alias for regenerate-auto
+  return handleRegenerateAuto(params);
 } 
