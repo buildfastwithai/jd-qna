@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useChat, type Message } from "ai/react";
 import {
@@ -53,14 +53,19 @@ interface PromptCardProps {
 const PromptCard = ({ text, onClick, selected, className }: PromptCardProps) => {
   return (
     <button
+      onClick={onClick}
       className={cn(
-        "px-4 py-3 rounded-lg border text-left transition-all",
-        selected ? "bg-blue-50 border-blue-300 shadow-sm" : "bg-white hover:bg-gray-50 border-gray-200",
+        "px-6 py-4 rounded-2xl border text-left transition-all duration-200 ease-in-out ",
+        "focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-2",
+        selected
+          ? "bg-blue-100 border-blue-400 shadow-md"
+          : "bg-gray-200 hover:bg-gray-50 border-gray-300 hover:shadow-sm",
         className
       )}
-      onClick={onClick}
     >
-      {text}
+      <span className="text-sm text-gray-800 font-medium leading-relaxed">
+        {text}
+      </span>
     </button>
   );
 };
@@ -147,6 +152,9 @@ export default function JDChatUI() {
   const [loading, setLoading] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [debugMode, setDebugMode] = useState(false); // Set to true to use test endpoint
+
+  // Create a ref for the chat messages container
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   // Local state for managing messages and loading state
   const [localMessages, setLocalMessages] = useState<Message[]>([]);
@@ -330,6 +338,13 @@ export default function JDChatUI() {
       }]);
     }
   }, []);
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+    }
+  }, [localMessages]);
 
   // Handle question status change (liked/disliked)
   const handleQuestionStatusChange = async (
@@ -1104,7 +1119,7 @@ export default function JDChatUI() {
     
     if (lastAssistantMessage.content.includes('Would you like to use Learning Mode')) {
       return (
-        <div className="flex flex-wrap gap-2 mt-2">
+        <div className="flex flex-wrap gap-2 mt-2 justify-center py-2">
           <PromptCard 
             text="Yes, use Learning Mode" 
             onClick={() => handlePromptCardSelection("yes")}
@@ -1119,7 +1134,7 @@ export default function JDChatUI() {
     
     if (lastAssistantMessage.content.includes('Please specify the interview length')) {
       return (
-        <div className="flex flex-wrap gap-2 mt-2">
+        <div className="flex flex-wrap gap-2 mt-2 justify-center py-2">
           <PromptCard 
             text="15 minutes" 
             onClick={() => handlePromptCardSelection("15")}
@@ -1142,7 +1157,7 @@ export default function JDChatUI() {
     
     if (lastAssistantMessage.content.includes('Please provide any custom instructions')) {
       return (
-        <div className="flex flex-wrap gap-2 mt-2">
+        <div className="flex flex-wrap gap-2 mt-2 justify-center py-2">
           <PromptCard 
             text="None" 
             onClick={() => handlePromptCardSelection("none")}
@@ -1153,7 +1168,7 @@ export default function JDChatUI() {
     
     if (lastAssistantMessage.content.includes('extract skills only or auto-generate')) {
       return (
-        <div className="flex flex-wrap gap-2 mt-2">
+        <div className="flex flex-wrap gap-2 mt-2 justify-center py-2">
           <PromptCard 
             text="Extract skills only" 
             onClick={() => handlePromptCardSelection("extract")}
@@ -1179,7 +1194,9 @@ export default function JDChatUI() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="h-[600px] overflow-y-auto border border-gray-100 rounded-xl p-4 mb-4 bg-white/80 backdrop-blur-sm shadow-[0_2px_8px_-3px_rgba(0,0,0,0.1)]">
+          <div 
+            ref={messagesContainerRef}
+            className="h-[600px] overflow-y-auto border border-gray-100 rounded-xl p-4 mb-4 bg-white/80 backdrop-blur-sm shadow-[0_2px_8px_-3px_rgba(0,0,0,0.1)]">
             {localMessages.length === 0 ? (
               <div className="text-center text-gray-400 py-8">
                 <MessageSquare className="w-12 h-12 mx-auto mb-3 opacity-20" />

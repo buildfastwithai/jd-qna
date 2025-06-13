@@ -230,7 +230,9 @@ async function handleExtractSkills(jobDescription: string, params: any) {
     const { 
       jobTitle = 'Unknown Position', 
       useLearningMode = false, 
-      interviewLength = 60 
+      interviewLength = 60,
+customInstructions = '',
+jobDescription
     } = params || {};
 
     if (!jobDescription) {
@@ -269,14 +271,19 @@ async function handleExtractSkills(jobDescription: string, params: any) {
       ]
     }
     
-    Extract 12-15 skills in total with a good mix of technical and non-technical skills.
+   Extract 12-15 skills according to the custom instructions,interview length and the job description in total with a good mix of technical and non-technical skills.
+
+
+    Here are 
+    Job description: ${jobDescription}
+    Custom instructions: ${customInstructions}
+    Interview length: ${interviewLength}
     `;
     
     const skillCompletion = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [
-        { role: 'system', content: skillPrompt },
-        { role: 'user', content: jobDescription }
+        { role: 'system', content: skillPrompt }
       ],
       temperature: 0.2,
       response_format: { type: "json_object" },
@@ -369,8 +376,10 @@ async function handleAutoGenerate(jobDescription: string, params: any) {
       jobTitle = 'Unknown Position', 
       useLearningMode = false, 
       interviewLength = 60,
-      customInstructions = ''
+      customInstructions = '',
+      jobDescription
     } = params || {};
+    console.log("params", params);
 
     if (!jobDescription) {
       throw new Error("Job description is required");
@@ -385,74 +394,126 @@ async function handleAutoGenerate(jobDescription: string, params: any) {
       }
     });
 
-    // First extract skills
-    const skillPrompt = `
-    You are an expert job skills analyzer. Extract the key skills from this job description.
-    Categorize each skill by:
-    - Level (BEGINNER, INTERMEDIATE, PROFESSIONAL, EXPERT)
-    - Requirement (MANDATORY or OPTIONAL)
-    - Category (TECHNICAL, FUNCTIONAL, BEHAVIORAL, COGNITIVE)
-    
-    For technical skills, add context about the technology or framework (e.g., "React" should specify version or ecosystem).
-    For soft skills, be specific about the competency required.
-    
-    Format your response as JSON like this:
-    {
-      "skills": [
-        {
-          "name": "Skill name",
-          "level": "BEGINNER|INTERMEDIATE|PROFESSIONAL|EXPERT",
-          "requirement": "MANDATORY|OPTIONAL",
-          "category": "TECHNICAL|FUNCTIONAL|BEHAVIORAL|COGNITIVE"
-        }
-      ]
-    }
-    
-    Extract 12-15 skills in total with a good mix of technical and non-technical skills.
-    `;
-    
-    const skillCompletion = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      messages: [
-        { role: 'system', content: skillPrompt },
-        { role: 'user', content: jobDescription }
-      ],
-      temperature: 0.2,
-      response_format: { type: "json_object" },
-    });
-    
     let skills = [];
     let createdSkills = [];
     
-    try {
-      if (skillCompletion.choices[0]?.message?.content) {
-        const parsedContent = JSON.parse(skillCompletion.choices[0].message.content);
-        skills = parsedContent.skills || [];
-        
-        // Save the skills to the database
-        for (let i = 0; i < skills.length; i++) {
-          const skill = skills[i];
-          const createdSkill = await prisma.skill.create({
-            data: {
-              name: skill.name,
-              level: skill.level,
-              requirement: skill.requirement,
-              category: skill.category || 'TECHNICAL',
-              numQuestions: skill.requirement === "MANDATORY" ? 2 : 1,
-              priority: i + 1,
-              recordId: record.id,
-            },
-          });
-          createdSkills.push(createdSkill);
-        }
+    // Use Supabase vector DB for learning mode
+    if (useLearningMode) {
+      // Generate embedding for the job description
+      const embedding = await createEmbedding(jobDescription);
+      
+      // Find similar job descriptions from vector DB
+      const similarJDs = await findSimilarJobDescriptions(embedding, 0.7, 3);
+      
+      // Extract skills using similar job descriptions as reference or AI if no similar JDs
+      const skillsAnalysis = await extractSkillsWithLearning(
+        jobTitle,
+        jobDescription,
+        interviewLength,
+        similarJDs
+      );
+      
+      skills = skillsAnalysis.skills || [];
+      
+      // Save the skills to the database
+      for (let i = 0; i < skills.length; i++) {
+        const skill = skills[i];
+        const createdSkill = await prisma.skill.create({
+          data: {
+            name: skill.name,
+            level: skill.level || "INTERMEDIATE",
+            requirement: skill.importance === "high" ? "MANDATORY" : "OPTIONAL",
+            category: skill.category || 'TECHNICAL',
+            numQuestions: skill.importance === "high" ? 2 : 1,
+            priority: i + 1,
+            recordId: record.id,
+            difficulty: skill.difficulty || "Medium",
+          },
+        });
+        createdSkills.push(createdSkill);
       }
-    } catch (parseError) {
-      console.error('Error parsing skills JSON:', parseError);
-      throw parseError;
+      
+      // Store JD embedding in vector DB for future reference
+      await storeJobDescriptionEmbedding(
+        record.id,
+        jobTitle,
+        jobDescription,
+        embedding,
+        interviewLength,
+        customInstructions
+      );
+    } else {
+      // First extract skills using regular approach
+      const skillPrompt = `
+      You are an expert job skills analyzer. Extract the key skills from this job description.
+      Categorize each skill by:
+      - Level (BEGINNER, INTERMEDIATE, PROFESSIONAL, EXPERT)
+      - Requirement (MANDATORY or OPTIONAL)
+      - Category (TECHNICAL, FUNCTIONAL, BEHAVIORAL, COGNITIVE)
+      
+      For technical skills, add context about the technology or framework (e.g., "React" should specify version or ecosystem).
+      For soft skills, be specific about the competency required.
+      
+      Format your response as JSON like this:
+      {
+        "skills": [
+          {
+            "name": "Skill name",
+            "level": "BEGINNER|INTERMEDIATE|PROFESSIONAL|EXPERT",
+            "requirement": "MANDATORY|OPTIONAL",
+            "category": "TECHNICAL|FUNCTIONAL|BEHAVIORAL|COGNITIVE"
+          }
+        ]
+      }
+      
+      Extract 12-15 skills according to the custom instructions,interview length and the job description in total with a good mix of technical and non-technical skills.
+
+
+      Here are 
+      Job description: ${jobDescription}
+      Custom instructions: ${customInstructions}
+      Interview length: ${interviewLength}
+      `;
+      
+      const skillCompletion = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          { role: 'system', content: skillPrompt }
+        ],
+        temperature: 0.2,
+        response_format: { type: "json_object" },
+      });
+      
+      try {
+        if (skillCompletion.choices[0]?.message?.content) {
+          const parsedContent = JSON.parse(skillCompletion.choices[0].message.content);
+          skills = parsedContent.skills || [];
+          
+          // Save the skills to the database
+          for (let i = 0; i < skills.length; i++) {
+            const skill = skills[i];
+            const createdSkill = await prisma.skill.create({
+              data: {
+                name: skill.name,
+                level: skill.level,
+                requirement: skill.requirement,
+                category: skill.category || 'TECHNICAL',
+                numQuestions: skill.requirement === "MANDATORY" ? 2 : 1,
+                priority: i + 1,
+                recordId: record.id,
+              },
+            });
+            createdSkills.push(createdSkill);
+          }
+        }
+      } catch (parseError) {
+        console.error('Error parsing skills JSON:', parseError);
+        throw parseError;
+      }
     }
     
-    // Generate questions based on skills
-    const questions = await generateQuestions(jobDescription, createdSkills, customInstructions, interviewLength);
+    // Generate questions based on skills using learning mode if enabled
+    const questions = await generateQuestionsWithMode(jobDescription, createdSkills, customInstructions, interviewLength, useLearningMode);
     
     // Add a JSON string representation for easier parsing on frontend
     const skillsJson = JSON.stringify({
@@ -483,7 +544,7 @@ async function handleAutoGenerate(jobDescription: string, params: any) {
     const aiResponse = `
     I've analyzed the job description and automatically generated both skills and interview questions.
     
-    Job Title: 
+    Job Title: ${jobTitle}
     Skills Identified: ${createdSkills.length}
     Questions Generated: ${questions.length}
     
@@ -512,6 +573,227 @@ async function handleAutoGenerate(jobDescription: string, params: any) {
 function getSkillName(skills: any[], skillId: string): string {
   const skill = skills.find(s => s.id === skillId);
   return skill ? skill.name : "Unknown Skill";
+}
+
+// Extract skills using AI, considering similar job descriptions if available
+async function extractSkillsWithLearning(
+  jobRole: string, 
+  jobDescription: string, 
+  interviewLength: number, 
+  similarJDs: any[]
+) {
+  try {
+    let systemPrompt = `You are a skilled recruiter analyzing job descriptions to extract required skills for interviews.
+Extract skills from the job description and categorize them by:
+- Importance: high (required) or low (preferred/optional)
+- Level: BEGINNER, INTERMEDIATE, PROFESSIONAL, or EXPERT
+- Category: TECHNICAL, FUNCTIONAL, BEHAVIORAL, or COGNITIVE
+- Difficulty: Easy, Medium, or Hard
+
+Return a JSON object with a 'skills' array, where each skill has:
+- name: The skill name
+- importance: high or low
+- level: BEGINNER, INTERMEDIATE, PROFESSIONAL, or EXPERT
+- category: TECHNICAL, FUNCTIONAL, BEHAVIORAL, or COGNITIVE
+- difficulty: Easy, Medium, or Hard`;
+
+    let userPrompt = `Job Title: ${jobRole}\n\nJob Description:\n${jobDescription}\n\nExtract the key skills needed for this role.`;
+
+    // If we have similar JDs, add them as context
+    if (similarJDs && similarJDs.length > 0) {
+      systemPrompt += `\n\nI'll provide examples of similar job descriptions and their extracted skills. Use these as a reference to improve your skill extraction.`;
+      userPrompt += `\n\nHere are skills from similar job descriptions that might be relevant:`;
+      
+      for (const similarJD of similarJDs) {
+        userPrompt += `\n- ${similarJD.job_title}: Skills might include skills related to this role.`;
+      }
+    }
+
+    // Call OpenAI to extract skills
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.5,
+      response_format: { type: "json_object" },
+    });
+
+    const content = response.choices[0]?.message?.content;
+
+    if (!content) {
+      throw new Error("No content returned from OpenAI");
+    }
+
+    // Parse the response
+    const data = JSON.parse(content);
+    
+    return {
+      skills: data.skills || [],
+    };
+  } catch (error: any) {
+    console.error("Error extracting skills:", error);
+    return {
+      skills: [],
+    };
+  }
+}
+
+// Generate questions based on skills, with optional learning mode
+async function generateQuestionsWithMode(
+  jobDescription: string,
+  skills: any[],
+  customInstructions: string,
+  interviewLength: number,
+  useLearningMode: boolean
+) {
+  if (useLearningMode) {
+    return await generateQuestionsWithLearning(skills, customInstructions || "", interviewLength);
+  } else {
+    return await generateQuestions(jobDescription, skills, customInstructions, interviewLength);
+  }
+}
+
+// Generate questions using learning mode (with vector similarity)
+async function generateQuestionsWithLearning(
+  skills: any[],
+  customInstructions: string,
+  interviewLength: number = 60
+) {
+  try {
+    // Calculate total questions based on interview length
+    const totalAvailableTime = interviewLength - 10; // Reserve 10 min for intro/wrap-up
+    const avgTimePerQuestion = 4; // Average 4 minutes per question
+    const maxQuestions = Math.floor(totalAvailableTime / avgTimePerQuestion);
+    
+    // Filter skills for questions
+    const skillsForQuestions = skills.filter(
+      (skill) => skill.requirement === "MANDATORY" || skill.numQuestions > 0
+    );
+    
+    if (skillsForQuestions.length === 0) {
+      return [];
+    }
+    
+    // Create job description embedding to find similar questions
+    const jobDescriptionText = skillsForQuestions.map(s => s.name).join(", ");
+    const embedding = await createEmbedding(jobDescriptionText);
+    
+    // Get skill names for question generation
+    const skillNames = skillsForQuestions.map(skill => skill.name);
+    
+    // Try to find existing good questions for similar job skills
+    const existingQuestions = await findBestQuestions(
+      embedding,
+      skillNames,
+      maxQuestions
+    );
+    
+    // Reuse existing questions if available
+    const reuseQuestions: any[] = [];
+    const skillsNeedingQuestions = new Set(skillsForQuestions.map(s => s.name));
+    
+    if (existingQuestions.length > 0) {
+      for (const question of existingQuestions) {
+        if (
+          reuseQuestions.length < maxQuestions && 
+          skillsNeedingQuestions.has(question.skill_name)
+        ) {
+          // Create a properly formatted content object
+          let contentObj;
+          try {
+            contentObj = {
+              question: question.content,
+              answer: "Review the candidate's response for accuracy and understanding.",
+              category: "Technical",
+              difficulty: "Medium",
+              questionFormat: "Open-ended"
+            };
+          } catch (e) {
+            contentObj = {
+              question: question.content,
+              answer: "Answer not available",
+              category: "Technical",
+              difficulty: "Medium",
+              questionFormat: "Open-ended"
+            };
+          }
+          
+          // Create question in database
+          const createdQuestion = await prisma.question.create({
+            data: {
+              content: JSON.stringify(contentObj),
+              skillId: skills.find(s => s.name === question.skill_name)?.id,
+              recordId: skills[0].recordId,
+            }
+          });
+          
+          reuseQuestions.push(createdQuestion);
+          
+          // Keep track of which skills have been covered
+          const covered = skills.find(s => s.name === question.skill_name);
+          if (covered) {
+            covered.numQuestions--;
+            if (covered.numQuestions <= 0) {
+              skillsNeedingQuestions.delete(covered.name);
+            }
+          }
+        }
+      }
+    }
+    
+    // If we've covered all skills with existing questions, return them
+    if (skillsNeedingQuestions.size === 0 || reuseQuestions.length >= maxQuestions) {
+      return reuseQuestions.slice(0, maxQuestions);
+    }
+    
+    // Otherwise, generate additional questions with AI for remaining skills
+    const remainingSkills = skillsForQuestions.filter(
+      skill => skillsNeedingQuestions.has(skill.name) && skill.numQuestions > 0
+    );
+    
+    // Generate new questions for remaining skills
+    const newQuestions = await generateQuestions("", remainingSkills, customInstructions, interviewLength);
+    
+    // Store question embeddings for future reuse
+    for (const question of newQuestions) {
+      try {
+        // Extract question text for embedding
+        let questionText = '';
+        try {
+          const parsedContent = JSON.parse(question.content);
+          questionText = parsedContent.question || String(parsedContent);
+        } catch (e) {
+          questionText = typeof question.content === 'string' ? question.content : 'Fallback question text';
+        }
+        
+        // Generate embedding for the question
+        const embedding = await createEmbedding(questionText);
+        
+        // Find matching skill
+        const matchingSkill = skills.find(s => s.id === question.skillId);
+        
+        // Store in vector DB
+        await storeQuestionEmbedding(
+          question.id,
+          questionText,
+          matchingSkill?.name || 'Unknown Skill',
+          matchingSkill?.level || 'INTERMEDIATE',
+          matchingSkill?.requirement || 'MANDATORY',
+          embedding
+        );
+      } catch (e) {
+        console.error("Failed to create or store question embedding:", e);
+      }
+    }
+    
+    // Combine reused and newly generated questions, respecting maxQuestions limit
+    return [...reuseQuestions, ...newQuestions].slice(0, maxQuestions);
+  } catch (error) {
+    console.error("Error generating questions with learning:", error);
+    return [];
+  }
 }
 
 // Generate questions for skills
