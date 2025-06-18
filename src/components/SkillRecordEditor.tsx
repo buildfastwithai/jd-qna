@@ -4,6 +4,7 @@ import { useState, useEffect, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import { pdf } from "@react-pdf/renderer";
 import { saveAs } from "file-saver";
+import * as XLSX from "xlsx";
 import {
   Download,
   RefreshCw,
@@ -12,6 +13,7 @@ import {
   Trash2,
   GripVertical,
   MessageSquare,
+  FileSpreadsheet,
 } from "lucide-react";
 import PDFDoc from "./PDFDocument";
 import { Question as PDFQuestion } from "./ui/questions-display";
@@ -161,6 +163,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
   const [selectedSkillsInPriorityMode, setSelectedSkillsInPriorityMode] =
     useState<Set<string>>(new Set());
   const [confirmBulkDeleteOpen, setConfirmBulkDeleteOpen] = useState(false);
+  const [excelLoading, setExcelLoading] = useState(false);
 
   // Parse question content from JSON string
   function formatQuestions(questions: Question[]): QuestionData[] {
@@ -639,6 +642,65 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
       toast.error("Error generating PDF. Please try again.");
     } finally {
       setPdfLoading(false);
+    }
+  };
+
+  // Generate Excel for download
+  const handleGenerateExcel = async () => {
+    try {
+      setExcelLoading(true);
+
+      // Only include liked or neutral questions, not disliked ones
+      const filteredQuestions = questions.filter((q) => q.liked !== "DISLIKED");
+
+      // Format questions for Excel
+      const excelData = filteredQuestions.map((q) => {
+        // Get the skill data for this question
+        const skill = editedSkills.find((s) => s.id === q.skillId);
+
+        return {
+          Skill: getSkillName(q.skillId),
+          Question: q.question,
+          Answer: q.answer,
+          Category: q.category,
+          Difficulty: q.difficulty,
+          Format: q.questionFormat || "Scenario",
+          Priority: skill?.priority || "",
+        };
+      });
+
+      // Create worksheet
+      const ws = XLSX.utils.json_to_sheet(excelData);
+
+      // Set column widths
+      const wscols = [
+        { wch: 20 },  // Skill
+        { wch: 40 },  // Question
+        { wch: 40 },  // Answer
+        { wch: 15 },  // Category
+        { wch: 15 },  // Difficulty
+        { wch: 15 },  // Format
+        { wch: 10 },  // Priority
+      ];
+      ws['!cols'] = wscols;
+
+      // Create workbook
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Interview Questions");
+
+      // Generate filename
+      const fileName = `${record.jobTitle
+        .replace(/[^a-z0-9]/gi, "_")
+        .toLowerCase()}_interview_questions.xlsx`;
+
+      // Write and download
+      XLSX.writeFile(wb, fileName);
+      toast.success("Excel file downloaded successfully!");
+    } catch (error) {
+      console.error("Error generating Excel:", error);
+      toast.error("Error generating Excel file. Please try again.");
+    } finally {
+      setExcelLoading(false);
     }
   };
 
@@ -1811,9 +1873,29 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                 <Button
                   variant="outline"
                   size="sm"
+                  onClick={handleGenerateExcel}
+                  disabled={
+                    excelLoading || pdfLoading || questionsLoading || generatingQuestions || questions.length === 0
+                  }
+                >
+                  {excelLoading ? (
+                    <>
+                      <Spinner size="sm" className="mr-2" />
+                      Generating Excel...
+                    </>
+                  ) : (
+                    <>
+                      <FileSpreadsheet className="h-4 w-4 mr-2" />
+                      Export Excel
+                    </>
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={handleGeneratePDF}
                   disabled={
-                    pdfLoading || questionsLoading || generatingQuestions
+                    pdfLoading || questionsLoading || generatingQuestions || questions.length === 0
                   }
                 >
                   {pdfLoading ? (

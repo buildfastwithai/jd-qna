@@ -82,6 +82,7 @@
     "unzipper": "^0.12.3",
     "uploadthing": "^7.7.0",
     "vaul": "^1.1.2",
+    "xlsx": "0.18.5",
     "zod": "^3.24.4"
   },
   "devDependencies": {
