@@ -24,6 +24,7 @@ model SkillRecord {
   rawJobDescription String? @db.Text // Raw job description text
   globalFeedback GlobalFeedback?
   regenerations  Regeneration[]
+  excelQuestionSets ExcelQuestionSet[]
 }
 
 model Skill {
@@ -93,6 +94,33 @@ model Regeneration {
   updatedAt         DateTime     @updatedAt
   
   @@unique([originalQuestionId, newQuestionId])
+}
+
+model ExcelQuestionSet {
+  id               String       @id @default(uuid())
+  jobTitle         String
+  experienceRange  String       @default("8 to 10 years")
+  totalQuestions   Int
+  skillsExtracted  String[]     // Array of skill names
+  recordId         String?      // Optional link to SkillRecord
+  record           SkillRecord? @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  rawJobDescription String      @db.Text
+  questions        ExcelQuestion[]
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+}
+
+model ExcelQuestion {
+  id                 String           @id @default(uuid())
+  slNo               Int
+  skill              String
+  questionTitle      String           @db.Text
+  questionDescription String          @db.Text
+  idealAnswer        String           @db.Text
+  setId              String
+  set                ExcelQuestionSet @relation(fields: [setId], references: [id], onDelete: Cascade)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
 }
 
 enum SkillLevel {
