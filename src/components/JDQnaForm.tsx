@@ -25,7 +25,7 @@ import {
 import { QuestionsDisplay, Question } from "./ui/questions-display";
 import { FileInput } from "./ui/file-input";
 import { Spinner } from "./ui/spinner";
-import { Download, FileSpreadsheet, FileText } from "lucide-react";
+import { Download, FileText } from "lucide-react";
 import PDFDoc from "./PDFDocument";
 import { pdf } from "@react-pdf/renderer";
 import { saveAs } from "file-saver";
@@ -81,8 +81,6 @@ export function JDQnaForm() {
     progressValue: 0,
     progressText: "",
   });
-  const [excelGenerating, setExcelGenerating] = useState(false);
-  const [exporting, setExporting] = useState<"excel" | "csv" | null>(null);
 
   const router = useRouter();
 
@@ -300,110 +298,6 @@ export function JDQnaForm() {
       alert("Error generating PDF. Please try again.");
     } finally {
       setPdfLoading(false);
-    }
-  };
-
-  // Generate Excel questions directly
-  const generateExcelQuestions = async () => {
-    const jobDescription =
-      inputMethod === "file" ? pdfContent : form.getValues().jobDescriptionText;
-
-    if (!jobDescription) {
-      toast.error("Please provide a job description first");
-      return;
-    }
-
-    setExcelGenerating(true);
-
-    try {
-      const response = await fetch("/api/generate-question-format", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          jobDescription,
-          jobTitle: form.getValues().jobRole,
-          experienceRange: "8 to 10 years",
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to generate questions");
-      }
-
-      toast.success(
-        `Generated ${data.data.totalQuestions} questions successfully!`
-      );
-
-      // Navigate to the Excel questions page
-      router.push(`/excel-questions/${data.setId}`);
-    } catch (error: any) {
-      console.error("Error generating Excel questions:", error);
-      toast.error(error.message || "Failed to generate questions");
-    } finally {
-      setExcelGenerating(false);
-    }
-  };
-
-  // Handle Excel/CSV download
-  const handleExcelDownload = async (
-    questions: any[],
-    format: "excel" | "csv"
-  ) => {
-    if (!questions || questions.length === 0) {
-      toast.error("No questions to download");
-      return;
-    }
-
-    setExporting(format);
-
-    try {
-      const jobTitle = form.getValues().jobRole || "interview-questions";
-      const filename = `${jobTitle
-        .toLowerCase()
-        .replace(/\s+/g, "-")}-${Date.now()}.${
-        format === "excel" ? "xlsx" : "csv"
-      }`;
-
-      const response = await fetch("/api/export-questions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          questions,
-          format,
-          filename,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to export questions");
-      }
-
-      // Download the file
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-
-      toast.success(
-        `Questions exported as ${format.toUpperCase()} successfully!`
-      );
-    } catch (error: any) {
-      console.error("Error exporting questions:", error);
-      toast.error(error.message || "Failed to export questions");
-    } finally {
-      setExporting(null);
     }
   };
 
@@ -638,29 +532,6 @@ export function JDQnaForm() {
               </div>
 
               <div className="grid grid-cols-2 gap-2">
-                <Button
-                  variant="outline"
-                  type="button"
-                  disabled={
-                    excelGenerating ||
-                    (inputMethod === "file"
-                      ? uploading || !pdfContent
-                      : !form.getValues().jobDescriptionText)
-                  }
-                  onClick={generateExcelQuestions}
-                >
-                  {excelGenerating ? (
-                    <>
-                      <Spinner size="sm" className="mr-2" />
-                      Generating Excel...
-                    </>
-                  ) : (
-                    <>
-                      <FileSpreadsheet className="mr-2 h-4 w-4" />
-                      Generate Excel Questions
-                    </>
-                  )}
-                </Button>
                 <Button
                   variant="outline"
                   type="button"

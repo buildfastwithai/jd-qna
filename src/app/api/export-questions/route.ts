@@ -24,13 +24,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const exportQuestions: ExportQuestion[] = questions.map((q: any) => ({
-      slNo: q.slNo || 0,
-      skill: q.skill || "",
-      questionTitle: q.questionTitle || "",
-      questionDescription: q.questionDescription || "",
-      idealAnswer: q.idealAnswer || "",
-    }));
+    const exportQuestions: ExportQuestion[] = questions.map(
+      (q: any, index: number) => ({
+        slNo: index + 1,
+        skill: String(q.skillName || q.skill || "").trim(),
+        questionTitle: "", // This will be extracted from questionDescription
+        questionDescription: String(
+          q.question || q.questionDescription || ""
+        ).trim(),
+        idealAnswer: String(q.answer || q.idealAnswer || "").trim(),
+        tags:
+          q.tags ||
+          `${q.category || ""}, ${q.questionFormat || ""}`.replace(
+            /^, |, $/,
+            ""
+          ) ||
+          "",
+        coding:
+          q.coding !== undefined
+            ? q.coding
+            : q.isCoding !== undefined
+            ? q.isCoding
+            : false, // Handle different possible field names
+      })
+    );
 
     if (format === "excel") {
       const excelBuffer = exportToExcel(exportQuestions, filename);

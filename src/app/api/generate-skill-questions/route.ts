@@ -54,6 +54,9 @@ Format your response as a JSON object with a 'questions' key containing an array
 4. A "difficulty" field with "${effectiveDifficulty}"
 5. A "skillName" field with "${skillName}"
 6. A "questionFormat" field with one of: "Open-ended", "Coding", "Scenario", "Case Study", "Design", or "Live Assessment"
+7. A "coding" field with a boolean value: true if the questionFormat is "Coding" OR if the question involves writing/debugging code, false otherwise
+
+IMPORTANT: The "coding" field must be set to true when questionFormat is "Coding" or when the question requires the candidate to write, debug, or analyze code. This includes code reviews, algorithm problems, debugging exercises, or any hands-on programming tasks.
 
 Make sure the questions match the specified difficulty level, are appropriate for the skill, and follow the chosen question format.
 IMPORTANT: You must generate exactly ${batchSize} unique questions, no more and no less.`;
@@ -243,6 +246,17 @@ export async function POST(request: Request) {
 
           // Save questions to the database
           for (const question of questionsWithSkillId) {
+            // Ensure coding flag is properly set
+            const isCoding =
+              question.coding === true ||
+              question.questionFormat?.toLowerCase() === "coding" ||
+              (question.question &&
+                question.question.toLowerCase().includes("code")) ||
+              (question.question &&
+                question.question.toLowerCase().includes("algorithm")) ||
+              (question.question &&
+                question.question.toLowerCase().includes("programming"));
+
             await prisma.question.create({
               data: {
                 content: JSON.stringify({
@@ -251,9 +265,11 @@ export async function POST(request: Request) {
                   category: question.category,
                   difficulty: question.difficulty,
                   questionFormat: question.questionFormat,
+                  coding: isCoding,
                 }),
                 skillId: skill.id,
                 recordId: recordId,
+                coding: isCoding,
               },
             });
           }

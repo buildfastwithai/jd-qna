@@ -13,6 +13,7 @@ interface QuestionFormatOutput {
   questionTitle: string;
   questionDescription: string;
   idealAnswer: string;
+  coding: boolean;
 }
 
 const generateQuestionsPrompt = (
@@ -55,8 +56,9 @@ Format your response as a JSON object with a 'questions' array where each object
 - questionTitle: First sentence of the question
 - questionDescription: Full question content
 - idealAnswer: CKEditor-compatible HTML formatted answer
+- coding: Boolean value (true if the question involves writing/debugging code, false otherwise)
 
-IMPORTANT: Generate exactly 3 questions per skill. Each question should be unique and scenario-based.`;
+IMPORTANT: Generate exactly 3 questions per skill. Each question should be unique and scenario-based. Set "coding" to true for any question that requires the candidate to write, debug, analyze code, solve algorithms, or perform any hands-on programming tasks.`;
 };
 
 export async function POST(request: Request) {
@@ -163,6 +165,14 @@ export async function POST(request: Request) {
         questionTitle: q.questionTitle || "",
         questionDescription: q.questionDescription || "",
         idealAnswer: q.idealAnswer || "",
+        coding:
+          q.coding === true ||
+          (q.questionDescription &&
+            q.questionDescription.toLowerCase().includes("code")) ||
+          (q.questionDescription &&
+            q.questionDescription.toLowerCase().includes("algorithm")) ||
+          (q.questionDescription &&
+            q.questionDescription.toLowerCase().includes("programming")),
       }));
 
     console.log(
@@ -188,6 +198,7 @@ export async function POST(request: Request) {
             questionTitle: question.questionTitle,
             questionDescription: question.questionDescription,
             idealAnswer: question.idealAnswer,
+            coding: question.coding,
           })),
         },
       },

@@ -12,6 +12,7 @@ import {
   Trash2,
   GripVertical,
   MessageSquare,
+  FileSpreadsheet,
 } from "lucide-react";
 import PDFDoc from "./PDFDocument";
 import { Question as PDFQuestion } from "./ui/questions-display";
@@ -115,6 +116,7 @@ interface QuestionData {
   questionFormat?: string;
   liked?: "LIKED" | "DISLIKED" | "NONE";
   feedback?: string;
+  coding?: boolean;
 }
 
 interface SkillRecordEditorProps {
@@ -161,6 +163,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
   const [selectedSkillsInPriorityMode, setSelectedSkillsInPriorityMode] =
     useState<Set<string>>(new Set());
   const [confirmBulkDeleteOpen, setConfirmBulkDeleteOpen] = useState(false);
+  const [excelExporting, setExcelExporting] = useState(false);
 
   // Parse question content from JSON string
   function formatQuestions(questions: Question[]): QuestionData[] {
@@ -178,6 +181,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
             questionFormat: content.questionFormat || "Scenario",
             liked: q.liked || "NONE",
             feedback: q.feedback || "",
+            coding: content.coding || false,
           };
         } catch (e) {
           console.error("Error parsing question content:", e);
@@ -639,6 +643,75 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
       toast.error("Error generating PDF. Please try again.");
     } finally {
       setPdfLoading(false);
+    }
+  };
+
+  // Generate and download Excel
+  const handleGenerateExcel = async () => {
+    if (!questions.length) {
+      toast.error("No questions to export");
+      return;
+    }
+
+    setExcelExporting(true);
+    try {
+      const jobTitle = record.jobTitle || "interview-questions";
+      const filename = `${jobTitle
+        .toLowerCase()
+        .replace(/\s+/g, "-")}-${Date.now()}.xlsx`;
+
+      // Prepare questions data for export
+      const exportQuestions = questions.map((q, index) => {
+        const skill = editedSkills.find((s) => s.id === q.skillId);
+        return {
+          slNo: index + 1,
+          skillName: skill?.name || "Unknown Skill",
+          question: q.question,
+          answer: q.answer,
+          category: q.category,
+          questionFormat:
+            q.questionFormat || skill?.questionFormat || "Scenario",
+          tags: `${q.category || ""}, ${
+            q.questionFormat || skill?.questionFormat || ""
+          }`.replace(/^, |, $/, ""),
+          coding: q.coding || false,
+        };
+      });
+
+      const response = await fetch("/api/export-questions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          questions: exportQuestions,
+          format: "excel",
+          filename,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to export questions");
+      }
+
+      // Download the file
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast.success("Questions exported to Excel successfully!");
+    } catch (error: any) {
+      console.error("Error exporting to Excel:", error);
+      toast.error(error.message || "Failed to export to Excel");
+    } finally {
+      setExcelExporting(false);
     }
   };
 
@@ -1305,6 +1378,28 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
             )}
           </Button> */}
           <Button
+            onClick={handleGenerateExcel}
+            disabled={
+              excelExporting ||
+              questions.length === 0 ||
+              generatingQuestions ||
+              questionsLoading
+            }
+            variant="outline"
+          >
+            {excelExporting ? (
+              <>
+                <Spinner size="sm" className="mr-2" />
+                Preparing Excel...
+              </>
+            ) : (
+              <>
+                <FileSpreadsheet className="mr-2 h-4 w-4" />
+                Download Excel
+              </>
+            )}
+          </Button>
+          <Button
             onClick={handleGeneratePDF}
             disabled={
               pdfLoading ||
@@ -1811,6 +1906,26 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                 <Button
                   variant="outline"
                   size="sm"
+                  onClick={handleGenerateExcel}
+                  disabled={
+                    excelExporting || questionsLoading || generatingQuestions
+                  }
+                >
+                  {excelExporting ? (
+                    <>
+                      <Spinner size="sm" className="mr-2" />
+                      Generating Excel...
+                    </>
+                  ) : (
+                    <>
+                      <FileSpreadsheet className="h-4 w-4 mr-2" />
+                      Export Excel
+                    </>
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={handleGeneratePDF}
                   disabled={
                     pdfLoading || questionsLoading || generatingQuestions
@@ -1883,11 +1998,11 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                   <Table className="w-full table-fixed">
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="w-[12%]">Skill</TableHead>
-                        <TableHead className="w-[10%]">Category</TableHead>
-                        {/* <TableHead className="w-[8%]">Difficulty</TableHead> */}
-                        <TableHead className="w-[12%]">Format</TableHead>
-                        <TableHead className="w-[43%]">Question</TableHead>
+                        <TableHead className="w-[10%]">Skill</TableHead>
+                        <TableHead className="w-[8%]">Category</TableHead>
+                        <TableHead className="w-[10%]">Format</TableHead>
+                        <TableHead className="w-[8%]">Coding</TableHead>
+                        <TableHead className="w-[42%]">Question</TableHead>
                         <TableHead className="w-[15%] text-right">
                           Actions
                         </TableHead>
@@ -2015,6 +2130,17 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                                   {question.questionFormat || "Scenario"}
                                 </span>
                               </TableCell>
+                              <TableCell>
+                                <span
+                                  className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${
+                                    question.coding
+                                      ? "bg-blue-50 text-blue-800 border-blue-200"
+                                      : "bg-gray-50 text-gray-800 border-gray-200"
+                                  }`}
+                                >
+                                  {question.coding ? "Yes" : "No"}
+                                </span>
+                              </TableCell>
                               <TableCell className="font-medium">
                                 <div className="whitespace-normal break-words">
                                   <QuestionDialog
@@ -2024,6 +2150,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                                     category={question.category}
                                     difficulty={question.difficulty}
                                     questionFormat={question.questionFormat}
+                                    coding={question.coding}
                                     liked={question.liked}
                                     feedback={question.feedback}
                                     onStatusChange={(status) =>

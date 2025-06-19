@@ -22,6 +22,7 @@ interface QuestionDialogProps {
   category: string;
   difficulty: string;
   questionFormat?: string;
+  coding?: boolean;
   liked?: "LIKED" | "DISLIKED" | "NONE";
   feedback?: string;
   onStatusChange?: (status: "LIKED" | "DISLIKED" | "NONE") => void;
@@ -36,6 +37,7 @@ export function QuestionDialog({
   category,
   difficulty,
   questionFormat = "Scenario",
+  coding = false,
   liked = "NONE",
   feedback = "",
   onStatusChange,
@@ -139,6 +141,15 @@ export function QuestionDialog({
               )}`}
             >
               {questionFormat}
+            </span>
+            <span
+              className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${
+                coding
+                  ? "bg-blue-50 text-blue-800 border-blue-200"
+                  : "bg-gray-50 text-gray-800 border-gray-200"
+              }`}
+            >
+              Coding: {coding ? "Yes" : "No"}
             </span>
           </div>
         </DialogHeader>

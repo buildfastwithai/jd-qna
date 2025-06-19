@@ -82,7 +82,7 @@ export async function POST(
         {
           role: "system",
           content:
-            "You are an expert interviewer creating high-quality interview questions. Format your response as a JSON object with fields: question, answer, category (Technical/Experience/Problem Solving/Soft Skills), difficulty (Easy/Medium/Hard), and questionFormat (Open-ended/Coding/Scenario/Case Study/Design/Live Assessment).",
+            "You are an expert interviewer creating high-quality interview questions. Format your response as a JSON object with fields: question, answer, category (Technical/Experience/Problem Solving/Soft Skills), difficulty (Easy/Medium/Hard), questionFormat (Open-ended/Coding/Scenario/Case Study/Design/Live Assessment), and coding (boolean: true if questionFormat is 'Coding' or question involves writing/debugging code, false otherwise).",
         },
         { role: "user", content: prompt },
       ],
@@ -121,18 +121,37 @@ export async function POST(
         questionFormat: formatMatch
           ? formatMatch[1]
           : questionContent.questionFormat || "Scenario",
+        coding: false, // Default to false for manual parsing
       };
     }
+
+    // Ensure coding flag is properly set
+    const isCoding =
+      newQuestionData.coding === true ||
+      newQuestionData.questionFormat?.toLowerCase() === "coding" ||
+      (newQuestionData.question &&
+        newQuestionData.question.toLowerCase().includes("code")) ||
+      (newQuestionData.question &&
+        newQuestionData.question.toLowerCase().includes("algorithm")) ||
+      (newQuestionData.question &&
+        newQuestionData.question.toLowerCase().includes("programming"));
+
+    // Add coding field to the question data
+    const questionDataWithCoding = {
+      ...newQuestionData,
+      coding: isCoding,
+    };
 
     // Use a transaction to create the new question and regeneration record
     const result = await prisma.$transaction(async (tx) => {
       // Create the new question
       const newQuestion = await tx.question.create({
         data: {
-          content: JSON.stringify(newQuestionData),
+          content: JSON.stringify(questionDataWithCoding),
           skillId: question.skillId,
           recordId: question.recordId,
           liked: "NONE",
+          coding: isCoding,
         },
       });
 

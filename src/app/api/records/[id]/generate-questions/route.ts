@@ -50,6 +50,9 @@ Format your response as a JSON object with a 'questions' key containing an array
 4. A "difficulty" field matching the skill's specified difficulty
 5. A "skillName" field that specifies which skill from the list this question is targeting (must match exactly one of the skill names provided)
 6. A "questionFormat" field with one of: "Open-ended", "Coding", "Scenario", "Case Study", "Design", or "Live Assessment"
+7. A "coding" field with a boolean value: true if the questionFormat is "Coding" OR if the question involves writing/debugging code, false otherwise
+
+IMPORTANT: The "coding" field must be set to true when questionFormat is "Coding" or when the question requires the candidate to write, debug, or analyze code. This includes code reviews, algorithm problems, debugging exercises, or any hands-on programming tasks.
 
 Example:
 {"questions": [
@@ -220,6 +223,17 @@ export async function POST(
 
           // Save questions to the database
           for (const question of questions) {
+            // Ensure coding flag is properly set
+            const isCoding =
+              question.coding === true ||
+              question.questionFormat?.toLowerCase() === "coding" ||
+              (question.question &&
+                question.question.toLowerCase().includes("code")) ||
+              (question.question &&
+                question.question.toLowerCase().includes("algorithm")) ||
+              (question.question &&
+                question.question.toLowerCase().includes("programming"));
+
             // Create the question
             const createdQuestion = await prisma.question.create({
               data: {
@@ -230,9 +244,11 @@ export async function POST(
                   difficulty:
                     question.difficulty || skill.difficulty || "Medium",
                   questionFormat: question.questionFormat || "Scenario",
+                  coding: isCoding,
                 }),
                 skillId: skillId,
                 recordId: id,
+                coding: isCoding,
               },
             });
 

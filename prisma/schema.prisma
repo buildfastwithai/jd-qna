@@ -55,6 +55,7 @@ model Question {
   record       SkillRecord  @relation(fields: [recordId], references: [id], onDelete: Cascade)
   liked        LikeStatus?  @default(NONE)
   feedback     String?      @db.Text
+  coding       Boolean      @default(false) // Whether this question involves coding
   regenerations Regeneration[] @relation("OriginalQuestion")
   regeneratedFrom Regeneration[] @relation("RegeneratedQuestion")
 }
@@ -117,6 +118,7 @@ model ExcelQuestion {
   questionTitle      String           @db.Text
   questionDescription String          @db.Text
   idealAnswer        String           @db.Text
+  coding             Boolean          @default(false) // Whether this question involves coding
   setId              String
   set                ExcelQuestionSet @relation(fields: [setId], references: [id], onDelete: Cascade)
   createdAt          DateTime         @default(now())

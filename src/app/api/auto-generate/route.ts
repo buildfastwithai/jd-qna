@@ -134,6 +134,9 @@ Each question should:
 - Include a detailed suggested answer for the interviewer
 - Be categorized as either Technical, Experience, Problem Solving, or Soft Skills
 - Follow the chosen question format
+- Include a "coding" field set to true if questionFormat is "Coding" OR if the question involves writing/debugging code, false otherwise
+
+IMPORTANT: The "coding" field must be set to true when questionFormat is "Coding" or when the question requires the candidate to write, debug, or analyze code. This includes code reviews, algorithm problems, debugging exercises, or any hands-on programming tasks.
 
 ${customInstructions ? `Additional instructions: ${customInstructions}` : ""}`;
 
