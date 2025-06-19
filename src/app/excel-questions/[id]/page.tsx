@@ -256,57 +256,60 @@ export default function ExcelQuestionsPage() {
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
-              <Table>
+              <Table
+                className="table-fixed w-full"
+                style={{ tableLayout: "fixed" }}
+              >
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-16 text-center">Sl No</TableHead>
-                    <TableHead className="w-32 min-w-[100px]">Skill</TableHead>
-                    <TableHead className="w-64 min-w-[200px]">
-                      Question Title
-                    </TableHead>
-                    <TableHead className="min-w-[300px]">
+                    <TableHead className="w-[8%] text-center">Sl No</TableHead>
+                    <TableHead className="w-[12%]">Skill</TableHead>
+                    <TableHead className="w-[20%]">Question Title</TableHead>
+                    <TableHead className="w-[30%]">
                       Question Description
                     </TableHead>
-                    <TableHead className="min-w-[400px]">
-                      Ideal Answer
-                    </TableHead>
+                    <TableHead className="w-[30%]">Ideal Answer</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {questionSet.questions.map((question) => (
-                    <TableRow key={question.slNo} className="align-top">
-                      <TableCell className="font-medium text-center">
+                    <TableRow
+                      key={question.slNo}
+                      className="align-top border-b border-gray-100"
+                    >
+                      <TableCell className="font-medium text-center py-6 px-4">
                         {question.slNo}
                       </TableCell>
-                      <TableCell className="align-top">
-                        <Badge variant="outline" className="whitespace-nowrap">
+                      <TableCell className="align-top max-w-[150px] py-6 px-4">
+                        <Badge variant="outline" className="whitespace-normal">
                           {question.skill}
                         </Badge>
                       </TableCell>
-                      <TableCell className="align-top">
-                        <div className="font-medium text-sm leading-relaxed max-w-[250px]">
+                      <TableCell className="align-top max-w-[300px] py-6 px-4">
+                        <div className="font-medium text-sm leading-relaxed overflow-x-auto whitespace-nowrap max-w-[280px] pb-2">
                           {question.questionTitle}
                         </div>
                       </TableCell>
-                      <TableCell className="align-top">
-                        <div className="text-sm leading-relaxed max-w-[350px] whitespace-pre-wrap">
+                      <TableCell className="align-top max-w-[450px] py-6 px-4">
+                        <div className="text-sm leading-relaxed whitespace-pre-wrap break-words max-h-32 overflow-y-auto">
                           {question.questionDescription}
                         </div>
                       </TableCell>
-                      <TableCell className="align-top">
-                        <div className="max-w-[450px]">
+                      <TableCell className="align-top max-w-[500px] py-6 px-4">
+                        <div className="max-h-40 overflow-y-auto">
                           <div
-                            className="text-sm leading-relaxed prose prose-sm max-w-none
+                            className="text-sm leading-relaxed prose prose-sm max-w-none break-words
                             prose-headings:text-sm prose-headings:font-medium prose-headings:mb-2
-                            prose-p:mb-2 prose-p:leading-relaxed
-                            prose-ul:mb-2 prose-ul:pl-4 prose-li:mb-1
+                            prose-p:mb-2 prose-p:leading-relaxed prose-p:break-words
+                            prose-ul:mb-2 prose-ul:pl-4 prose-li:mb-1 prose-li:break-words
                             prose-ol:mb-2 prose-ol:pl-4
-                            prose-pre:bg-gray-100 prose-pre:p-2 prose-pre:rounded prose-pre:text-xs
-                            prose-pre:overflow-x-auto prose-pre:whitespace-pre-wrap
-                            prose-code:bg-gray-100 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-xs
+                            prose-pre:bg-gray-100 prose-pre:p-3 prose-pre:rounded prose-pre:text-xs
+                            prose-pre:overflow-x-auto prose-pre:whitespace-pre-wrap prose-pre:break-words
+                            prose-code:bg-gray-100 prose-code:px-2 prose-code:py-1 prose-code:rounded prose-code:text-xs prose-code:break-words
                             [&_br]:content-[''] [&_br]:block [&_br]:mb-1
                             [&_ul]:list-disc [&_ol]:list-decimal
-                            [&_pre]:max-w-full [&_pre]:break-words"
+                            [&_pre]:max-w-full [&_pre]:break-words
+                            [&_pre]:border [&_pre]:border-gray-200"
                             dangerouslySetInnerHTML={{
                               __html: question.idealAnswer
                                 .replace(/\\n/g, "\n")
