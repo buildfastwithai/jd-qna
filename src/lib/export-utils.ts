@@ -3,12 +3,20 @@ import { Parser } from "json2csv";
 
 export interface ExportQuestion {
   slNo: number;
+  corpId: string;
+  urlId: string;
+  roundSequence: number;
   skill: string;
   questionTitle: string;
   questionDescription: string;
-  idealAnswer: string;
+  candidateDescription: string;
+  candidateFacingDocUrl: string;
   tags: string;
+  idealAnswer: string;
   coding: string; // "Yes" or "No"
+  mandatory: string; // "Yes" or "No"
+  hideInFloReport: string; // "Yes" or "No"
+  poolName: string;
 }
 
 // Helper function to format ideal answer with proper HTML formatting for CKEditor
@@ -120,12 +128,22 @@ export function exportToExcel(
   // Convert questions to worksheet format with proper formatting
   const worksheetData = questions.map((q) => ({
     "Sl No": String(q.slNo), // Ensure string format
-    Skill: String(q.skill || "").trim(),
+    "Corp ID": String(q.corpId || "").trim(),
+    "Url ID": String(q.urlId || "").trim(),
+    "Round Sequence": String(q.roundSequence || 1),
     "Question Title": extractQuestionTitle(q.questionDescription),
     "Question Description": String(q.questionDescription || "").trim(),
-    "Ideal Answer": formatIdealAnswer(q.idealAnswer),
+    "Candidate Description": String(
+      q.candidateDescription || q.questionDescription || ""
+    ).trim(),
+    "Candidate facing doc url": String(q.candidateFacingDocUrl || "").trim(),
     Tags: String(q.tags || "").trim(),
+    "Ideal Answer": formatIdealAnswer(q.idealAnswer),
     Coding: formatCodingField(q.coding),
+    Mandatory: String(q.mandatory || "No").trim(),
+    "Hide in FloReport": String(q.hideInFloReport || "No").trim(),
+    Skill: String(q.skill || "").trim(),
+    "Pool Name": String(q.poolName || "").trim(),
   }));
 
   // Create worksheet
@@ -134,12 +152,20 @@ export function exportToExcel(
   // Set column widths for better readability
   const columnWidths = [
     { wch: 8 }, // Sl No
-    { wch: 20 }, // Skill
+    { wch: 12 }, // Corp ID
+    { wch: 12 }, // Url ID
+    { wch: 15 }, // Round Sequence
     { wch: 40 }, // Question Title
     { wch: 60 }, // Question Description
-    { wch: 80 }, // Ideal Answer
+    { wch: 60 }, // Candidate Description
+    { wch: 30 }, // Candidate facing doc url
     { wch: 30 }, // Tags
+    { wch: 80 }, // Ideal Answer
     { wch: 10 }, // Coding
+    { wch: 12 }, // Mandatory
+    { wch: 15 }, // Hide in FloReport
+    { wch: 20 }, // Skill
+    { wch: 20 }, // Pool Name
   ];
   worksheet["!cols"] = columnWidths;
 
@@ -159,8 +185,16 @@ export function exportToCSV(questions: ExportQuestion[]): string {
   const fields = [
     { label: "Sl No", value: (row: ExportQuestion) => String(row.slNo) },
     {
-      label: "Skill",
-      value: (row: ExportQuestion) => String(row.skill || "").trim(),
+      label: "Corp ID",
+      value: (row: ExportQuestion) => String(row.corpId || "").trim(),
+    },
+    {
+      label: "Url ID",
+      value: (row: ExportQuestion) => String(row.urlId || "").trim(),
+    },
+    {
+      label: "Round Sequence",
+      value: (row: ExportQuestion) => String(row.roundSequence || 1),
     },
     {
       label: "Question Title",
@@ -173,16 +207,45 @@ export function exportToCSV(questions: ExportQuestion[]): string {
         String(row.questionDescription || "").trim(),
     },
     {
-      label: "Ideal Answer",
-      value: (row: ExportQuestion) => formatIdealAnswer(row.idealAnswer),
+      label: "Candidate Description",
+      value: (row: ExportQuestion) =>
+        String(
+          row.candidateDescription || row.questionDescription || ""
+        ).trim(),
+    },
+    {
+      label: "Candidate facing doc url",
+      value: (row: ExportQuestion) =>
+        String(row.candidateFacingDocUrl || "").trim(),
     },
     {
       label: "Tags",
       value: (row: ExportQuestion) => String(row.tags || "").trim(),
     },
     {
+      label: "Ideal Answer",
+      value: (row: ExportQuestion) => formatIdealAnswer(row.idealAnswer),
+    },
+    {
       label: "Coding",
       value: (row: ExportQuestion) => formatCodingField(row.coding),
+    },
+    {
+      label: "Mandatory",
+      value: (row: ExportQuestion) => String(row.mandatory || "No").trim(),
+    },
+    {
+      label: "Hide in FloReport",
+      value: (row: ExportQuestion) =>
+        String(row.hideInFloReport || "No").trim(),
+    },
+    {
+      label: "Skill",
+      value: (row: ExportQuestion) => String(row.skill || "").trim(),
+    },
+    {
+      label: "Pool Name",
+      value: (row: ExportQuestion) => String(row.poolName || "").trim(),
     },
   ];
 

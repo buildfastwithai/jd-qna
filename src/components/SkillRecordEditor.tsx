@@ -665,16 +665,24 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
         const skill = editedSkills.find((s) => s.id === q.skillId);
         return {
           slNo: index + 1,
+          corpId: "", // Empty as per default
+          urlId: "", // Empty as per default
+          roundSequence: 1, // Default to 1
           skillName: skill?.name || "Unknown Skill",
           question: q.question,
           answer: q.answer,
           category: q.category,
           questionFormat:
             q.questionFormat || skill?.questionFormat || "Scenario",
+          candidateDescription: q.question, // Default to Question Description
+          candidateFacingDocUrl: "", // Empty as per default
           tags: `${q.category || ""}, ${
             q.questionFormat || skill?.questionFormat || ""
           }`.replace(/^, |, $/, ""),
           coding: q.coding || false,
+          mandatory: "No", // Default to No
+          hideInFloReport: "No", // Default to No
+          poolName: "", // Empty as per default
         };
       });
 

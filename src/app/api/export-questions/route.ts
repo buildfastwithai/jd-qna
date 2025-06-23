@@ -27,12 +27,18 @@ export async function POST(request: NextRequest) {
     const exportQuestions: ExportQuestion[] = questions.map(
       (q: any, index: number) => ({
         slNo: index + 1,
+        corpId: String(q.corpId || "").trim(),
+        urlId: String(q.urlId || "").trim(),
+        roundSequence: q.roundSequence || 1,
         skill: String(q.skillName || q.skill || "").trim(),
-        questionTitle: "", // This will be extracted from questionDescription
+        questionTitle: "",
         questionDescription: String(
           q.question || q.questionDescription || ""
         ).trim(),
-        idealAnswer: String(q.answer || q.idealAnswer || "").trim(),
+        candidateDescription: String(
+          q.candidateDescription || q.question || q.questionDescription || ""
+        ).trim(),
+        candidateFacingDocUrl: String(q.candidateFacingDocUrl || "").trim(),
         tags:
           q.tags ||
           `${q.category || ""}, ${q.questionFormat || ""}`.replace(
@@ -40,12 +46,16 @@ export async function POST(request: NextRequest) {
             ""
           ) ||
           "",
+        idealAnswer: String(q.answer || q.idealAnswer || "").trim(),
         coding:
           q.coding !== undefined
             ? q.coding
             : q.isCoding !== undefined
             ? q.isCoding
-            : false, // Handle different possible field names
+            : false,
+        mandatory: String(q.mandatory || "No").trim(),
+        hideInFloReport: String(q.hideInFloReport || "No").trim(),
+        poolName: String(q.poolName || "").trim(),
       })
     );
 
