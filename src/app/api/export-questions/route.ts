@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   exportToExcel,
   exportToCSV,
+  exportSkillsToExcel,
   createDownloadResponse,
   ExportQuestion,
+  ExportSkill,
 } from "@/lib/export-utils";
 
 export async function POST(request: NextRequest) {
@@ -17,9 +19,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!format || !["excel", "csv"].includes(format)) {
+    if (!format || !["excel", "csv", "skills"].includes(format)) {
       return NextResponse.json(
-        { success: false, error: "Format must be 'excel' or 'csv'" },
+        { success: false, error: "Format must be 'excel', 'csv', or 'skills'" },
         { status: 400 }
       );
     }
@@ -59,7 +61,26 @@ export async function POST(request: NextRequest) {
       })
     );
 
-    if (format === "excel") {
+    if (format === "skills") {
+      // Handle skills export with specific format based on user requirements
+      const skillsExportData: ExportSkill[] = questions.map(
+        (skill: any, index: number) => ({
+          slNo: index + 1,
+          poolName: String(skill.poolName || skill.skillName || "").trim(),
+          mandatory: String(skill.mandatory || "No").trim(),
+          noOfQuestions: skill.noOfQuestions || 1,
+        })
+      );
+
+      const excelBuffer = exportSkillsToExcel(skillsExportData, filename);
+      const defaultFilename = filename || `skills-export-${Date.now()}.xlsx`;
+
+      return createDownloadResponse(
+        excelBuffer,
+        defaultFilename,
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+    } else if (format === "excel") {
       const excelBuffer = exportToExcel(exportQuestions, filename);
       const defaultFilename =
         filename || `interview-questions-${Date.now()}.xlsx`;

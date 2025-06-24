@@ -19,6 +19,13 @@ export interface ExportQuestion {
   poolName: string;
 }
 
+export interface ExportSkill {
+  slNo: number;
+  poolName: string;
+  mandatory: string;
+  noOfQuestions: number;
+}
+
 // Helper function to format ideal answer with proper HTML formatting for CKEditor
 function formatIdealAnswer(answer: string): string {
   if (!answer) return "";
@@ -171,6 +178,45 @@ export function exportToExcel(
 
   // Add the worksheet to the workbook
   XLSX.utils.book_append_sheet(workbook, worksheet, "Interview Questions");
+
+  // Generate Excel file buffer
+  const excelBuffer = XLSX.write(workbook, {
+    bookType: "xlsx",
+    type: "buffer",
+  });
+
+  return excelBuffer;
+}
+
+export function exportSkillsToExcel(
+  skills: ExportSkill[],
+  filename: string = "skills-export.xlsx"
+): Buffer {
+  // Create a new workbook
+  const workbook = XLSX.utils.book_new();
+
+  // Convert skills to worksheet format based on user requirements
+  const worksheetData = skills.map((skill) => ({
+    "Sl No": String(skill.slNo),
+    "Pool Name": String(skill.poolName || "").trim(),
+    Mandatory: String(skill.mandatory || "No").trim(),
+    "No of questions to be asked": String(skill.noOfQuestions || 1),
+  }));
+
+  // Create worksheet
+  const worksheet = XLSX.utils.json_to_sheet(worksheetData);
+
+  // Set column widths for better readability
+  const columnWidths = [
+    { wch: 8 }, // Sl No
+    { wch: 30 }, // Pool Name
+    { wch: 12 }, // Mandatory
+    { wch: 25 }, // No of questions to be asked
+  ];
+  worksheet["!cols"] = columnWidths;
+
+  // Add the worksheet to the workbook
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Skills");
 
   // Generate Excel file buffer
   const excelBuffer = XLSX.write(workbook, {

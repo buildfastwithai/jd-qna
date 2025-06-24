@@ -682,7 +682,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
           coding: q.coding || false,
           mandatory: "No", // Default to No
           hideInFloReport: "No", // Default to No
-          poolName: "", // Empty as per default
+          poolName: skill?.name || "Unknown Skill", // Fixed: Use skill name for pool
         };
       });
 

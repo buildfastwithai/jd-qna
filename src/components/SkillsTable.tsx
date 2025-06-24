@@ -23,7 +23,7 @@ import {
   SelectValue,
 } from "./ui/select";
 import { Button } from "./ui/button";
-import { Trash2, MessageSquarePlus } from "lucide-react";
+import { Trash2, MessageSquarePlus, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
 import { SkillFeedbackDialog } from "./ui/skill-feedback-dialog";
 import { SkillFeedbackViewDialog } from "./ui/skill-feedback-view-dialog";
@@ -37,6 +37,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "./ui/dialog";
+import { Spinner } from "./ui/spinner";
 
 // Define interfaces for the types from Prisma
 interface Skill {
@@ -94,6 +95,9 @@ export default function SkillsTable({
   // Multi-select state
   const [selectedSkills, setSelectedSkills] = useState<Set<string>>(new Set());
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+
+  // Excel export state
+  const [excelExporting, setExcelExporting] = useState(false);
 
   // Fetch feedback counts for each skill
   useEffect(() => {
@@ -215,6 +219,66 @@ export default function SkillsTable({
     skills.length > 0 && selectedSkills.size === skills.length;
   const isIndeterminate =
     selectedSkills.size > 0 && selectedSkills.size < skills.length;
+
+  // Handle Excel export
+  const handleExportToExcel = async () => {
+    if (!skills.length) {
+      toast.error("No skills to export");
+      return;
+    }
+
+    setExcelExporting(true);
+    try {
+      const jobTitle = skills[0]?.recordId ? "skills" : "skills";
+      const filename = `skills-${jobTitle
+        .toLowerCase()
+        .replace(/\s+/g, "-")}-${Date.now()}.xlsx`;
+
+      // Prepare skills data for export - simplified format based on user requirements
+      const exportSkills = skills.map((skill, index) => ({
+        slNo: index + 1,
+        poolName: skill.name, // Pool Name contains skill name
+        mandatory: "No", // Default to 'No'
+        noOfQuestions: 1, // Default to '1'
+        skillName: skill.name,
+      }));
+
+      const response = await fetch("/api/export-questions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          questions: exportSkills,
+          format: "skills", // Use 'skills' format instead of 'excel'
+          filename,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to export skills");
+      }
+
+      // Download the file
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast.success("Skills exported to Excel successfully!");
+    } catch (error: any) {
+      console.error("Error exporting skills to Excel:", error);
+      toast.error(error.message || "Failed to export skills to Excel");
+    } finally {
+      setExcelExporting(false);
+    }
+  };
 
   // Define columns
   const columns = useMemo(
@@ -568,7 +632,27 @@ export default function SkillsTable({
             </Button>
           )}
         </div>
-        <AddSkillDialog recordId={recordId} onSkillAdded={onSkillAdded} />
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportToExcel}
+            disabled={excelExporting || loading || skills.length === 0}
+          >
+            {excelExporting ? (
+              <>
+                <Spinner size="sm" className="mr-2" />
+                Exporting...
+              </>
+            ) : (
+              <>
+                <FileSpreadsheet className="h-4 w-4 mr-2" />
+                Export Excel
+              </>
+            )}
+          </Button>
+          <AddSkillDialog recordId={recordId} onSkillAdded={onSkillAdded} />
+        </div>
       </div>
       <div className="rounded-md border overflow-hidden">
         <div className="overflow-x-auto">
