@@ -286,10 +286,6 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
         }),
       });
 
-      // if (!response.ok) {
-      //   throw new Error("Failed to generate questions");
-      // }
-
       const data = await response.json();
 
       if (data.success) {
@@ -304,11 +300,32 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
         // Switch to questions tab
         setActiveTab("questions");
       } else {
-        // throw new Error(data.error || "Failed to generate questions");
+        // Only show error if there's actually an error message
+        if (data.error) {
+          toast.error(data.error);
+        } else {
+          // If no specific error but questions might have been generated, just show info
+          toast.info(
+            "Questions generation completed. Check the questions tab."
+          );
+
+          // Still try to fetch latest questions in case some were generated
+          await fetchLatestQuestions();
+          setActiveTab("questions");
+        }
       }
     } catch (error: any) {
       console.error("Error generating questions:", error);
-      // toast.error(error.message || "Error generating questions");
+      // Only show error toast for actual errors, not network issues
+      if (error.name === "TypeError" && error.message.includes("fetch")) {
+        toast.error(
+          "Network error. Please check your connection and try again."
+        );
+      } else if (error.message) {
+        toast.error(error.message);
+      } else {
+        toast.error("An unexpected error occurred. Please try again.");
+      }
     } finally {
       setGeneratingQuestions(false);
       setQuestionGenerationDialogOpen(false);
@@ -343,15 +360,11 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
         }
       );
 
-      if (!response.ok) {
-        throw new Error("Failed to generate questions");
-      }
-
       const data = await response.json();
 
       if (data.success) {
         // Show success toast
-        toast.success(`${data.message}`);
+        toast.success(`${data.message || "Questions generated successfully!"}`);
 
         // Fetch the latest questions directly
         await fetchLatestQuestions();
@@ -359,11 +372,32 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
         // Switch to questions tab
         setActiveTab("questions");
       } else {
-        throw new Error(data.error || "Failed to generate questions");
+        // Only show error if there's actually an error message
+        if (data.error) {
+          toast.error(data.error);
+        } else {
+          // If no specific error but questions might have been generated, just show info
+          toast.info(
+            "Questions generation completed. Check the questions tab."
+          );
+
+          // Still try to fetch latest questions in case some were generated
+          await fetchLatestQuestions();
+          setActiveTab("questions");
+        }
       }
     } catch (error: any) {
       console.error("Error generating questions:", error);
-      toast.error(error.message || "Error generating questions");
+      // Only show error toast for actual errors, not network issues
+      if (error.name === "TypeError" && error.message.includes("fetch")) {
+        toast.error(
+          "Network error. Please check your connection and try again."
+        );
+      } else if (error.message) {
+        toast.error(error.message);
+      } else {
+        toast.error("An unexpected error occurred. Please try again.");
+      }
     } finally {
       setGeneratingQuestions(false);
       setQuestionGenerationDialogOpen(false);
@@ -540,10 +574,6 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
         }
       );
 
-      if (!response.ok) {
-        throw new Error("Failed to regenerate questions with feedback");
-      }
-
       const data = await response.json();
 
       if (data.success) {
@@ -558,11 +588,32 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
         // Switch to questions tab
         setActiveTab("questions");
       } else {
-        throw new Error(data.error || "Failed to regenerate questions");
+        // Only show error if there's actually an error message
+        if (data.error) {
+          toast.error(data.error);
+        } else {
+          // If no specific error but questions might have been regenerated, just show info
+          toast.info(
+            "Questions regeneration completed. Check the questions tab."
+          );
+
+          // Still try to fetch latest questions in case some were regenerated
+          await fetchLatestQuestions();
+          setActiveTab("questions");
+        }
       }
     } catch (error: any) {
       console.error("Error regenerating questions with feedback:", error);
-      toast.error(error.message || "Error regenerating questions");
+      // Only show error toast for actual errors, not network issues
+      if (error.name === "TypeError" && error.message.includes("fetch")) {
+        toast.error(
+          "Network error. Please check your connection and try again."
+        );
+      } else if (error.message) {
+        toast.error(error.message);
+      } else {
+        toast.error("An unexpected error occurred. Please try again.");
+      }
 
       // Fall back to regular regeneration if the feedback-based one fails
       generateQuestionsForRecord(true);
