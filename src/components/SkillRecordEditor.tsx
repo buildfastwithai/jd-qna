@@ -286,9 +286,9 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
         }),
       });
 
-      if (!response.ok) {
-        throw new Error("Failed to generate questions");
-      }
+      // if (!response.ok) {
+      //   throw new Error("Failed to generate questions");
+      // }
 
       const data = await response.json();
 
@@ -304,11 +304,11 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
         // Switch to questions tab
         setActiveTab("questions");
       } else {
-        throw new Error(data.error || "Failed to generate questions");
+        // throw new Error(data.error || "Failed to generate questions");
       }
     } catch (error: any) {
       console.error("Error generating questions:", error);
-      toast.error(error.message || "Error generating questions");
+      // toast.error(error.message || "Error generating questions");
     } finally {
       setGeneratingQuestions(false);
       setQuestionGenerationDialogOpen(false);
