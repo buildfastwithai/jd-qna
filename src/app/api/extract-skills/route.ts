@@ -119,7 +119,7 @@ export async function POST(request: Request) {
         {
           role: "system",
           content:
-            "You are a technical recruiter who can thoroughly analyze job descriptions to extract comprehensive information including skills, experience requirements, responsibilities, and qualifications. Extract around 10-15 skills. Group similar skills or alternatives into a single skill. Do not include skills that are not mentioned in the job description. Do not include skills that are not relevant to the job description. Only mention Technical skills and not soft skills.",
+            "You are a technical recruiter who can thoroughly analyze job descriptions to extract comprehensive information including skills, experience requirements, responsibilities, and qualifications. Extract around 10 skills. Group similar skills or alternatives into a single skill. Do not include skills that are not mentioned in the job description. Do not include skills that are not relevant to the job description. Only mention Technical skills and not soft skills. Do not exceed 15 skills. Do not include skills that are not mentioned in the job description. Do not include skills that are not relevant to the job description. Only mention Technical skills and some soft skills.",
         },
         {
           role: "user",
