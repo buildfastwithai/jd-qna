@@ -28,7 +28,7 @@ export default async function RecordsPage() {
   });
 
   return (
-    <div className="container py-8">
+    <div className="py-8 px-4">
       <div className="flex items-center justify-between mb-6">
         <div>
           <Button variant="ghost" asChild className="mb-2">

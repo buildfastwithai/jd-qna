@@ -327,16 +327,12 @@ export default function SkillsTable({
             disabled={loading}
           >
             <SelectTrigger
-              className="w-full"
+              className="min-w-[160px]"
               aria-label={`Select category for ${info.row.original.name}`}
             >
               <SelectValue placeholder="Select category" />
             </SelectTrigger>
-            <SelectContent
-              className="w-[160px]"
-              position="popper"
-              sideOffset={5}
-            >
+            <SelectContent className="min-w-[160px]" position="popper" sideOffset={5} align="start">
               <SelectItem value="TECHNICAL">Technical</SelectItem>
               <SelectItem value="FUNCTIONAL">Functional</SelectItem>
               <SelectItem value="BEHAVIORAL">Behavioral</SelectItem>
@@ -357,16 +353,12 @@ export default function SkillsTable({
             disabled={loading}
           >
             <SelectTrigger
-              className="w-full"
+              className="min-w-[160px]"
               aria-label={`Select level for ${info.row.original.name}`}
             >
               <SelectValue placeholder="Select level" />
             </SelectTrigger>
-            <SelectContent
-              className="w-[160px]"
-              position="popper"
-              sideOffset={5}
-            >
+            <SelectContent className="min-w-[160px]" position="popper" sideOffset={5} align="start">
               <SelectItem value="BEGINNER">Beginner</SelectItem>
               <SelectItem value="INTERMEDIATE">Intermediate</SelectItem>
               <SelectItem value="PROFESSIONAL">Professional</SelectItem>
@@ -405,16 +397,12 @@ export default function SkillsTable({
             disabled={loading}
           >
             <SelectTrigger
-              className="w-full"
+              className="min-w-[160px]"
               aria-label={`Select requirement for ${info.row.original.name}`}
             >
               <SelectValue placeholder="Requirement" />
             </SelectTrigger>
-            <SelectContent
-              className="w-[160px]"
-              position="popper"
-              sideOffset={5}
-            >
+            <SelectContent className="min-w-[160px]" position="popper" sideOffset={5} align="start">
               <SelectItem value="MANDATORY">Mandatory</SelectItem>
               <SelectItem value="OPTIONAL">Optional</SelectItem>
             </SelectContent>
@@ -468,16 +456,12 @@ export default function SkillsTable({
               disabled={loading}
             >
               <SelectTrigger
-                className="w-full"
+                className="min-w-[60px]"
                 aria-label={`Select number of questions for ${info.row.original.name}`}
               >
                 <SelectValue placeholder="Count" />
               </SelectTrigger>
-              <SelectContent
-                className="w-[160px]"
-                position="popper"
-                sideOffset={5}
-              >
+              <SelectContent className="min-w-[60px]" position="popper" sideOffset={5} align="start">
                 {[0, 1, 2, 3, 4, 5].map((num) => (
                   <SelectItem key={num} value={String(num)}>
                     {num}
@@ -506,9 +490,10 @@ export default function SkillsTable({
       //         <SelectValue placeholder="Difficulty" />
       //       </SelectTrigger>
       //       <SelectContent
-      //         className="w-[160px]"
+      //         className="min-w-[160px]"
       //         position="popper"
       //         sideOffset={5}
+      //         align="start"
       //       >
       //         <SelectItem value="Easy">Easy</SelectItem>
       //         <SelectItem value="Medium">Medium</SelectItem>
@@ -535,9 +520,10 @@ export default function SkillsTable({
       //         <SelectValue placeholder="Format" />
       //       </SelectTrigger>
       //       <SelectContent
-      //         className="w-[160px]"
+      //         className="min-w-[160px]"
       //         position="popper"
       //         sideOffset={5}
+      //         align="start"
       //       >
       //         <SelectItem value="Scenario based">Scenario based</SelectItem>
       //         <SelectItem value="Theoretical">Theoretical</SelectItem>

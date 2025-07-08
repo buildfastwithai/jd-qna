@@ -14,6 +14,7 @@ import {
 import { Button } from "./button";
 import { QuestionLikeButtons } from "./question-like-buttons";
 import { cn } from "@/lib/utils";
+import { ScrollArea } from "./scroll-area";
 
 interface QuestionDialogProps {
   questionId: string;
@@ -117,7 +118,7 @@ export function QuestionDialog({
       <DialogTrigger asChild>
         <div className="cursor-pointer hover:underline">{currentQuestion}</div>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-3xl">
+      <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>{currentQuestion}</DialogTitle>
           <div className="flex gap-2 mt-2">
@@ -153,11 +154,13 @@ export function QuestionDialog({
             </span>
           </div>
         </DialogHeader>
-        <div className="py-4">
+        <div className="py-6 flex-grow overflow-hidden">
           <h3 className="text-sm font-semibold mb-2">Suggested Answer:</h3>
-          <div className="bg-muted/30 p-4 rounded-md text-sm whitespace-pre-wrap">
-            {currentAnswer}
-          </div>
+          <ScrollArea className="h-[calc(90vh-400px)]">
+            <div className="bg-muted/30 p-4 rounded-md text-sm whitespace-pre-wrap h-full max-h-[calc(90vh-200px)] overflow-y-auto">
+              {currentAnswer}
+            </div>
+          </ScrollArea>
         </div>
         <DialogFooter className="flex justify-between items-center">
           <div className="flex-grow">

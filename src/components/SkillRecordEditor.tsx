@@ -841,7 +841,11 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
   // Add a new helper method to get the skill difficulty
   const getSkillDifficulty = (skillId: string) => {
     const skill = editedSkills.find((s) => s.id === skillId);
-    return skill?.difficulty || "Medium";
+    if (skill && typeof skill.level === "string") {
+      const level = skill.level;
+      return level.charAt(0).toUpperCase() + level.slice(1).toLowerCase();
+    }
+    return "Intermediate";
   };
 
   // First add a helper function to get a CSS class based on difficulty
@@ -2090,7 +2094,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                                         {getSkillNumQuestions(question.skillId)}{" "}
                                         questions requested,{" "}
                                         {getSkillDifficulty(question.skillId)}{" "}
-                                        difficulty)
+                                         level)
                                       </span>
                                     </div>
                                     {getSkillQuestionCount(question.skillId) >

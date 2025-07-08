@@ -29,7 +29,7 @@ const newSkillSchema = z.object({
   level: z.enum(["BEGINNER", "INTERMEDIATE", "PROFESSIONAL", "EXPERT"]),
   requirement: z.enum(["MANDATORY", "OPTIONAL"]),
   numQuestions: z.number().int().min(0).max(5),
-  difficulty: z.enum(["Easy", "Medium", "Hard"]),
+  difficulty: z.enum(["Easy", "Medium", "Hard"]).optional(),
   category: z.enum(["TECHNICAL", "FUNCTIONAL", "BEHAVIORAL", "COGNITIVE"]),
   questionFormat: z.enum([
     "Scenario based",
@@ -59,7 +59,6 @@ export function AddSkillDialog({
     level: "INTERMEDIATE",
     requirement: "OPTIONAL",
     numQuestions: 0,
-    difficulty: "Medium",
     category: "TECHNICAL",
     questionFormat: "Scenario based",
   });
@@ -105,7 +104,6 @@ export function AddSkillDialog({
         level: "INTERMEDIATE",
         requirement: "OPTIONAL",
         numQuestions: 0,
-        difficulty: "Medium",
         category: "TECHNICAL",
         questionFormat: "Scenario based",
       });
@@ -213,7 +211,7 @@ export function AddSkillDialog({
             </Select>
           </div>
 
-          <div className="space-y-2">
+          {/* <div className="space-y-2">
             <Label htmlFor="difficulty">Difficulty</Label>
             <Select
               value={skillData.difficulty}
@@ -228,7 +226,7 @@ export function AddSkillDialog({
                 <SelectItem value="Hard">Hard</SelectItem>
               </SelectContent>
             </Select>
-          </div>
+          </div> */}
 
           {/* <div className="space-y-2">
             <Label htmlFor="questionFormat">Question Format</Label>

@@ -29,7 +29,7 @@ export default async function RecordPage({ params }: PageProps) {
   }
 
   return (
-    <div className="py-8 mx-auto">
+    <div className="py-8 mx-auto px-4">
       <SkillRecordEditor record={record as any} />
     </div>
   );
