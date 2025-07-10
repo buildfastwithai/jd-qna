@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Database, BarChart3 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
-export function JDQnaFormPage() {
+
+function JDQnaFormPage() {
   const searchParams = useSearchParams();
   const reqId = searchParams.get("req_id") as string;
   const userId = searchParams.get("user_id") as string;

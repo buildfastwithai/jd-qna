@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Card,
@@ -102,7 +102,7 @@ interface JobDetails {
   }>;
 }
 
-export default function SkillQuestion() {
+function SkillQuestion() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [roundId, setRoundId] = useState("");
@@ -1232,5 +1232,12 @@ export default function SkillQuestion() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+export default function SkillQuestionPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <SkillQuestion />
+    </Suspense>
   );
 }
