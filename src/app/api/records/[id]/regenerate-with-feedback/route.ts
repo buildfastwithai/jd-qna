@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import OpenAI from "openai";
-
+import { getLogger } from "@/lib/logger";
 // Initialize OpenAI client
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -149,8 +149,31 @@ Please generate exactly ${
 Format your response as a JSON array where each object has: question, answer, category, difficulty, and questionFormat fields.
 Category should be one of: Technical, Experience, Problem Solving, Soft Skills, Functional, Behavioral, Cognitive.
 Difficulty should be one of: Easy, Medium, Hard.
-QuestionFormat should be one of: Open-ended, Coding, Scenario, Case Study, Design, Live Assessment.`;
+A "questionFormat" field that must be the same for all questions generated for a given skill: either "Coding" (for coding questions) or one of: "Open-ended", "Scenario", "Case Study", "Design", or "Live Assessment" (for non-coding questions).
 
+IMPORTANT: For each skill, generate either all coding questions or all non-coding questions, not a mix.
+
+IMPORTANT: The "coding" field must be set to true when questionFormat is "Coding".
+
+VERY IMPORTANT:
+If there is change in the questionFormat, then the "coding" field must be set to true if the questionFormat is "Coding" , false otherwise.
+
+Example:
+{"questions": [
+  {
+    "question": "Can you describe your experience with deploying applications using Docker containers?",
+    "answer": "A strong answer would demonstrate hands-on experience with Docker, including creating Dockerfiles, managing containers, using Docker Compose for multi-container applications, and understanding Docker networking and volumes. The candidate should explain specific projects where they've used Docker in production environments, challenges they faced, and how they solved them. Knowledge of Docker orchestration with Kubernetes or Docker Swarm would be a plus.",
+    "category": "Technical",
+    "difficulty": "Medium",
+    "skillName": "Docker",
+    "questionFormat": "Open-ended",
+    "coding": false
+  }
+]}
+`;
+const logger = getLogger("regenerate-with-feedback");
+logger.info(prompt);
+console.log(prompt);
       // Call OpenAI
       const chatCompletion = await openai.chat.completions.create({
         model: "gpt-4.1",
@@ -176,7 +199,8 @@ You must generate exactly the requested number of questions.`,
         console.error(`No content returned for skill ${skill.name}`);
         continue;
       }
-
+      logger.info(content);
+      console.log(content);
       try {
         const parsedResponse = JSON.parse(content);
         let newQuestions = [];
@@ -217,6 +241,7 @@ You must generate exactly the requested number of questions.`,
                 category: newQuestion.category,
                 difficulty: newQuestion.difficulty,
                 questionFormat: newQuestion.questionFormat || "Scenario",
+                coding: newQuestion.coding || false,
               }),
               liked: "NONE",
               feedback: null, // Clear feedback after regeneration

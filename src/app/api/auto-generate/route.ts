@@ -134,9 +134,13 @@ Each question should:
 - Include a detailed suggested answer for the interviewer
 - Be categorized as either Technical, Experience, Problem Solving, or Soft Skills
 - Follow the chosen question format
-- Include a "coding" field set to true if questionFormat is "Coding" OR if the question involves writing/debugging code, false otherwise
+- Include a "coding" field set to true if questionFormat is "Coding", false otherwise.
 
-IMPORTANT: The "coding" field must be set to true when questionFormat is "Coding" or when the question requires the candidate to write, debug, or analyze code. This includes code reviews, algorithm problems, debugging exercises, or any hands-on programming tasks.
+IMPORTANT: For each skill, generate either all coding questions or all non-coding questions, not a mix.
+
+A "questionFormat" field that must be the same for all questions generated for a given skill: either "Coding" (for coding questions) or one of: "Open-ended", "Scenario", "Case Study", "Design", or "Live Assessment" (for non-coding questions).
+
+IMPORTANT: The "coding" field must be set to true when questionFormat is "Coding".
 
 ${customInstructions ? `Additional instructions: ${customInstructions}` : ""}`;
 
@@ -152,7 +156,21 @@ Format your response as a JSON array where each object has:
 - skillName: The name of the skill this question tests (must match one of the provided skills exactly)
 - category: One of: Technical, Experience, Problem Solving, Soft Skills, Functional, Behavioral, Cognitive
 - difficulty: One of: Easy, Medium, Hard
-- questionFormat: One of: Open-ended, Coding, Scenario, Case Study, Design, Live Assessment`,
+- questionFormat: One of: Open-ended, Coding, Scenario, Case Study, Design, Live Assessment
+
+
+Example:
+{"questions": [
+  {
+    "question": "Can you describe your experience with deploying applications using Docker containers?",
+    "answer": "A strong answer would demonstrate hands-on experience with Docker, including creating Dockerfiles, managing containers, using Docker Compose for multi-container applications, and understanding Docker networking and volumes. The candidate should explain specific projects where they've used Docker in production environments, challenges they faced, and how they solved them. Knowledge of Docker orchestration with Kubernetes or Docker Swarm would be a plus.",
+    "category": "Technical",
+    "difficulty": "Medium",
+    "skillName": "Docker",
+    "questionFormat": "Open-ended",
+    "coding": false
+  }
+]}`,
         },
         { role: "user", content: questionPrompt },
       ],
@@ -209,6 +227,7 @@ Format your response as a JSON array where each object has:
               category: question.category || "Technical",
               difficulty: question.difficulty || "Medium",
               questionFormat: question.questionFormat || "Scenario",
+              coding: question.coding || false,
             }),
             skillId: skill.id,
             recordId: record.id,

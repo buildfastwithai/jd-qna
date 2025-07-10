@@ -45,6 +45,7 @@ const formSchema = z.object({
     .number()
     .min(15, { message: "Minimum interview length is 15 minutes" })
     .optional(),
+  companyName: z.string().optional(),
 });
 
 export interface SkillWithMetadata {
@@ -58,7 +59,26 @@ export interface SkillWithMetadata {
 
 type FormValues = z.infer<typeof formSchema>;
 
-export function JDQnaForm() {
+interface JobDetailsResponse {
+  job_title: string;
+  job_description: string;
+  company_name: string;
+  min_experience: number;
+  max_experience: number;
+  rounds: Array<{
+    round_id: number;
+    interview_type: string;
+    skill_matrix: any[];
+    question_pools: any[];
+  }>;
+}
+
+interface JDQnaFormProps {
+  reqId?: string;
+  userId?: string;
+}
+
+export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
   // States
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -81,6 +101,7 @@ export function JDQnaForm() {
     progressValue: 0,
     progressText: "",
   });
+  const [fetchingJobDetails, setFetchingJobDetails] = useState(false);
 
   const router = useRouter();
 
@@ -92,8 +113,63 @@ export function JDQnaForm() {
       customInstructions: "",
       jobDescriptionText: "",
       interviewLength: 60, // Default to 60 minutes
+      companyName: "",
     },
   });
+
+  // Fetch job details if reqId and userId are provided
+  useEffect(() => {
+    const fetchJobDetails = async () => {
+      if (reqId && userId) {
+        setFetchingJobDetails(true);
+        try {
+          const response = await fetch(`https://sandbox.flocareer.com/dynamic/corporate/req-details/${reqId}/${userId}/`);
+          
+          if (!response.ok) {
+            throw new Error(`Failed to fetch job details: ${response.status}`);
+          }
+          
+          const data: JobDetailsResponse = await response.json();
+          
+          // Pre-fill the form with the response data
+          form.setValue("jobRole", data.job_title);
+          form.setValue("companyName", data.company_name);
+          
+          // Extract HTML content and set as job description text
+          const jobDescText = stripHtmlTags(data.job_description);
+          form.setValue("jobDescriptionText", jobDescText);
+          
+          // Switch to text input method
+          setInputMethod("text");
+          
+          // Calculate interview length based on experience (just an example calculation)
+          const interviewLength = Math.min(90, 30 + (data.max_experience * 5));
+          form.setValue("interviewLength", interviewLength);
+          
+          toast.success("Job details loaded successfully");
+        } catch (error) {
+          console.error("Error fetching job details:", error);
+          toast.error("Failed to fetch job details. Please try again.");
+        } finally {
+          setFetchingJobDetails(false);
+        }
+      }
+    };
+    
+    fetchJobDetails();
+  }, [reqId, userId, form]);
+  
+  // Helper function to strip HTML tags
+  const stripHtmlTags = (html: string): string => {
+    if (typeof window !== 'undefined') {
+      // Client-side parsing
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      return doc.body.textContent || '';
+    } else {
+      // Simple server-side fallback using regex
+      return html.replace(/<[^>]*>?/gm, '');
+    }
+  };
 
   // Handle file upload and content extraction
   const handleFileUpload = async (file: File) => {
@@ -392,6 +468,13 @@ export function JDQnaForm() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {fetchingJobDetails && (
+            <div className="flex items-center justify-center p-4">
+              <Spinner size="md" />
+              <span className="ml-2">Loading job details...</span>
+            </div>
+          )}
+          
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <FormField
@@ -430,7 +513,19 @@ export function JDQnaForm() {
                   </FormItem>
                 )}
               />
-
+              <FormField
+                control={form.control}
+                name="companyName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Company Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g. Google" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <FormField
                 control={form.control}
                 name="customInstructions"
@@ -450,16 +545,17 @@ export function JDQnaForm() {
 
               <div className="space-y-4">
                 <Tabs
-                  defaultValue="file"
+                  defaultValue="text"
+                  value={inputMethod}
                   onValueChange={(value) =>
                     setInputMethod(value as "file" | "text")
                   }
                 >
                   <TabsList className="grid grid-cols-2">
-                    <TabsTrigger value="file">Upload File</TabsTrigger>
                     <TabsTrigger value="text">
                       Paste Job Description
                     </TabsTrigger>
+                    <TabsTrigger value="file">Upload File</TabsTrigger>
                   </TabsList>
 
                   <TabsContent value="file">
@@ -537,6 +633,7 @@ export function JDQnaForm() {
                   type="button"
                   disabled={
                     loading ||
+                    fetchingJobDetails ||
                     (inputMethod === "file"
                       ? uploading || !pdfContent
                       : !form.getValues().jobDescriptionText)
@@ -556,6 +653,7 @@ export function JDQnaForm() {
                   type="submit"
                   disabled={
                     extractingSkills ||
+                    fetchingJobDetails ||
                     (inputMethod === "file"
                       ? uploading || !pdfContent
                       : !form.getValues().jobDescriptionText)

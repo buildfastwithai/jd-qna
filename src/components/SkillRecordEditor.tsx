@@ -66,7 +66,7 @@ import SkillsTable from "./SkillsTable";
 import { GlobalFeedbackDialog } from "./ui/global-feedback-dialog";
 import { QuestionGenerationDialog } from "./ui/question-generation-dialog";
 import { Checkbox } from "./ui/checkbox";
-
+import { MdOutlineFeedback } from "react-icons/md";
 // Define interfaces for the types from Prisma
 interface Skill {
   id: string;
@@ -850,6 +850,8 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
 
   // First add a helper function to get a CSS class based on difficulty
   const getDifficultyClass = (difficulty: string) => {
+    if (!difficulty) return "bg-orange-50 text-orange-800 border-orange-200";
+    
     switch (difficulty.toLowerCase()) {
       case "easy":
         return "bg-green-50 text-green-800 border-green-200";
@@ -864,6 +866,8 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
 
   // Add a helper function to get a CSS class based on category
   const getCategoryClass = (category: string) => {
+    if (!category) return "bg-gray-50 text-gray-800 border-gray-200";
+    
     switch (category.toLowerCase()) {
       case "technical":
         return "bg-blue-50 text-blue-800 border-blue-200";
@@ -880,6 +884,8 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
 
   // Add a helper function to get a CSS class based on question format
   const getQuestionFormatClass = (format: string) => {
+    if (!format) return "bg-amber-50 text-amber-800 border-amber-200";
+    
     switch (format.toLowerCase()) {
       case "open-ended":
         return "bg-emerald-50 text-emerald-800 border-emerald-200";
@@ -1003,6 +1009,67 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
         headers: {
           "Content-Type": "application/json",
         },
+        body: JSON.stringify({}), // Add empty JSON body to prevent parsing error
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to regenerate question");
+      }
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Parse the new content
+        const newContent =
+          typeof data.question.content === "string"
+            ? JSON.parse(data.question.content)
+            : data.question.content;
+
+        // Update the questions list with the new question
+        setQuestions((prevQuestions) =>
+          prevQuestions.map((q) =>
+            q.id === questionId
+              ? {
+                  ...q,
+                  question: newContent.question,
+                  answer: newContent.answer,
+                  category: newContent.category,
+                  difficulty: newContent.difficulty,
+                  liked: "NONE",
+                  feedback: "",
+                }
+              : q
+          )
+        );
+
+        toast.success("Question regenerated successfully");
+
+        // Refresh the questions data
+        fetchLatestQuestions();
+      } else {
+        throw new Error(data.error || "Failed to regenerate question");
+      }
+    } catch (error) {
+      console.error("Error regenerating question:", error);
+      toast.error("Failed to regenerate question");
+    } finally {
+      setQuestionsLoading(false);
+    }
+  };
+  const handleRegenerateDislikeQuestion = async (
+    questionId: string
+  ): Promise<void> => {
+    if (!questionId) return;
+
+    try {
+      setQuestionsLoading(true);
+
+      const response = await fetch(`/api/questions/${questionId}/regenerate-dislike`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({}), // Add empty JSON body to prevent parsing error
       });
 
       if (!response.ok) {
@@ -1330,7 +1397,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
 
       // Process each disliked question sequentially
       for (const question of dislikedQuestions) {
-        await handleRegenerateQuestion(question.id);
+        await handleRegenerateDislikeQuestion(question.id);
       }
 
       toast.success("All disliked questions have been regenerated");
@@ -2247,7 +2314,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                                     <TooltipProvider>
                                       <Tooltip>
                                         <TooltipTrigger asChild>
-                                          <Info
+                                          <MdOutlineFeedback
                                             className={cn(
                                               "h-4 w-4",
                                               question.feedback

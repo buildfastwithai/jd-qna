@@ -49,10 +49,12 @@ Format your response as a JSON object with a 'questions' key containing an array
 3. A "category" field with one of: "Technical", "Experience", "Problem Solving", or "Soft Skills"
 4. A "difficulty" field matching the skill's specified difficulty
 5. A "skillName" field that specifies which skill from the list this question is targeting (must match exactly one of the skill names provided)
-6. A "questionFormat" field with one of: "Open-ended", "Coding", "Scenario", "Case Study", "Design", or "Live Assessment"
-7. A "coding" field with a boolean value: true if the questionFormat is "Coding" OR if the question involves writing/debugging code, false otherwise
+6. A "questionFormat" field that must be the same for all questions generated for a given skill: either "Coding" (for coding questions) or one of: "Open-ended", "Scenario", "Case Study", "Design", or "Live Assessment" (for non-coding questions). For each skill, generate either all coding questions or all non-coding questions, not a mix.
+7. A "coding" field with a boolean value: true if the questionFormat is "Coding", false otherwise
+8. For a skill, questions generated should be either coding questions or non coding questions, not both.
 
-IMPORTANT: The "coding" field must be set to true when questionFormat is "Coding" or when the question requires the candidate to write, debug, or analyze code. This includes code reviews, algorithm problems, debugging exercises, or any hands-on programming tasks.
+IMPORTANT: The "coding" field must be set to true when questionFormat is "Coding" .
+
 
 Example:
 {"questions": [
@@ -62,7 +64,8 @@ Example:
     "category": "Technical",
     "difficulty": "Medium",
     "skillName": "Docker",
-    "questionFormat": "Open-ended"
+    "questionFormat": "Open-ended",
+    "coding": false
   }
 ]}
 

@@ -55,6 +55,8 @@ export function QuestionsDisplay({
   };
 
   const getCategoryColor = (category: string) => {
+    if (!category) return "bg-gray-100 text-gray-800 hover:bg-gray-100";
+    
     switch (category) {
       case "Technical":
         return "bg-blue-100 text-blue-800 hover:bg-blue-100";
@@ -70,6 +72,8 @@ export function QuestionsDisplay({
   };
 
   const getDifficultyColor = (difficulty: string) => {
+    if (!difficulty) return "bg-yellow-100 text-yellow-800 hover:bg-yellow-100";
+    
     switch (difficulty) {
       case "Easy":
         return "bg-green-100 text-green-800 hover:bg-green-100";
@@ -94,6 +98,7 @@ export function QuestionsDisplay({
         headers: {
           "Content-Type": "application/json",
         },
+        body: JSON.stringify({}), // Add empty JSON body to prevent parsing error
       });
 
       if (!response.ok) {

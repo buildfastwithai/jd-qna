@@ -57,6 +57,8 @@ export function QuestionDialog({
 
   // Helper function to get CSS class based on difficulty
   const getDifficultyClass = (difficulty: string) => {
+    if (!difficulty) return "bg-orange-50 text-orange-800 border-orange-200";
+    
     switch (difficulty.toLowerCase()) {
       case "easy":
         return "bg-green-50 text-green-800 border-green-200";
@@ -71,6 +73,8 @@ export function QuestionDialog({
 
   // Helper function to get CSS class based on category
   const getCategoryClass = (category: string) => {
+    if (!category) return "bg-gray-50 text-gray-800 border-gray-200";
+    
     switch (category.toLowerCase()) {
       case "technical":
         return "bg-blue-50 text-blue-800 border-blue-200";
@@ -87,6 +91,8 @@ export function QuestionDialog({
 
   // Helper function to get CSS class based on question format
   const getQuestionFormatClass = (format: string) => {
+    if (!format) return "bg-amber-50 text-amber-800 border-amber-200";
+    
     switch (format.toLowerCase()) {
       case "open-ended":
         return "bg-emerald-50 text-emerald-800 border-emerald-200";
