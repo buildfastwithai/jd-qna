@@ -21,7 +21,7 @@ Extract the following:
 - Company/Department
 
 ## 2. Skill Matrix
-Extract all technical skills, frameworks, libraries, tools, and technologies mentioned extract upto 15 skills.
+Extract all technical skills, frameworks, libraries, tools, and technologies mentioned extract upto 10 skills do not exceed 10 skills.
 For each skill, determine:
 - Level: BEGINNER, INTERMEDIATE or PROFESSIONAL based on the complexity or expertise required
 - Requirement: MANDATORY or OPTIONAL based on how essential it is for the role
@@ -94,14 +94,14 @@ export async function POST(request: Request) {
         {
           role: "system",
           content:
-            "You are a technical recruiter who can thoroughly analyze job descriptions to extract comprehensive information including skills, experience requirements, responsibilities, and qualifications. Extract around 10 skills. Group similar skills or alternatives into a single skill. Do not include skills that are not mentioned in the job description. Do not include skills that are not relevant to the job description. Only mention Technical skills and not soft skills. Do not exceed 15 skills. Do not include skills that are not mentioned in the job description. Do not include skills that are not relevant to the job description. Only mention Technical skills and some soft skills.",
+            "You are a technical recruiter who can thoroughly analyze job descriptions to extract comprehensive information including skills, experience requirements, responsibilities, and qualifications. Extract upto 10 skills strictly. Group similar skills or alternatives into a single skill. Do not include skills that are not mentioned in the job description. Do not include skills that are not relevant to the job description. Only mention Technical skills and not soft skills. Do not exceed 10-12 skills. Do not include skills that are not mentioned in the job description. Do not include skills that are not relevant to the job description. Only mention Technical skills and some soft skills.",
         },
         {
           role: "user",
           content: prompt,
         },
       ],
-      temperature: 0.3,
+      temperature: 0.8,
       response_format: { type: "json_object" },
     });
 
