@@ -28,10 +28,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} mx-auto max-w-7xl`}
-      >
-        {children}
+      <body className={`${geistSans.variable} ${geistMono.variable} w-full`}>
+        <div className="mx-auto max-w-7xl">{children}</div>
         <Toaster position="top-center" richColors />
       </body>
     </html>

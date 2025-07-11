@@ -36,41 +36,16 @@ Requirement definitions:
 - MANDATORY: Essential for the role
 - OPTIONAL: Nice to have, but not essential
 
-## 3. Key Responsibilities
-List the main responsibilities and accountabilities of the role.
-
-## 4. Other Requirements
-Include any other requirements like education, certifications, soft skills, etc.
-
-## 5. Summary
-Provide a brief summary of the ideal candidate profile based on the job description.
-
 Job Description:
 ${jobDescription}
 
 Format your response as a JSON object like this:
 {
-  "generalInfo": {
-    "jobTitle": "Software Engineer",
-    "experienceRequired": "7-10 years",
-    "companyDepartment": "Digital and Technology"
-  },
   "skills": [
     { "name": "JavaScript", "level": "PROFESSIONAL", "requirement": "MANDATORY" },
     { "name": "React", "level": "INTERMEDIATE", "requirement": "MANDATORY" },
     { "name": "Docker", "level": "BEGINNER", "requirement": "OPTIONAL" }
   ],
-  "keyResponsibilities": [
-    "Develop and maintain .NET applications",
-    "Take ownership of complex technical designs",
-    "Collaborate with cross-functional teams"
-  ],
-  "otherRequirements": [
-    "Bachelor's degree in Computer Science or equivalent",
-    "Certification in cloud native application development preferred",
-    "Excellent communication skills"
-  ],
-  "summary": "The ideal candidate is an experienced software engineer with strong expertise in .NET development, cloud technologies, and front-end frameworks. They should be able to lead technical initiatives, solve complex problems, and drive continuous improvement while maintaining high code quality standards."
 }`;
 };
 

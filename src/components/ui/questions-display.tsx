@@ -56,7 +56,7 @@ export function QuestionsDisplay({
 
   const getCategoryColor = (category: string) => {
     if (!category) return "bg-gray-100 text-gray-800 hover:bg-gray-100";
-    
+
     switch (category) {
       case "Technical":
         return "bg-blue-100 text-blue-800 hover:bg-blue-100";
@@ -73,7 +73,7 @@ export function QuestionsDisplay({
 
   const getDifficultyColor = (difficulty: string) => {
     if (!difficulty) return "bg-yellow-100 text-yellow-800 hover:bg-yellow-100";
-    
+
     switch (difficulty) {
       case "Easy":
         return "bg-green-100 text-green-800 hover:bg-green-100";
@@ -111,7 +111,98 @@ export function QuestionsDisplay({
         // Update the question locally
         const updatedQuestions = localQuestions.map((q) => {
           if (q.id === questionId) {
-            const newContent = data.question.newContent;
+            // Fix: The regular regenerate endpoint returns data.question.content, not data.question.newContent
+            const newContent =
+              typeof data.question.content === "string"
+                ? JSON.parse(data.question.content)
+                : data.question.content;
+            const updatedQuestion = {
+              ...q,
+              question: newContent.question,
+              answer: newContent.answer,
+              category: newContent.category,
+              difficulty: newContent.difficulty,
+              liked: "NONE",
+              feedback: "",
+            };
+
+            // Notify parent component
+            if (onQuestionUpdated) {
+              onQuestionUpdated(updatedQuestion as any);
+            }
+
+            return updatedQuestion;
+          }
+          return q;
+        });
+
+        setLocalQuestions(updatedQuestions as any);
+
+        // Re-open the expanded question if it was open
+        if (expandedId !== null) {
+          const expandedQuestion = localQuestions[expandedId];
+          if (expandedQuestion && expandedQuestion.id === questionId) {
+            // Force re-render by closing and reopening
+            setExpandedId(null);
+            setTimeout(() => setExpandedId(expandedId), 10);
+          }
+        }
+
+        // Force a refresh by notifying parent
+        if (onQuestionsRefreshed) {
+          onQuestionsRefreshed();
+        }
+
+        toast.success("Question regenerated successfully");
+      } else {
+        throw new Error(data.error || "Failed to regenerate question");
+      }
+    } catch (error) {
+      console.error("Error regenerating question:", error);
+      toast.error("Failed to regenerate question");
+    } finally {
+      setRegeneratingQuestionIds((prev) => {
+        const updated = new Set(prev);
+        updated.delete(questionId);
+        return updated;
+      });
+    }
+  };
+
+  // Handle regenerating a disliked question using the regenerate-dislike endpoint
+  const handleRegenerateDislikeQuestion = async (questionId: string) => {
+    if (!questionId) return;
+
+    try {
+      setRegeneratingQuestionIds((prev) => new Set(prev).add(questionId));
+
+      const response = await fetch(
+        `/api/questions/${questionId}/regenerate-dislike`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({}), // Add empty JSON body to prevent parsing error
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to regenerate question");
+      }
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Parse the new content from regenerate-dislike response format
+        const newContent =
+          typeof data.question.content === "string"
+            ? JSON.parse(data.question.content)
+            : data.question.content;
+
+        // Update the question locally
+        const updatedQuestions = localQuestions.map((q) => {
+          if (q.id === questionId) {
             const updatedQuestion = {
               ...q,
               question: newContent.question,
@@ -230,9 +321,9 @@ export function QuestionsDisplay({
       // Now process regeneration for each disliked question
       const dislikedQuestionIds = dislikedQuestions.map((q) => q.id as string);
 
-      // Process each disliked question sequentially
+      // Process each disliked question sequentially using the correct regenerate-dislike endpoint
       for (const id of dislikedQuestionIds) {
-        await handleRegenerateQuestion(id);
+        await handleRegenerateDislikeQuestion(id);
       }
 
       toast.success("All disliked questions have been regenerated");

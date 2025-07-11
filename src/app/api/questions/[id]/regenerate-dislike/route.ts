@@ -13,11 +13,11 @@ export async function POST(
 ) {
   try {
     const { id: questionId } = await params;
-    
+
     // Add error handling for body parsing
     let reason: string | null = null;
     let userFeedback: string | null = null;
-    
+
     try {
       const body = await request.json();
       reason = body.reason || null;
@@ -106,7 +106,7 @@ Example:
     const logger = getLogger("regenerate-dislike");
     logger.info(prompt);
     console.log(prompt);
-    
+
     // Generate a new question using OpenAI
     const response = await openai.chat.completions.create({
       model: "gpt-4.1",
@@ -135,11 +135,15 @@ Example:
     try {
       const parsedResponse = JSON.parse(content);
       let newQuestion;
-      
+
       // Check different possible formats of the response
       if (parsedResponse.question) {
         newQuestion = parsedResponse;
-      } else if (parsedResponse.questions && Array.isArray(parsedResponse.questions) && parsedResponse.questions.length > 0) {
+      } else if (
+        parsedResponse.questions &&
+        Array.isArray(parsedResponse.questions) &&
+        parsedResponse.questions.length > 0
+      ) {
         newQuestion = parsedResponse.questions[0];
       } else {
         throw new Error("Invalid response format from OpenAI");
@@ -170,7 +174,7 @@ Example:
           reason: reason || "Disliked question",
           userFeedback: userFeedback,
           skillId: question.skill.id,
-          recordId: question.recordId
+          recordId: question.recordId,
         },
       });
 
