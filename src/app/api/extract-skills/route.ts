@@ -21,7 +21,7 @@ Extract the following:
 - Company/Department
 
 ## 2. Skill Matrix
-Extract all technical skills, frameworks, libraries, tools, and technologies mentioned.
+Extract all technical skills, frameworks, libraries, tools, and technologies mentioned extract upto 15 skills.
 For each skill, determine:
 - Level: BEGINNER, INTERMEDIATE or PROFESSIONAL based on the complexity or expertise required
 - Requirement: MANDATORY or OPTIONAL based on how essential it is for the role
