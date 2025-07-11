@@ -66,7 +66,7 @@ import SkillsTable from "./SkillsTable";
 import { GlobalFeedbackDialog } from "./ui/global-feedback-dialog";
 import { QuestionGenerationDialog } from "./ui/question-generation-dialog";
 import { Checkbox } from "./ui/checkbox";
-import { MdOutlineFeedback } from "react-icons/md";
+
 // Define interfaces for the types from Prisma
 interface Skill {
   id: string;
@@ -851,7 +851,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
   // First add a helper function to get a CSS class based on difficulty
   const getDifficultyClass = (difficulty: string) => {
     if (!difficulty) return "bg-orange-50 text-orange-800 border-orange-200";
-    
+
     switch (difficulty.toLowerCase()) {
       case "easy":
         return "bg-green-50 text-green-800 border-green-200";
@@ -867,7 +867,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
   // Add a helper function to get a CSS class based on category
   const getCategoryClass = (category: string) => {
     if (!category) return "bg-gray-50 text-gray-800 border-gray-200";
-    
+
     switch (category.toLowerCase()) {
       case "technical":
         return "bg-blue-50 text-blue-800 border-blue-200";
@@ -885,7 +885,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
   // Add a helper function to get a CSS class based on question format
   const getQuestionFormatClass = (format: string) => {
     if (!format) return "bg-amber-50 text-amber-800 border-amber-200";
-    
+
     switch (format.toLowerCase()) {
       case "open-ended":
         return "bg-emerald-50 text-emerald-800 border-emerald-200";
@@ -1064,13 +1064,16 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
     try {
       setQuestionsLoading(true);
 
-      const response = await fetch(`/api/questions/${questionId}/regenerate-dislike`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({}), // Add empty JSON body to prevent parsing error
-      });
+      const response = await fetch(
+        `/api/questions/${questionId}/regenerate-dislike`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({}), // Add empty JSON body to prevent parsing error
+        }
+      );
 
       if (!response.ok) {
         throw new Error("Failed to regenerate question");
@@ -2161,7 +2164,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                                         {getSkillNumQuestions(question.skillId)}{" "}
                                         questions requested,{" "}
                                         {getSkillDifficulty(question.skillId)}{" "}
-                                         level)
+                                        level)
                                       </span>
                                     </div>
                                     {getSkillQuestionCount(question.skillId) >
@@ -2314,7 +2317,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                                     <TooltipProvider>
                                       <Tooltip>
                                         <TooltipTrigger asChild>
-                                          <MdOutlineFeedback
+                                          <MessageSquare
                                             className={cn(
                                               "h-4 w-4",
                                               question.feedback
