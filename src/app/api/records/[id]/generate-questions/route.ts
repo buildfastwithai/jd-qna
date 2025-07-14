@@ -88,7 +88,17 @@ export async function POST(
       where: { id },
       include: {
         skills: {
-          where: { requirement: "MANDATORY" }, // Only generate for mandatory skills
+          where: {
+            OR: [
+              { requirement: "MANDATORY" }, // Generate for mandatory skills
+              { 
+                AND: [
+                  { requirement: "OPTIONAL" },
+                  { numQuestions: { gt: 0 } } // Also generate for optional skills with question count > 0
+                ] 
+              }
+            ]
+          },
         },
       },
     });

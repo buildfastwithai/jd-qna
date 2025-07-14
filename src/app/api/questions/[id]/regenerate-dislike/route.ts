@@ -166,9 +166,20 @@ Example:
         },
       });
 
-      // Create a regeneration record
-      await prisma.regeneration.create({
-        data: {
+      // Create or update a regeneration record
+      await prisma.regeneration.upsert({
+        where: {
+          originalQuestionId_newQuestionId: {
+            originalQuestionId: questionId,
+            newQuestionId: questionId,
+          }
+        },
+        update: {
+          reason: reason || "Disliked question",
+          userFeedback: userFeedback,
+          updatedAt: new Date(),
+        },
+        create: {
           originalQuestionId: questionId,
           newQuestionId: questionId, // Same as original since we're updating in place
           reason: reason || "Disliked question",

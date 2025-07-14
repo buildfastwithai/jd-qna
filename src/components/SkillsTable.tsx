@@ -374,25 +374,15 @@ export default function SkillsTable({
           <Select
             value={info.getValue()}
             onValueChange={(value) => {
-              // When changing to OPTIONAL, also set numQuestions to 0 if it's mandatory
-              if (
-                value === "OPTIONAL" &&
-                info.row.original.requirement === "MANDATORY"
-              ) {
-                // First update requirement
-                onUpdateSkill(info.row.original.id, "requirement", value)
-                  .then(() => {
-                    // Then update numQuestions to 0
-                    onUpdateSkill(info.row.original.id, "numQuestions", 0);
-                  })
-                  .catch((err) => {
-                    console.error("Error updating skill:", err);
-                    toast.error("Failed to update skill requirement");
-                  });
-              } else {
-                // Just update requirement
-                onUpdateSkill(info.row.original.id, "requirement", value);
-              }
+              const skillId = info.row.original.id;
+              const currentQuestionCount = getSkillQuestionCount(skillId);
+              
+              // Remove the validation check that prevents changing from MANDATORY to OPTIONAL
+              // This is now handled by the confirmation dialog in SkillRecordEditor.tsx
+              
+                                            // Just update requirement without changing numQuestions 
+                              // to allow OPTIONAL skills with numQuestions > 0
+                              onUpdateSkill(info.row.original.id, "requirement", value);
             }}
             disabled={loading}
           >

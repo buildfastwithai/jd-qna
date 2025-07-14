@@ -165,6 +165,17 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
   const [confirmBulkDeleteOpen, setConfirmBulkDeleteOpen] = useState(false);
   const [excelExporting, setExcelExporting] = useState(false);
 
+  const [skillRegenerationDialogOpen, setSkillRegenerationDialogOpen] = useState(false);
+  const [activeSkillForRegeneration, setActiveSkillForRegeneration] = useState<string | null>(null);
+
+  // Add state for the confirmation dialog
+  const [confirmRequirementChangeOpen, setConfirmRequirementChangeOpen] = useState(false);
+  const [pendingRequirementChange, setPendingRequirementChange] = useState<{
+    skillId: string;
+    skillName: string;
+    questionCount: number;
+  } | null>(null);
+
   // Parse question content from JSON string
   function formatQuestions(questions: Question[]): QuestionData[] {
     return questions
@@ -204,6 +215,23 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
       | "questionFormat",
     value: string | number
   ) => {
+    // Special handling for changing requirement from MANDATORY to OPTIONAL
+    if (field === "requirement" && value === "OPTIONAL") {
+      const skill = editedSkills.find(s => s.id === skillId);
+      const questionCount = getSkillQuestionCount(skillId);
+      
+      if (skill?.requirement === "MANDATORY" && questionCount > 0) {
+        // Store the pending change and show confirmation dialog
+        setPendingRequirementChange({
+          skillId,
+          skillName: skill.name,
+          questionCount
+        });
+        setConfirmRequirementChangeOpen(true);
+        return; // Don't proceed with update yet
+      }
+    }
+
     try {
       setLoading(true);
 
@@ -234,13 +262,13 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
 
   // Generate questions for skills without questions - modified to switch tabs and show toast
   const generateMissingQuestions = async () => {
-    // Check if there are mandatory skills
-    const mandatorySkills = editedSkills.filter(
-      (skill) => skill.requirement === "MANDATORY"
+    // Check if there are any eligible skills (mandatory or optional with numQuestions > 0)
+    const eligibleSkills = editedSkills.filter(
+      (skill) => skill.requirement === "MANDATORY" || (skill.requirement === "OPTIONAL" && (skill.numQuestions || 0) > 0)
     );
 
-    if (mandatorySkills.length === 0) {
-      toast.warning("Please mark some skills as mandatory first");
+    if (eligibleSkills.length === 0) {
+      toast.warning("Please mark some skills as mandatory or set question count for optional skills");
       return;
     }
 
@@ -255,10 +283,10 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
         progressText: "",
       });
 
-      // Find skills that need questions (mandatory skills with no questions)
+      // Find skills that need questions (mandatory skills or optional skills with numQuestions > 0)
       const skillsNeedingQuestions = editedSkills.filter(
         (skill) =>
-          skill.requirement === "MANDATORY" &&
+          (skill.requirement === "MANDATORY" || (skill.requirement === "OPTIONAL" && (skill.numQuestions || 0) > 0)) &&
           !questions.some((q) => q.skillId === skill.id)
       );
 
@@ -1431,6 +1459,136 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
     setFeedbackDialogOpen(false);
   };
 
+  const regenerateQuestionsFromSkill = async (skillId: string) => {
+    // Set active skill and open dialog
+    setActiveSkillForRegeneration(skillId);
+    setSkillRegenerationDialogOpen(true);
+  };
+
+  const handleSkillRegenerationSubmit = async (feedback: string) => {
+    if (!activeSkillForRegeneration) return;
+    
+    try {
+      setQuestionsLoading(true);
+      setSkillRegenerationDialogOpen(false);
+      setQuestionGenerationDialogOpen(true);
+      setGenerationProgress({
+        title: "Regenerating Skill Questions",
+        description: "Applying your feedback to regenerate questions for this skill...",
+        showProgress: false,
+        progressValue: 0,
+        progressText: "",
+      });
+
+      const skillName = getSkillName(activeSkillForRegeneration);
+      
+      // Call API to regenerate questions for this skill
+      const response = await fetch(`/api/records/${record.id}/regenerate-questions-from-skill`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          skillId: activeSkillForRegeneration,
+          feedback: feedback,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to regenerate questions");
+      }
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Show success toast
+        toast.success(`Successfully regenerated questions for ${skillName}`);
+        
+        // Fetch the latest questions directly
+        await fetchLatestQuestions();
+      } else {
+        throw new Error(data.error || "Failed to regenerate questions");
+      }
+    } catch (error: any) {
+      console.error("Error regenerating skill questions:", error);
+      toast.error(error.message || "Failed to regenerate questions");
+    } finally {
+      setQuestionsLoading(false);
+      setQuestionGenerationDialogOpen(false);
+      setActiveSkillForRegeneration(null);
+    }
+  };
+
+  // Add a function to delete questions for a skill
+  const deleteQuestionsForSkill = async (skillId: string) => {
+    try {
+      setLoading(true);
+      
+      // Find questions for this skill
+      const skillQuestions = questions.filter(q => q.skillId === skillId);
+      if (skillQuestions.length === 0) return;
+      
+      // Delete each question
+      for (const question of skillQuestions) {
+        await fetch(`/api/questions/${question.id}`, {
+          method: "DELETE",
+        });
+      }
+      
+      // Update local state
+      setQuestions(questions.filter(q => q.skillId !== skillId));
+      
+      toast.success("Questions deleted successfully");
+    } catch (error) {
+      console.error("Error deleting questions:", error);
+      toast.error("Failed to delete questions");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Add a function to confirm the requirement change
+  const confirmRequirementChange = async (deleteQuestions: boolean) => {
+    if (!pendingRequirementChange) return;
+    
+    try {
+      setLoading(true);
+      const { skillId } = pendingRequirementChange;
+      
+      if (deleteQuestions) {
+        // First delete associated questions
+        await deleteQuestionsForSkill(skillId);
+      }
+      
+      // Update skill requirement to OPTIONAL but don't reset numQuestions to 0
+      // This allows optional skills to still have questions generated if numQuestions > 0
+      const updatedSkills = editedSkills.map((skill) =>
+        skill.id === skillId ? { ...skill, requirement: "OPTIONAL" as const } : skill
+      );
+      setEditedSkills(updatedSkills);
+      
+      // Update in database - only change the requirement
+      await fetch(`/api/skills/${skillId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ requirement: "OPTIONAL" }),
+      });
+      
+      toast.success(`Skill updated to Optional${deleteQuestions ? ' and questions deleted' : ''}`);
+      router.refresh();
+    } catch (error) {
+      console.error("Error updating skill:", error);
+      toast.error("Failed to update skill");
+    } finally {
+      setLoading(false);
+      setConfirmRequirementChangeOpen(false);
+      setPendingRequirementChange(null);
+    }
+  };
+
   // Add a component for the feedback dialog
   const FeedbackDialog = () => {
     const question = questions.find((q) => q.id === activeQuestion);
@@ -1471,6 +1629,53 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
             </Button>
             <Button onClick={() => handleSubmitFeedback(feedback)}>
               Submit Feedback
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  };
+
+  // Add the skill regeneration dialog component
+  const SkillRegenerationDialog = () => {
+    const skill = editedSkills.find((s) => s.id === activeSkillForRegeneration);
+    // Add local state for feedback
+    const [feedback, setFeedback] = useState("");
+    
+    if (!skill) return null;
+
+    return (
+      <Dialog 
+        open={skillRegenerationDialogOpen} 
+        onOpenChange={(open) => {
+          setSkillRegenerationDialogOpen(open);
+          if (open) setFeedback(""); // Reset feedback when dialog opens
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Regenerate Questions for {skill.name}</DialogTitle>
+            <DialogDescription>
+              Provide feedback to improve all questions for this skill. This will regenerate all existing questions.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <textarea
+              className="w-full min-h-[150px] p-2 border rounded-md"
+              value={feedback}
+              onChange={(e) => setFeedback(e.target.value)}
+              placeholder="What would you like to improve about the questions for this skill? (Optional)"
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setSkillRegenerationDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button onClick={() => handleSkillRegenerationSubmit(feedback)}>
+              Regenerate Questions
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1911,7 +2116,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                     <TooltipContent className="max-w-sm">
                       <p>
                         Questions are generated for mandatory skills and
-                        optional skills with questions count &gt; 0. Select
+                        optional skills with question count &gt; 0. Select
                         "Generate Questions" to create questions for skills that
                         don't have any yet. Use "Regenerate All Questions" to
                         create new questions for all skills, replacing existing
@@ -2167,10 +2372,49 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                                         level)
                                       </span>
                                     </div>
+                                                                        {/* {getSkillQuestionCount(question.skillId) > 0 && (
+                                      <TooltipProvider>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <Button
+                                              variant="outline"
+                                              size="sm"
+                                              className="ml-2"
+                                              onClick={() =>
+                                                regenerateQuestionsFromSkill(question.skillId)
+                                              }
+                                            >
+                                              <RefreshCw className="h-4 w-4 mr-2" />
+                                            </Button>
+                                          </TooltipTrigger>
+                                          <TooltipContent>
+                                            Regenerate all questions for {getSkillName(question.skillId)}
+                                          </TooltipContent>
+                                        </Tooltip>
+                                      </TooltipProvider>
+                                    )} */}
                                     {getSkillQuestionCount(question.skillId) >
                                       0 && (
                                       <div className="flex items-center gap-2">
-                                        <TooltipProvider>
+                                        
+                                      <TooltipProvider>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <Button
+                                              variant="outline"
+                                              size="sm"
+                                              className="ml-2"
+                                              onClick={() =>
+                                                regenerateQuestionsFromSkill(question.skillId)
+                                              }
+                                            >
+                                              <RefreshCw className="h-4 w-4 mr-2" />
+                                            </Button>
+                                          </TooltipTrigger>
+                                          <TooltipContent>
+                                            Regenerate all questions for {getSkillName(question.skillId)}
+                                          </TooltipContent>
+                                        </Tooltip>
                                           <Tooltip>
                                             <TooltipTrigger asChild>
                                               <div className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-medium">
@@ -2477,6 +2721,53 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
               disabled={loading}
             >
               {loading ? "Deleting..." : "Delete All"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add the new dialog components */}
+      <SkillRegenerationDialog />
+
+      {/* Add the requirement change confirmation dialog */}
+      <Dialog
+        open={confirmRequirementChangeOpen}
+        onOpenChange={setConfirmRequirementChangeOpen}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Change Skill Requirement</DialogTitle>
+            <DialogDescription>
+              {pendingRequirementChange && (
+                <>
+                  The skill "{pendingRequirementChange.skillName}" has {pendingRequirementChange.questionCount} question{pendingRequirementChange.questionCount > 1 ? 's' : ''} generated.
+                  <br /><br />
+                  Do you want to delete these questions when changing from Mandatory to Optional?
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setConfirmRequirementChangeOpen(false)}
+              disabled={loading}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => confirmRequirementChange(false)}
+              disabled={loading}
+            >
+              Keep Questions
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => confirmRequirementChange(true)}
+              disabled={loading}
+            >
+              Delete Questions
             </Button>
           </DialogFooter>
         </DialogContent>
