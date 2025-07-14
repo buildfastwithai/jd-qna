@@ -10,10 +10,10 @@ const openai = new OpenAI({
 
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id: recordId } = params;
+    const { id: recordId } = await params;
     const body = await request.json();
     const { skillId, feedback } = body;
 
