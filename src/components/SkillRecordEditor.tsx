@@ -1893,7 +1893,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
   const mapSkillLevel = (level: string): string => {
     switch (level) {
       case "BEGINNER":
-        return "Beginner";
+        return "Entry-Level";
       case "INTERMEDIATE":
         return "Intermediate";
       case "PROFESSIONAL":
@@ -1910,9 +1910,9 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
       case "MANDATORY":
         return "Must-have";
       case "OPTIONAL":
-        return "Nice-to-have";
+        return "Should-have";
       default:
-        return "Nice-to-have";
+        return "Should-have";
     }
   };
 
