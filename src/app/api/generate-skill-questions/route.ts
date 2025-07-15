@@ -48,7 +48,7 @@ For each question, randomly choose one of these question formats and design the 
 Distribute the question formats randomly across the ${batchSize} questions to provide variety.
 
 Format your response as a JSON object with a 'questions' key containing an array of question objects, where each object has:
-1. A "question" field with the interview question
+1. A "question" field with the interview question must not exceed 400 characters.
 2. A "answer" field with a suggested model answer for the interviewer (should be comprehensive)
 3. A "category" field with one of: "Technical", "Experience", "Problem Solving", or "Soft Skills"
 4. A "difficulty" field with "${effectiveDifficulty}"

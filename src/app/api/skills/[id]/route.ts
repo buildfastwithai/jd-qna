@@ -10,7 +10,14 @@ export async function PATCH(
     const { id } = await params;
     const body = await request.json();
 
-    const { level, requirement, numQuestions, difficulty, priority } = body;
+    const {
+      level,
+      requirement,
+      numQuestions,
+      difficulty,
+      priority,
+      floCareerId,
+    } = body;
 
     // Validate inputs
     if (!id) {
@@ -25,7 +32,8 @@ export async function PATCH(
       !requirement &&
       numQuestions === undefined &&
       !difficulty &&
-      priority === undefined
+      priority === undefined &&
+      floCareerId === undefined
     ) {
       return NextResponse.json(
         {
@@ -43,6 +51,7 @@ export async function PATCH(
       numQuestions?: number;
       difficulty?: string;
       priority?: number;
+      floCareerId?: number;
     } = {};
 
     if (level) {
@@ -101,6 +110,18 @@ export async function PATCH(
         );
       }
       updateData.priority = priorityValue;
+    }
+
+    if (floCareerId !== undefined) {
+      // Validate floCareerId
+      const floCareerIdValue = Number(floCareerId);
+      if (isNaN(floCareerIdValue) || floCareerIdValue < 1) {
+        return NextResponse.json(
+          { success: false, error: "floCareerId must be a positive number" },
+          { status: 400 }
+        );
+      }
+      updateData.floCareerId = floCareerIdValue;
     }
 
     // Update skill

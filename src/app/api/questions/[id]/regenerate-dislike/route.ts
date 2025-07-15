@@ -114,7 +114,7 @@ Example:
         {
           role: "system",
           content:
-            "You are an expert interviewer creating high-quality interview questions. Format your response as a JSON object with fields: question, answer, category (Technical/Experience/Problem Solving/Soft Skills), difficulty (Easy/Medium/Hard), questionFormat (Open-ended/Coding/Scenario/Case Study/Design/Live Assessment), and coding (boolean: true if questionFormat is 'Coding' or question involves writing/debugging code, false otherwise).",
+            "You are an expert interviewer creating high-quality interview questions. Format your response as a JSON object with fields: question, answer, category (Technical/Experience/Problem Solving/Soft Skills), difficulty (Easy/Medium/Hard), questionFormat (Open-ended/Coding/Scenario/Case Study/Design/Live Assessment), and coding (boolean: true if questionFormat is 'Coding' or question involves writing/debugging code, false otherwise). The question must not exceed 400 characters.",
         },
         { role: "user", content: prompt },
       ],

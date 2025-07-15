@@ -79,6 +79,7 @@ interface Skill {
   priority?: number;
   category?: "TECHNICAL" | "FUNCTIONAL" | "BEHAVIORAL" | "COGNITIVE";
   questionFormat?: string;
+  floCareerId?: number;
 }
 
 interface Question {
@@ -89,6 +90,7 @@ interface Question {
   liked?: "LIKED" | "DISLIKED" | "NONE";
   skill?: Skill;
   feedback?: string;
+  floCareerId?: number;
 }
 
 interface SkillRecord {
@@ -119,6 +121,7 @@ interface QuestionData {
   liked?: "LIKED" | "DISLIKED" | "NONE";
   feedback?: string;
   coding?: boolean;
+  floCareerId?: number;
 }
 
 interface SkillRecordEditorProps {
@@ -185,6 +188,10 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
   // Add state for saving to FloCareer
   const [savingToFloCareer, setSavingToFloCareer] = useState(false);
 
+  // Add state for creating interview structure
+  const [creatingInterviewStructure, setCreatingInterviewStructure] =
+    useState(false);
+
   // Parse question content from JSON string
   function formatQuestions(questions: Question[]): QuestionData[] {
     return questions
@@ -202,6 +209,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
             liked: q.liked || "NONE",
             feedback: q.feedback || "",
             coding: content.coding || false,
+            floCareerId: q.floCareerId,
           };
         } catch (e) {
           console.error("Error parsing question content:", e);
@@ -1751,13 +1759,131 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
       }
 
       const result = await response.json();
-      toast.success("Skills saved to FloCareer successfully!");
 
-      // Optionally handle the response data
-      console.log("FloCareer response:", result);
+      if (result.success && result.skill_matrix) {
+        // Save the skill_id returned from FloCareer to our database
+        for (const skillData of result.skill_matrix) {
+          await fetch(`/api/skills/${skillData.ai_skill_id}`, {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ floCareerId: skillData.skill_id }),
+          });
+        }
+
+        // Update local state with the new flocareer IDs
+        setEditedSkills((prevSkills) =>
+          prevSkills.map((skill) => {
+            const skillData = result.skill_matrix.find(
+              (s: any) => s.ai_skill_id === skill.id
+            );
+            return skillData
+              ? { ...skill, floCareerId: skillData.skill_id }
+              : skill;
+          })
+        );
+
+        toast.success("Skills saved to FloCareer successfully!");
+      } else {
+        throw new Error(
+          result.error_string || "Failed to save skills to FloCareer"
+        );
+      }
     } catch (error: any) {
       console.error("Error saving to FloCareer:", error);
       toast.error(error.message || "Failed to save skills to FloCareer");
+    } finally {
+      setSavingToFloCareer(false);
+    }
+  };
+
+  // Save questions to FloCareer
+  const saveQuestionsToFloCareer = async () => {
+    if (!record.reqId || !record.userId) {
+      toast.error("Missing required information for FloCareer integration");
+      return;
+    }
+
+    if (questions.length === 0) {
+      toast.error("No questions to save to FloCareer");
+      return;
+    }
+
+    try {
+      setSavingToFloCareer(true);
+
+      // Map our question data to FloCareer format
+      const flocareerQuestions = questions.map((question) => ({
+        ai_question_id: question.id,
+        question_type: "descriptive", // Default to descriptive
+        candidate_description: question.question,
+        title: question.question,
+        description: encodeURIComponent(
+          `<h1>${question.question}</h1>\n<p>${question.answer}</p>`
+        ),
+        tags: [question.category, question.questionFormat || "Scenario"],
+        ideal_answer: encodeURIComponent(`<p>${question.answer}</p>`),
+        source: "genai_gpt-4.1",
+      }));
+
+      const requestBody = {
+        user_id: record.userId,
+        questions: flocareerQuestions,
+      };
+      console.log(requestBody);
+      const response = await fetch(
+        "https://sandbox.flocareer.com/dynamic/corporate/create-question/",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestBody),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`FloCareer API error: ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      if (result.success && result.questions) {
+        // Save the question_id returned from FloCareer to our database
+        for (const questionData of result.questions) {
+          if (questionData.success) {
+            await fetch(`/api/questions/${questionData.ai_question_id}`, {
+              method: "PATCH",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ floCareerId: questionData.question_id }),
+            });
+          }
+        }
+
+        // Update local state with the new flocareer IDs
+        setQuestions((prevQuestions) =>
+          prevQuestions.map((question) => {
+            const questionData = result.questions.find(
+              (q: any) => q.ai_question_id === question.id
+            );
+            return questionData && questionData.success
+              ? { ...question, floCareerId: questionData.question_id }
+              : question;
+          })
+        );
+
+        toast.success("Questions saved to FloCareer successfully!");
+      } else {
+        throw new Error(
+          result.error_string || "Failed to save questions to FloCareer"
+        );
+      }
+    } catch (error: any) {
+      console.error("Error saving questions to FloCareer:", error);
+      toast.error(error.message || "Failed to save questions to FloCareer");
     } finally {
       setSavingToFloCareer(false);
     }
@@ -1787,6 +1913,47 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
         return "Nice-to-have";
       default:
         return "Nice-to-have";
+    }
+  };
+
+  // Create interview structure in FloCareer
+  const createInterviewStructure = async () => {
+    if (!record.reqId || !record.userId) {
+      toast.error("Missing required information for FloCareer integration");
+      return;
+    }
+
+    try {
+      setCreatingInterviewStructure(true);
+
+      const response = await fetch(
+        `/api/records/${record.id}/create-interview-structure`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast.success("Interview structure created successfully in FloCareer!");
+        console.log("Interview structure created:", result.data);
+        console.log("Question pools:", result.questionPools);
+      } else {
+        throw new Error(result.error || "Failed to create interview structure");
+      }
+    } catch (error: any) {
+      console.error("Error creating interview structure:", error);
+      toast.error(error.message || "Failed to create interview structure");
+    } finally {
+      setCreatingInterviewStructure(false);
     }
   };
 
@@ -2300,6 +2467,29 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                 </CardDescription>
               </div>
               <div className="flex gap-2">
+                {/* Show Save to FloCareer button only if reqId and userId exist */}
+                {record.reqId && record.userId && questions.length > 0 && (
+                  <Button
+                    onClick={saveQuestionsToFloCareer}
+                    disabled={
+                      savingToFloCareer ||
+                      questionsLoading ||
+                      generatingQuestions ||
+                      pdfLoading
+                    }
+                    variant="default"
+                    size="sm"
+                  >
+                    {savingToFloCareer ? (
+                      <>
+                        <Spinner size="sm" className="mr-2" />
+                        Saving Questions...
+                      </>
+                    ) : (
+                      "Save to FloCareer"
+                    )}
+                  </Button>
+                )}
                 {/* <Button
                   variant="outline"
                   size="sm"
@@ -2777,6 +2967,31 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
               <Button variant="outline" onClick={() => setActiveTab("skills")}>
                 Back to Skills
               </Button>
+              {/* Show Create Interview Structure button only if reqId and userId exist and questions have FloCareer IDs */}
+              {record.reqId &&
+                record.userId &&
+                questions.some((q) => q.floCareerId) && (
+                  <Button
+                    onClick={createInterviewStructure}
+                    disabled={
+                      creatingInterviewStructure ||
+                      savingToFloCareer ||
+                      questionsLoading ||
+                      generatingQuestions ||
+                      pdfLoading
+                    }
+                    variant="default"
+                  >
+                    {creatingInterviewStructure ? (
+                      <>
+                        <Spinner size="sm" className="mr-2" />
+                        Creating Structure...
+                      </>
+                    ) : (
+                      "Create Interview Structure"
+                    )}
+                  </Button>
+                )}
             </CardFooter>
           </Card>
         </TabsContent>
