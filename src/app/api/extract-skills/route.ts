@@ -76,6 +76,8 @@ export async function POST(request: Request) {
       jobDescription,
       jobTitle: providedJobTitle,
       interviewLength,
+      reqId,
+      userId,
     } = await request.json();
 
     if (!jobDescription) {
@@ -125,12 +127,14 @@ export async function POST(request: Request) {
 
         // If jobTitle is provided, create a record in the database
         if (jobTitle) {
-          // Store data with the new fields
+          // Store data with the new fields including reqId and userId
           skillRecord = await prisma.skillRecord.create({
             data: {
               jobTitle,
               interviewLength: interviewLength || 60, // Default to 60 minutes if not provided
               rawJobDescription: jobDescription, // Store the raw job description
+              reqId: reqId ? parseInt(reqId) : null, // Convert to int if provided
+              userId: userId ? parseInt(userId) : null, // Convert to int if provided
             },
           });
 

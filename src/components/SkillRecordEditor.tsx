@@ -96,6 +96,8 @@ interface SkillRecord {
   jobTitle: string;
   createdAt: Date;
   updatedAt: Date;
+  reqId?: number;
+  userId?: number;
 }
 
 type RecordWithRelations = SkillRecord & {
@@ -165,16 +167,23 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
   const [confirmBulkDeleteOpen, setConfirmBulkDeleteOpen] = useState(false);
   const [excelExporting, setExcelExporting] = useState(false);
 
-  const [skillRegenerationDialogOpen, setSkillRegenerationDialogOpen] = useState(false);
-  const [activeSkillForRegeneration, setActiveSkillForRegeneration] = useState<string | null>(null);
+  const [skillRegenerationDialogOpen, setSkillRegenerationDialogOpen] =
+    useState(false);
+  const [activeSkillForRegeneration, setActiveSkillForRegeneration] = useState<
+    string | null
+  >(null);
 
   // Add state for the confirmation dialog
-  const [confirmRequirementChangeOpen, setConfirmRequirementChangeOpen] = useState(false);
+  const [confirmRequirementChangeOpen, setConfirmRequirementChangeOpen] =
+    useState(false);
   const [pendingRequirementChange, setPendingRequirementChange] = useState<{
     skillId: string;
     skillName: string;
     questionCount: number;
   } | null>(null);
+
+  // Add state for saving to FloCareer
+  const [savingToFloCareer, setSavingToFloCareer] = useState(false);
 
   // Parse question content from JSON string
   function formatQuestions(questions: Question[]): QuestionData[] {
@@ -217,15 +226,15 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
   ) => {
     // Special handling for changing requirement from MANDATORY to OPTIONAL
     if (field === "requirement" && value === "OPTIONAL") {
-      const skill = editedSkills.find(s => s.id === skillId);
+      const skill = editedSkills.find((s) => s.id === skillId);
       const questionCount = getSkillQuestionCount(skillId);
-      
+
       if (skill?.requirement === "MANDATORY" && questionCount > 0) {
         // Store the pending change and show confirmation dialog
         setPendingRequirementChange({
           skillId,
           skillName: skill.name,
-          questionCount
+          questionCount,
         });
         setConfirmRequirementChangeOpen(true);
         return; // Don't proceed with update yet
@@ -264,11 +273,15 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
   const generateMissingQuestions = async () => {
     // Check if there are any eligible skills (mandatory or optional with numQuestions > 0)
     const eligibleSkills = editedSkills.filter(
-      (skill) => skill.requirement === "MANDATORY" || (skill.requirement === "OPTIONAL" && (skill.numQuestions || 0) > 0)
+      (skill) =>
+        skill.requirement === "MANDATORY" ||
+        (skill.requirement === "OPTIONAL" && (skill.numQuestions || 0) > 0)
     );
 
     if (eligibleSkills.length === 0) {
-      toast.warning("Please mark some skills as mandatory or set question count for optional skills");
+      toast.warning(
+        "Please mark some skills as mandatory or set question count for optional skills"
+      );
       return;
     }
 
@@ -286,7 +299,9 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
       // Find skills that need questions (mandatory skills or optional skills with numQuestions > 0)
       const skillsNeedingQuestions = editedSkills.filter(
         (skill) =>
-          (skill.requirement === "MANDATORY" || (skill.requirement === "OPTIONAL" && (skill.numQuestions || 0) > 0)) &&
+          (skill.requirement === "MANDATORY" ||
+            (skill.requirement === "OPTIONAL" &&
+              (skill.numQuestions || 0) > 0)) &&
           !questions.some((q) => q.skillId === skill.id)
       );
 
@@ -1467,32 +1482,36 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
 
   const handleSkillRegenerationSubmit = async (feedback: string) => {
     if (!activeSkillForRegeneration) return;
-    
+
     try {
       setQuestionsLoading(true);
       setSkillRegenerationDialogOpen(false);
       setQuestionGenerationDialogOpen(true);
       setGenerationProgress({
         title: "Regenerating Skill Questions",
-        description: "Applying your feedback to regenerate questions for this skill...",
+        description:
+          "Applying your feedback to regenerate questions for this skill...",
         showProgress: false,
         progressValue: 0,
         progressText: "",
       });
 
       const skillName = getSkillName(activeSkillForRegeneration);
-      
+
       // Call API to regenerate questions for this skill
-      const response = await fetch(`/api/records/${record.id}/regenerate-questions-from-skill`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          skillId: activeSkillForRegeneration,
-          feedback: feedback,
-        }),
-      });
+      const response = await fetch(
+        `/api/records/${record.id}/regenerate-questions-from-skill`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            skillId: activeSkillForRegeneration,
+            feedback: feedback,
+          }),
+        }
+      );
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -1504,7 +1523,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
       if (data.success) {
         // Show success toast
         toast.success(`Successfully regenerated questions for ${skillName}`);
-        
+
         // Fetch the latest questions directly
         await fetchLatestQuestions();
       } else {
@@ -1524,21 +1543,21 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
   const deleteQuestionsForSkill = async (skillId: string) => {
     try {
       setLoading(true);
-      
+
       // Find questions for this skill
-      const skillQuestions = questions.filter(q => q.skillId === skillId);
+      const skillQuestions = questions.filter((q) => q.skillId === skillId);
       if (skillQuestions.length === 0) return;
-      
+
       // Delete each question
       for (const question of skillQuestions) {
         await fetch(`/api/questions/${question.id}`, {
           method: "DELETE",
         });
       }
-      
+
       // Update local state
-      setQuestions(questions.filter(q => q.skillId !== skillId));
-      
+      setQuestions(questions.filter((q) => q.skillId !== skillId));
+
       toast.success("Questions deleted successfully");
     } catch (error) {
       console.error("Error deleting questions:", error);
@@ -1551,23 +1570,25 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
   // Add a function to confirm the requirement change
   const confirmRequirementChange = async (deleteQuestions: boolean) => {
     if (!pendingRequirementChange) return;
-    
+
     try {
       setLoading(true);
       const { skillId } = pendingRequirementChange;
-      
+
       if (deleteQuestions) {
         // First delete associated questions
         await deleteQuestionsForSkill(skillId);
       }
-      
+
       // Update skill requirement to OPTIONAL but don't reset numQuestions to 0
       // This allows optional skills to still have questions generated if numQuestions > 0
       const updatedSkills = editedSkills.map((skill) =>
-        skill.id === skillId ? { ...skill, requirement: "OPTIONAL" as const } : skill
+        skill.id === skillId
+          ? { ...skill, requirement: "OPTIONAL" as const }
+          : skill
       );
       setEditedSkills(updatedSkills);
-      
+
       // Update in database - only change the requirement
       await fetch(`/api/skills/${skillId}`, {
         method: "PATCH",
@@ -1576,8 +1597,12 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
         },
         body: JSON.stringify({ requirement: "OPTIONAL" }),
       });
-      
-      toast.success(`Skill updated to Optional${deleteQuestions ? ' and questions deleted' : ''}`);
+
+      toast.success(
+        `Skill updated to Optional${
+          deleteQuestions ? " and questions deleted" : ""
+        }`
+      );
       router.refresh();
     } catch (error) {
       console.error("Error updating skill:", error);
@@ -1641,12 +1666,12 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
     const skill = editedSkills.find((s) => s.id === activeSkillForRegeneration);
     // Add local state for feedback
     const [feedback, setFeedback] = useState("");
-    
+
     if (!skill) return null;
 
     return (
-      <Dialog 
-        open={skillRegenerationDialogOpen} 
+      <Dialog
+        open={skillRegenerationDialogOpen}
         onOpenChange={(open) => {
           setSkillRegenerationDialogOpen(open);
           if (open) setFeedback(""); // Reset feedback when dialog opens
@@ -1656,7 +1681,8 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
           <DialogHeader>
             <DialogTitle>Regenerate Questions for {skill.name}</DialogTitle>
             <DialogDescription>
-              Provide feedback to improve all questions for this skill. This will regenerate all existing questions.
+              Provide feedback to improve all questions for this skill. This
+              will regenerate all existing questions.
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
@@ -1683,6 +1709,87 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
     );
   };
 
+  // Save skills to FloCareer
+  const saveToFloCareer = async () => {
+    if (!record.reqId || !record.userId) {
+      toast.error("Missing required information for FloCareer integration");
+      return;
+    }
+
+    try {
+      setSavingToFloCareer(true);
+
+      // Map our skill data to FloCareer format
+      const skillMatrix = editedSkills.map((skill) => ({
+        ai_skill_id: skill.id,
+        skill_id: 0,
+        action: "add",
+        name: skill.name,
+        level: mapSkillLevel(skill.level),
+        requirement: mapSkillRequirement(skill.requirement),
+      }));
+
+      const requestBody = {
+        round_id: record.reqId,
+        user_id: record.userId,
+        skill_matrix: skillMatrix,
+      };
+
+      const response = await fetch(
+        "https://sandbox.flocareer.com/dynamic/corporate/create-skills/",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestBody),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`FloCareer API error: ${response.status}`);
+      }
+
+      const result = await response.json();
+      toast.success("Skills saved to FloCareer successfully!");
+
+      // Optionally handle the response data
+      console.log("FloCareer response:", result);
+    } catch (error: any) {
+      console.error("Error saving to FloCareer:", error);
+      toast.error(error.message || "Failed to save skills to FloCareer");
+    } finally {
+      setSavingToFloCareer(false);
+    }
+  };
+
+  // Helper functions to map skill data to FloCareer format
+  const mapSkillLevel = (level: string): string => {
+    switch (level) {
+      case "BEGINNER":
+        return "Beginner";
+      case "INTERMEDIATE":
+        return "Intermediate";
+      case "PROFESSIONAL":
+        return "Professional";
+      case "EXPERT":
+        return "Expert";
+      default:
+        return "Intermediate";
+    }
+  };
+
+  const mapSkillRequirement = (requirement: string): string => {
+    switch (requirement) {
+      case "MANDATORY":
+        return "Must-have";
+      case "OPTIONAL":
+        return "Nice-to-have";
+      default:
+        return "Nice-to-have";
+    }
+  };
+
   return (
     <div className="space-y-6 w-full overflow-hidden">
       <div className="flex items-center justify-between">
@@ -1701,6 +1808,25 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
           </p>
         </div>
         <div className="flex gap-2">
+          {/* Show Save to FloCareer button only if reqId and userId exist */}
+          {record.reqId && record.userId && (
+            <Button
+              onClick={saveToFloCareer}
+              disabled={
+                savingToFloCareer || generatingQuestions || questionsLoading
+              }
+              variant="default"
+            >
+              {savingToFloCareer ? (
+                <>
+                  <Spinner size="sm" className="mr-2" />
+                  Saving to FloCareer...
+                </>
+              ) : (
+                "Save to FloCareer"
+              )}
+            </Button>
+          )}
           {/* <Button
             onClick={autoGenerateSkillsAndQuestions}
             disabled={generatingQuestions}
@@ -2372,7 +2498,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                                         level)
                                       </span>
                                     </div>
-                                                                        {/* {getSkillQuestionCount(question.skillId) > 0 && (
+                                    {/* {getSkillQuestionCount(question.skillId) > 0 && (
                                       <TooltipProvider>
                                         <Tooltip>
                                           <TooltipTrigger asChild>
@@ -2396,25 +2522,27 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                                     {getSkillQuestionCount(question.skillId) >
                                       0 && (
                                       <div className="flex items-center gap-2">
-                                        
-                                      <TooltipProvider>
-                                        <Tooltip>
-                                          <TooltipTrigger asChild>
-                                            <Button
-                                              variant="outline"
-                                              size="sm"
-                                              className="ml-2"
-                                              onClick={() =>
-                                                regenerateQuestionsFromSkill(question.skillId)
-                                              }
-                                            >
-                                              <RefreshCw className="h-4 w-4 mr-2" />
-                                            </Button>
-                                          </TooltipTrigger>
-                                          <TooltipContent>
-                                            Regenerate all questions for {getSkillName(question.skillId)}
-                                          </TooltipContent>
-                                        </Tooltip>
+                                        <TooltipProvider>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="ml-2"
+                                                onClick={() =>
+                                                  regenerateQuestionsFromSkill(
+                                                    question.skillId
+                                                  )
+                                                }
+                                              >
+                                                <RefreshCw className="h-4 w-4 mr-2" />
+                                              </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                              Regenerate all questions for{" "}
+                                              {getSkillName(question.skillId)}
+                                            </TooltipContent>
+                                          </Tooltip>
                                           <Tooltip>
                                             <TooltipTrigger asChild>
                                               <div className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-medium">
@@ -2740,9 +2868,14 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
             <DialogDescription>
               {pendingRequirementChange && (
                 <>
-                  The skill "{pendingRequirementChange.skillName}" has {pendingRequirementChange.questionCount} question{pendingRequirementChange.questionCount > 1 ? 's' : ''} generated.
-                  <br /><br />
-                  Do you want to delete these questions when changing from Mandatory to Optional?
+                  The skill "{pendingRequirementChange.skillName}" has{" "}
+                  {pendingRequirementChange.questionCount} question
+                  {pendingRequirementChange.questionCount > 1 ? "s" : ""}{" "}
+                  generated.
+                  <br />
+                  <br />
+                  Do you want to delete these questions when changing from
+                  Mandatory to Optional?
                 </>
               )}
             </DialogDescription>

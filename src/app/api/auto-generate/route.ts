@@ -14,6 +14,8 @@ export async function POST(req: NextRequest) {
       jobDescription,
       interviewLength = 60,
       customInstructions = "",
+      reqId,
+      userId,
     } = await req.json();
 
     if (!jobRole) {
@@ -36,6 +38,8 @@ export async function POST(req: NextRequest) {
         jobTitle: jobRole,
         interviewLength: parseInt(String(interviewLength)),
         rawJobDescription: jobDescription,
+        reqId: reqId ? parseInt(reqId) : null, // Convert to int if provided
+        userId: userId ? parseInt(userId) : null, // Convert to int if provided
       },
     });
 

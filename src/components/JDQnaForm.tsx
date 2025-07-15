@@ -123,29 +123,31 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
       if (reqId && userId) {
         setFetchingJobDetails(true);
         try {
-          const response = await fetch(`https://sandbox.flocareer.com/dynamic/corporate/req-details/${reqId}/${userId}/`);
-          
+          const response = await fetch(
+            `https://sandbox.flocareer.com/dynamic/corporate/req-details/${reqId}/${userId}/`
+          );
+
           if (!response.ok) {
             throw new Error(`Failed to fetch job details: ${response.status}`);
           }
-          
+
           const data: JobDetailsResponse = await response.json();
-          
+
           // Pre-fill the form with the response data
           form.setValue("jobRole", data.job_title);
           form.setValue("companyName", data.company_name);
-          
+
           // Extract HTML content and set as job description text
           const jobDescText = stripHtmlTags(data.job_description);
           form.setValue("jobDescriptionText", jobDescText);
-          
+
           // Switch to text input method
           setInputMethod("text");
-          
+
           // Calculate interview length based on experience (just an example calculation)
-          const interviewLength = Math.min(90, 30 + (data.max_experience * 5));
+          const interviewLength = Math.min(90, 30 + data.max_experience * 5);
           form.setValue("interviewLength", interviewLength);
-          
+
           toast.success("Job details loaded successfully");
         } catch (error) {
           console.error("Error fetching job details:", error);
@@ -155,19 +157,19 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
         }
       }
     };
-    
+
     fetchJobDetails();
   }, [reqId, userId, form]);
-  
+
   // Helper function to strip HTML tags
   const stripHtmlTags = (html: string): string => {
-    if (typeof window !== 'undefined') {
+    if (typeof window !== "undefined") {
       // Client-side parsing
-      const doc = new DOMParser().parseFromString(html, 'text/html');
-      return doc.body.textContent || '';
+      const doc = new DOMParser().parseFromString(html, "text/html");
+      return doc.body.textContent || "";
     } else {
       // Simple server-side fallback using regex
-      return html.replace(/<[^>]*>?/gm, '');
+      return html.replace(/<[^>]*>?/gm, "");
     }
   };
 
@@ -239,6 +241,8 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
           jobDescription: jobDescription,
           jobTitle: form.getValues().jobRole,
           interviewLength: Number(form.getValues().interviewLength),
+          reqId: reqId,
+          userId: userId,
         }),
       });
 
@@ -424,6 +428,8 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
           jobDescription: jobDescription,
           interviewLength: Number(form.getValues().interviewLength || 60),
           customInstructions: form.getValues().customInstructions || "",
+          reqId: reqId,
+          userId: userId,
         }),
       });
 
@@ -474,7 +480,7 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
               <span className="ml-2">Loading job details...</span>
             </div>
           )}
-          
+
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <FormField
