@@ -78,6 +78,8 @@ export async function POST(request: Request) {
       interviewLength,
       reqId,
       userId,
+      minExperience,
+      maxExperience,
     } = await request.json();
 
     if (!jobDescription) {

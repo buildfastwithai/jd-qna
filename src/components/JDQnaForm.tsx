@@ -46,6 +46,8 @@ const formSchema = z.object({
     .min(15, { message: "Minimum interview length is 15 minutes" })
     .optional(),
   companyName: z.string().optional(),
+  minExperience: z.coerce.number().optional(),
+  maxExperience: z.coerce.number().optional(),
 });
 
 export interface SkillWithMetadata {
@@ -114,6 +116,8 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
       jobDescriptionText: "",
       interviewLength: 60, // Default to 60 minutes
       companyName: "",
+      minExperience: undefined,
+      maxExperience: undefined,
     },
   });
 
@@ -133,9 +137,13 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
 
           const data: JobDetailsResponse = await response.json();
 
+          console.log(data);
+
           // Pre-fill the form with the response data
           form.setValue("jobRole", data.job_title);
           form.setValue("companyName", data.company_name);
+          form.setValue("minExperience", data.min_experience);
+          form.setValue("maxExperience", data.max_experience);
 
           // Extract HTML content and set as job description text
           const jobDescText = stripHtmlTags(data.job_description);
@@ -241,6 +249,8 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
           jobDescription: jobDescription,
           jobTitle: form.getValues().jobRole,
           interviewLength: Number(form.getValues().interviewLength),
+          minExperience: form.getValues().minExperience,
+          maxExperience: form.getValues().maxExperience,
           reqId: reqId,
           userId: userId,
         }),
@@ -428,6 +438,8 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
           jobDescription: jobDescription,
           interviewLength: Number(form.getValues().interviewLength || 60),
           customInstructions: form.getValues().customInstructions || "",
+          minExperience: form.getValues().minExperience,
+          maxExperience: form.getValues().maxExperience,
           reqId: reqId,
           userId: userId,
         }),
@@ -532,6 +544,47 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
                   </FormItem>
                 )}
               />
+
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="minExperience"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Min Experience (Years)</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          placeholder="0"
+                          disabled={true}
+                          {...field}
+                          value={field.value ?? ""}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="maxExperience"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Max Experience (Years)</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          placeholder="0"
+                          disabled={true}
+                          {...field}
+                          value={field.value ?? ""}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
               <FormField
                 control={form.control}
                 name="customInstructions"
