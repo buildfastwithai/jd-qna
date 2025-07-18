@@ -192,6 +192,9 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
   const [creatingInterviewStructure, setCreatingInterviewStructure] =
     useState(false);
 
+  // Add state for final submit dialog
+  const [finalSubmitDialogOpen, setFinalSubmitDialogOpen] = useState(false);
+
   // Parse question content from JSON string
   function formatQuestions(questions: Question[]): QuestionData[] {
     return questions
@@ -1957,6 +1960,228 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
     }
   };
 
+  // Combined function to save both skills and questions to FloCareer
+  const finalSubmitToFloCareer = async () => {
+    if (!record.reqId || !record.userId) {
+      toast.error("Missing required information for FloCareer integration");
+      return;
+    }
+
+    if (editedSkills.length === 0) {
+      toast.error("No skills to save to FloCareer");
+      return;
+    }
+
+    if (questions.length === 0) {
+      toast.error("No questions to save to FloCareer");
+      return;
+    }
+
+    try {
+      setSavingToFloCareer(true);
+
+      // Step 1: Save skills to FloCareer
+      const skillMatrix = editedSkills.map((skill) => ({
+        ai_skill_id: skill.id,
+        skill_id: 0,
+        action: "add",
+        name: skill.name,
+        level: mapSkillLevel(skill.level),
+        requirement: mapSkillRequirement(skill.requirement),
+      }));
+
+      const skillRequestBody = {
+        round_id: record.reqId,
+        user_id: record.userId,
+        skill_matrix: skillMatrix,
+      };
+
+      const skillResponse = await fetch(
+        "https://sandbox.flocareer.com/dynamic/corporate/create-skills/",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(skillRequestBody),
+        }
+      );
+
+      if (!skillResponse.ok) {
+        throw new Error(`FloCareer Skills API error: ${skillResponse.status}`);
+      }
+
+      const skillResult = await skillResponse.json();
+
+      if (!skillResult.success) {
+        throw new Error(
+          skillResult.error_string || "Failed to save skills to FloCareer"
+        );
+      }
+
+      // Update skills with FloCareer IDs in local database
+      if (skillResult.skill_matrix) {
+        for (const skillData of skillResult.skill_matrix) {
+          await fetch(`/api/skills/${skillData.ai_skill_id}`, {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ floCareerId: skillData.skill_id }),
+          });
+        }
+
+        // Update local state with the new flocareer IDs
+        setEditedSkills((prevSkills) =>
+          prevSkills.map((skill) => {
+            const skillData = skillResult.skill_matrix.find(
+              (s: any) => s.ai_skill_id === skill.id
+            );
+            return skillData
+              ? { ...skill, floCareerId: skillData.skill_id }
+              : skill;
+          })
+        );
+      }
+
+      // Step 2: Save questions to FloCareer
+      const flocareerQuestions = questions.map((question) => ({
+        ai_question_id: question.id,
+        question_type: "descriptive",
+        candidate_description: question.question,
+        title: question.question,
+        description: encodeURIComponent(
+          `<h1>${question.question}</h1>\n<p>${question.answer}</p>`
+        ),
+        tags: [question.category, question.questionFormat || "Scenario"],
+        ideal_answer: encodeURIComponent(`<p>${question.answer}</p>`),
+        source: "genai_gpt-4.1",
+      }));
+
+      const questionRequestBody = {
+        user_id: record.userId,
+        questions: flocareerQuestions,
+      };
+
+      const questionResponse = await fetch(
+        "https://sandbox.flocareer.com/dynamic/corporate/create-question/",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(questionRequestBody),
+        }
+      );
+
+      if (!questionResponse.ok) {
+        throw new Error(`FloCareer Questions API error: ${questionResponse.status}`);
+      }
+
+      const questionResult = await questionResponse.json();
+
+      if (!questionResult.success) {
+        throw new Error(
+          questionResult.error_string || "Failed to save questions to FloCareer"
+        );
+      }
+
+      // Update questions with FloCareer IDs in local database
+      if (questionResult.questions) {
+        for (const questionData of questionResult.questions) {
+          if (questionData.success) {
+            await fetch(`/api/questions/${questionData.ai_question_id}`, {
+              method: "PATCH",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ floCareerId: questionData.question_id }),
+            });
+          }
+        }
+
+        // Update local state with the new flocareer IDs
+        setQuestions((prevQuestions) =>
+          prevQuestions.map((question) => {
+            const questionData = questionResult.questions.find(
+              (q: any) => q.ai_question_id === question.id
+            );
+            return questionData && questionData.success
+              ? { ...question, floCareerId: questionData.question_id }
+              : question;
+          })
+        );
+      }
+
+      // Step 3: Create interview structure (if needed)
+      const questionsWithFloId = questions.filter(q => {
+        const questionData = questionResult.questions?.find(
+          (qr: any) => qr.ai_question_id === q.id
+        );
+        return questionData && questionData.success;
+      });
+
+      if (questionsWithFloId.length > 0) {
+        const questionPools = [];
+
+        for (const skill of editedSkills) {
+          const skillQuestions = questionsWithFloId.filter(q => q.skillId === skill.id);
+          
+          if (skillQuestions.length > 0) {
+            const pool = {
+              pool_id: 0,
+              action: "add",
+              name: skill.name,
+              num_of_questions_to_ask: skillQuestions.length,
+              questions: skillQuestions.map(q => {
+                const questionData = questionResult.questions.find(
+                  (qr: any) => qr.ai_question_id === q.id
+                );
+                return questionData.question_id;
+              }),
+            };
+            questionPools.push(pool);
+          }
+        }
+
+        if (questionPools.length > 0) {
+          const structureRequestBody = {
+            user_id: record.userId,
+            round_id: record.reqId,
+            question_pools: questionPools,
+          };
+
+          const structureResponse = await fetch(
+            "https://sandbox.flocareer.com/dynamic/corporate/create-interview-structure/",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(structureRequestBody),
+            }
+          );
+
+          if (structureResponse.ok) {
+            const structureResult = await structureResponse.json();
+            if (structureResult.success) {
+              console.log("Interview structure created:", structureResult.data);
+            }
+          }
+        }
+      }
+
+      toast.success("Successfully submitted all skills and questions to FloCareer!");
+      setFinalSubmitDialogOpen(false);
+      
+    } catch (error: any) {
+      console.error("Error submitting to FloCareer:", error);
+      toast.error(error.message || "Failed to submit to FloCareer");
+    } finally {
+      setSavingToFloCareer(false);
+    }
+  };
+
   return (
     <div className="space-y-6 w-full overflow-hidden">
       <div className="flex items-center justify-between">
@@ -1976,7 +2201,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
         </div>
         <div className="flex gap-2">
           {/* Show Save to FloCareer button only if reqId and userId exist */}
-          {record.reqId && record.userId && (
+          {/* {record.reqId && record.userId && (
             <Button
               onClick={saveToFloCareer}
               disabled={
@@ -1993,7 +2218,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                 "Save to FloCareer"
               )}
             </Button>
-          )}
+          )} */}
           {/* <Button
             onClick={autoGenerateSkillsAndQuestions}
             disabled={generatingQuestions}
@@ -2468,7 +2693,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
               </div>
               <div className="flex gap-2">
                 {/* Show Save to FloCareer button only if reqId and userId exist */}
-                {record.reqId && record.userId && questions.length > 0 && (
+                {/* {record.reqId && record.userId && questions.length > 0 && (
                   <Button
                     onClick={saveQuestionsToFloCareer}
                     disabled={
@@ -2489,7 +2714,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                       "Save to FloCareer"
                     )}
                   </Button>
-                )}
+                )} */}
                 {/* <Button
                   variant="outline"
                   size="sm"
@@ -2968,7 +3193,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                 Back to Skills
               </Button>
               {/* Show Create Interview Structure button only if reqId and userId exist and questions have FloCareer IDs */}
-              {record.reqId &&
+              {/* {record.reqId &&
                 record.userId &&
                 questions.some((q) => q.floCareerId) && (
                   <Button
@@ -2991,7 +3216,31 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                       "Create Interview Structure"
                     )}
                   </Button>
-                )}
+                )} */}
+              {/* Add final submit button for FloCareer integration */}
+              {record.reqId && record.userId && (
+                <Button
+                  onClick={() => setFinalSubmitDialogOpen(true)}
+                  disabled={
+                    savingToFloCareer ||
+                    questionsLoading ||
+                    generatingQuestions ||
+                    pdfLoading ||
+                    editedSkills.length === 0 ||
+                    questions.length === 0
+                  }
+                  variant="default"
+                >
+                  {savingToFloCareer ? (
+                    <>
+                      <Spinner size="sm" className="mr-2" />
+                      Submitting to FloCareer...
+                    </>
+                  ) : (
+                    "Final Submit to FloCareer"
+                  )}
+                </Button>
+              )}
             </CardFooter>
           </Card>
         </TabsContent>
@@ -3116,6 +3365,56 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
               disabled={loading}
             >
               Delete Questions
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Final Submit Confirmation Dialog */}
+      <Dialog
+        open={finalSubmitDialogOpen}
+        onOpenChange={setFinalSubmitDialogOpen}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Final Submit to FloCareer</DialogTitle>
+            <DialogDescription>
+              This will submit all skills and questions to FloCareer sandbox and create the interview structure.
+              <br />
+              <br />
+              <strong>Summary:</strong>
+              <br />
+              • {editedSkills.length} skill{editedSkills.length > 1 ? "s" : ""} will be saved
+              <br />
+              • {questions.length} question{questions.length > 1 ? "s" : ""} will be saved
+              <br />
+              • Interview structure will be created automatically
+              <br />
+              <br />
+              Are you sure you want to proceed?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setFinalSubmitDialogOpen(false)}
+              disabled={savingToFloCareer}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="default"
+              onClick={finalSubmitToFloCareer}
+              disabled={savingToFloCareer}
+            >
+              {savingToFloCareer ? (
+                <>
+                  <Spinner size="sm" className="mr-2" />
+                  Submitting...
+                </>
+              ) : (
+                "Yes, Submit All"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
