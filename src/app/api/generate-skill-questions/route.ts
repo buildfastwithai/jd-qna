@@ -34,7 +34,7 @@ const generatePrompt = (
           )}\n\nPlease ensure that the generated questions take this feedback into account.`
       : "";
 
-  return `Generate exactly ${batchSize} interview questions for the skill "${skillName}" at a ${level} level (${effectiveDifficulty} difficulty).
+  return `Generate exactly ${batchSize} interview questions must not exceed 400 characters for the skill "${skillName}" at a ${level} level (${effectiveDifficulty} difficulty).
 The questions should be challenging but fair, testing both theoretical knowledge and practical application.${feedbackSection}
 
 For each question, randomly choose one of these question formats and design the question accordingly:
@@ -199,7 +199,7 @@ export async function POST(request: Request) {
         messages: [
           {
             role: "system",
-            content: `You are an expert interviewer who creates relevant interview questions for specific technical skills. Include detailed suggested answers for each question. You MUST generate EXACTLY ${questionsToGenerate} unique questions, no more and no less.${
+            content: `You are an expert interviewer who creates relevant interview questions for specific technical skills length must not exceed 400 characters. Include detailed suggested answers for each question. You MUST generate EXACTLY ${questionsToGenerate} unique questions, no more and no less.${
               skillFeedback.length > 0
                 ? " Incorporate the provided feedback into your question generation."
                 : ""
