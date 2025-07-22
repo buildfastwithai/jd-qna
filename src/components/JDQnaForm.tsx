@@ -104,6 +104,7 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
     progressText: "",
   });
   const [fetchingJobDetails, setFetchingJobDetails] = useState(false);
+  const [isPreFilled, setIsPreFilled] = useState(false);
 
   const router = useRouter();
 
@@ -155,6 +156,9 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
           // Calculate interview length based on experience (just an example calculation)
           const interviewLength = Math.min(90, 30 + data.max_experience * 5);
           form.setValue("interviewLength", interviewLength);
+
+          // Mark form as pre-filled
+          setIsPreFilled(true);
 
           toast.success("Job details loaded successfully");
         } catch (error) {
@@ -493,6 +497,15 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
             </div>
           )}
 
+          {isPreFilled && (
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-700">
+                📋 Form fields have been pre-filled from job details and are now
+                read-only.
+              </p>
+            </div>
+          )}
+
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <FormField
@@ -504,6 +517,8 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
                     <FormControl>
                       <Input
                         placeholder="e.g. Senior Frontend Developer"
+                        readOnly={isPreFilled}
+                        disabled={isPreFilled}
                         {...field}
                       />
                     </FormControl>
@@ -524,6 +539,8 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
                         min="15"
                         max="240"
                         placeholder="60"
+                        readOnly={isPreFilled}
+                        disabled={isPreFilled}
                         {...field}
                       />
                     </FormControl>
@@ -538,7 +555,12 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
                   <FormItem>
                     <FormLabel>Company Name</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g. Google" {...field} />
+                      <Input
+                        placeholder="e.g. Google"
+                        readOnly={isPreFilled}
+                        disabled={isPreFilled}
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -556,7 +578,8 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
                         <Input
                           type="number"
                           placeholder="0"
-                          disabled={true}
+                          readOnly={isPreFilled}
+                          disabled={isPreFilled}
                           {...field}
                           value={field.value ?? ""}
                         />
@@ -575,7 +598,8 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
                         <Input
                           type="number"
                           placeholder="0"
-                          disabled={true}
+                          readOnly={isPreFilled}
+                          disabled={isPreFilled}
                           {...field}
                           value={field.value ?? ""}
                         />
@@ -614,9 +638,11 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
                     <TabsTrigger value="text">
                       Paste Job Description
                     </TabsTrigger>
-                    <TabsTrigger value="file">Upload File</TabsTrigger>
+                    {/* <TabsTrigger value="file" disabled={isPreFilled}>
+                      Upload File
+                    </TabsTrigger> */}
                   </TabsList>
-
+                  {/* 
                   <TabsContent value="file">
                     <FormField
                       control={form.control}
@@ -661,7 +687,7 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
                         </div>
                       </div>
                     )}
-                  </TabsContent>
+                  </TabsContent> */}
 
                   <TabsContent value="text">
                     <FormField
@@ -676,6 +702,8 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
                               onChange={field.onChange}
                               placeholder="Paste your job description here..."
                               className="min-h-64 resize-y"
+                              readOnly={isPreFilled}
+                              disabled={isPreFilled}
                             />
                           </FormControl>
                           <FormMessage />
