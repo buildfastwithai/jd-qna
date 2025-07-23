@@ -10,7 +10,12 @@ export function useDashboard() {
     try {
       setLoading(true);
       setError(null);
-      const response = await fetch("/api/dashboard");
+      const response = await fetch("/api/dashboard", {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
+        },
+      } );
       if (!response.ok) {
         throw new Error("Failed to fetch dashboard data");
       }

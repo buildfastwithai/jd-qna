@@ -97,6 +97,7 @@ export function QuestionsDisplay({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
         },
         body: JSON.stringify({}), // Add empty JSON body to prevent parsing error
       });
@@ -182,6 +183,7 @@ export function QuestionsDisplay({
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
           },
           body: JSON.stringify({}), // Add empty JSON body to prevent parsing error
         }
@@ -312,6 +314,7 @@ export function QuestionsDisplay({
             method: "PATCH",
             headers: {
               "Content-Type": "application/json",
+              "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
             },
             body: JSON.stringify({ feedback: question.feedback }),
           });

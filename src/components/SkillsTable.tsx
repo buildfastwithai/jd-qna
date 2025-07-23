@@ -99,14 +99,26 @@ export default function SkillsTable({
   // Excel export state
   const [excelExporting, setExcelExporting] = useState(false);
 
-  // Fetch feedback counts for each skill
+  // Fetch feedback counts for each skill - optimized to avoid unnecessary fetches
   useEffect(() => {
     const fetchFeedbackCounts = async () => {
       const counts: Record<string, number> = {};
-
-      for (const skill of skills) {
+      const newSkillIds = skills.map(skill => skill.id);
+      
+      // Keep existing counts for skills that haven't changed
+      const existingCounts = { ...feedbackCounts };
+      
+      // Only fetch for skills that don't already have counts
+      const skillsToFetch = skills.filter(skill => existingCounts[skill.id] === undefined);
+      
+      // Fetch counts only for new skills
+      for (const skill of skillsToFetch) {
         try {
-          const response = await fetch(`/api/skills/${skill.id}/feedback`);
+          const response = await fetch(`/api/skills/${skill.id}/feedback`, {
+            headers: {
+              "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
+            },
+          });
           if (response.ok) {
             const data = await response.json();
             counts[skill.id] = data.feedbacks?.length || 0;
@@ -118,12 +130,36 @@ export default function SkillsTable({
           );
         }
       }
-
-      setFeedbackCounts(counts);
+      
+      // Combine existing counts with new counts, but only for skills that still exist
+      const updatedCounts = { ...existingCounts, ...counts };
+      const finalCounts: Record<string, number> = {};
+      
+      // Filter out counts for skills that no longer exist
+      newSkillIds.forEach(id => {
+        if (updatedCounts[id] !== undefined) {
+          finalCounts[id] = updatedCounts[id];
+        }
+      });
+      
+      setFeedbackCounts(finalCounts);
     };
 
     fetchFeedbackCounts();
   }, [skills, refreshTrigger]);
+
+  // Create a wrapper for the onDeleteSkill function to clean up feedback counts
+  const handleDeleteSkill = (skillId: string) => {
+    // Remove the feedback count for the deleted skill
+    setFeedbackCounts(prevCounts => {
+      const newCounts = { ...prevCounts };
+      delete newCounts[skillId];
+      return newCounts;
+    });
+    
+    // Call the original onDeleteSkill function
+    onDeleteSkill(skillId);
+  };
 
   // Handle feedback submission
   const handleFeedbackSubmitted = () => {
@@ -198,10 +234,27 @@ export default function SkillsTable({
   // Confirm and execute bulk delete
   const confirmBulkDelete = () => {
     if (onBulkDeleteSkills) {
-      onBulkDeleteSkills(Array.from(selectedSkills));
+      // Remove feedback counts for all deleted skills
+      const skillsToDelete = Array.from(selectedSkills);
+      setFeedbackCounts(prevCounts => {
+        const newCounts = { ...prevCounts };
+        skillsToDelete.forEach(skillId => {
+          delete newCounts[skillId];
+        });
+        return newCounts;
+      });
+      
+      onBulkDeleteSkills(skillsToDelete);
     } else {
       // Fallback to individual deletions if bulk delete not provided
-      selectedSkills.forEach((skillId) => onDeleteSkill(skillId));
+      selectedSkills.forEach((skillId) => {
+        setFeedbackCounts(prevCounts => {
+          const newCounts = { ...prevCounts };
+          delete newCounts[skillId];
+          return newCounts;
+        });
+        onDeleteSkill(skillId);
+      });
     }
     setSelectedSkills(new Set());
     setConfirmDeleteOpen(false);
@@ -247,6 +300,7 @@ export default function SkillsTable({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
         },
         body: JSON.stringify({
           questions: exportSkills,
@@ -560,7 +614,7 @@ export default function SkillsTable({
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => onDeleteSkill(info.getValue())}
+            onClick={() => handleDeleteSkill(info.getValue())}
           >
             <Trash2 className="h-4 w-4 text-destructive" />
           </Button>
@@ -568,7 +622,7 @@ export default function SkillsTable({
         size: 80,
       }),
     ],
-    [columnHelper, getSkillQuestionCount, loading, onDeleteSkill, onUpdateSkill]
+    [columnHelper, getSkillQuestionCount, loading, onUpdateSkill]
   );
 
   // Sort skills by requirement first, then by priority

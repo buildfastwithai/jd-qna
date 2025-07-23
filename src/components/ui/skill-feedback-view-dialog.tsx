@@ -50,7 +50,11 @@ export function SkillFeedbackViewDialog({
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/api/skills/${skillId}/feedback`);
+      const response = await fetch(`/api/skills/${skillId}/feedback`, {
+        headers: {
+          "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
+        },
+      });
       
       if (!response.ok) {
         throw new Error("Failed to fetch feedback");

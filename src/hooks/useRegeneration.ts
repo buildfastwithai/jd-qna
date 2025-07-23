@@ -29,6 +29,7 @@ export function useRegeneration() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
           },
           body: JSON.stringify({
             reason: params.reason,
@@ -70,6 +71,7 @@ export function useRegeneration() {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
+            "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
           },
           body: JSON.stringify({
             liked: params.liked,
@@ -108,7 +110,12 @@ export function useRegeneration() {
         searchParams.append("limit", filters.limit.toString());
 
       const response = await fetch(
-        `/api/analytics/regenerations?${searchParams}`
+        `/api/analytics/regenerations?${searchParams}`,
+        {
+          headers: {
+            "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
+          },
+        }
       );
       const data = await response.json();
 

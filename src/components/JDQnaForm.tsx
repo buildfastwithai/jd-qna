@@ -248,6 +248,7 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
         },
         body: JSON.stringify({
           jobDescription: jobDescription,
@@ -321,6 +322,7 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
         },
         body: JSON.stringify({
           jobRole: form.getValues().jobRole,
@@ -436,6 +438,7 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
         },
         body: JSON.stringify({
           jobRole: form.getValues().jobRole,

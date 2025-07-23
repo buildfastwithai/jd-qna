@@ -144,6 +144,7 @@ Return exactly ${questions.length} questions as a JSON array. Each question shou
               difficulty: newQuestion.difficulty,
               questionFormat: newQuestion.questionFormat || skill.questionFormat || "Scenario",
               coding: newQuestion.coding || skill.questionFormat === "Coding",
+              floCareerId: originalQuestion.floCareerId || null,
             }),
             liked: "NONE",
             feedback: null, // Clear feedback after regeneration

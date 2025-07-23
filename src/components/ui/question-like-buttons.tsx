@@ -45,6 +45,7 @@ export function QuestionLikeButtons({
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
         },
         body: JSON.stringify({ status: nextStatus }),
       });
@@ -86,6 +87,7 @@ export function QuestionLikeButtons({
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
         },
         body: JSON.stringify({ feedback }),
       });
@@ -119,6 +121,7 @@ export function QuestionLikeButtons({
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
+            "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
           },
           body: JSON.stringify({ feedback }),
         });

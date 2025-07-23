@@ -104,6 +104,7 @@ export async function POST(
               category: content.category,
               difficulty: content.difficulty,
               feedback: feedbackMap.get(q.id) || q.feedback || "",
+              floCareerId: content.floCareerId || null,
             };
           } catch (e) {
             console.error("Error parsing question content:", e);
@@ -242,6 +243,7 @@ You must generate exactly the requested number of questions.`,
                 difficulty: newQuestion.difficulty,
                 questionFormat: newQuestion.questionFormat || "Scenario",
                 coding: newQuestion.coding || false,
+                floCareerId: oldQuestion?.floCareerId || null,
               }),
               liked: "NONE",
               feedback: null, // Clear feedback after regeneration

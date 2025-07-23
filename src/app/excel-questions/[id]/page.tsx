@@ -58,7 +58,11 @@ export default function ExcelQuestionsPage() {
 
   const fetchQuestions = async () => {
     try {
-      const response = await fetch(`/api/excel-questions/${id}`);
+      const response = await fetch(`/api/excel-questions/${id}`, {
+        headers: {
+          "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
+        },
+      });
       const data = await response.json();
 
       if (!response.ok) {
@@ -94,6 +98,7 @@ export default function ExcelQuestionsPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
         },
         body: JSON.stringify({
           questions: questionSet.questions,

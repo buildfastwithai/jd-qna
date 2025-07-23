@@ -160,6 +160,7 @@ Example:
             difficulty: newQuestion.difficulty,
             questionFormat: newQuestion.questionFormat || "Scenario",
             coding: newQuestion.coding || false,
+            floCareerId: questionContent.floCareerId || null,
           }),
           liked: "NONE",
           feedback: null, // Clear feedback after regeneration
@@ -201,6 +202,7 @@ Example:
             difficulty: newQuestion.difficulty,
             questionFormat: newQuestion.questionFormat || "Scenario",
             coding: newQuestion.coding || false,
+            floCareerId: questionContent.floCareerId || null,
           },
         },
       });

@@ -266,6 +266,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
         },
         body: JSON.stringify({ [field]: value }),
       });
@@ -327,6 +328,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
         },
         body: JSON.stringify({
           recordId: record.id,
@@ -407,6 +409,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
           },
           body: JSON.stringify({
             forceRegenerate: force,
@@ -484,7 +487,8 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-        },
+          "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
+          },
         body: JSON.stringify({
           jobTitle: record.jobTitle,
         }),
@@ -547,7 +551,11 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
   const fetchGlobalFeedback = async () => {
     try {
       setLoadingGlobalFeedback(true);
-      const response = await fetch(`/api/records/${record.id}/global-feedback`);
+      const response = await fetch(`/api/records/${record.id}/global-feedback`, {
+        headers: {
+          "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
+        },
+      });
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.globalFeedback) {
@@ -620,6 +628,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
           },
           body: JSON.stringify({
             feedback: feedbackData,
@@ -685,6 +694,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
         },
       });
 
@@ -795,6 +805,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
         },
         body: JSON.stringify({
           questions: exportQuestions,
@@ -994,6 +1005,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
+        "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
       },
       body: JSON.stringify({ status }),
     })
@@ -1029,6 +1041,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
+        "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
       },
       body: JSON.stringify({ feedback }),
     })
@@ -1062,6 +1075,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
         },
         body: JSON.stringify({}), // Add empty JSON body to prevent parsing error
       });
@@ -1124,6 +1138,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
           },
           body: JSON.stringify({}), // Add empty JSON body to prevent parsing error
         }
@@ -1203,16 +1218,38 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
     const fetchFeedbackCounts = async () => {
       try {
         const feedbackCounts: Record<string, number> = {};
-
-        for (const skill of editedSkills) {
-          const response = await fetch(`/api/skills/${skill.id}/feedback`);
+        
+        // Keep existing counts for skills that haven't changed
+        const existingCounts = { ...skillFeedbackCounts };
+        
+        // Only fetch for skills that don't already have counts
+        const skillsToFetch = editedSkills.filter(skill => existingCounts[skill.id] === undefined);
+        
+        for (const skill of skillsToFetch) {
+          const response = await fetch(`/api/skills/${skill.id}/feedback`, {
+            method: "GET",
+            headers: {
+              "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
+            },
+          });
           if (response.ok) {
             const data = await response.json();
             feedbackCounts[skill.id] = data.feedbacks.length;
           }
         }
-
-        setSkillFeedbackCounts(feedbackCounts);
+        
+        // Combine existing counts with new counts, but only for skills that still exist
+        const updatedCounts = { ...existingCounts, ...feedbackCounts };
+        const finalCounts: Record<string, number> = {};
+        
+        // Filter out counts for skills that no longer exist
+        editedSkills.forEach(skill => {
+          if (updatedCounts[skill.id] !== undefined) {
+            finalCounts[skill.id] = updatedCounts[skill.id];
+          }
+        });
+        
+        setSkillFeedbackCounts(finalCounts);
       } catch (error) {
         console.error("Error fetching feedback counts:", error);
       }
@@ -1228,6 +1265,9 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
 
       const response = await fetch(`/api/skills/${skillId}`, {
         method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
+        },
       });
 
       if (!response.ok) {
@@ -1235,6 +1275,13 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
       }
 
       toast.success("Skill deleted successfully");
+
+      // Remove the feedback count for the deleted skill
+      setSkillFeedbackCounts(prevCounts => {
+        const newCounts = { ...prevCounts };
+        delete newCounts[skillId];
+        return newCounts;
+      });
 
       // Update local state to remove the deleted skill
       setEditedSkills(editedSkills.filter((skill) => skill.id !== skillId));
@@ -1263,7 +1310,10 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
       const deletePromises = skillIds.map((skillId) =>
         fetch(`/api/skills/${skillId}`, {
           method: "DELETE",
-        })
+          headers: {
+            "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
+          },
+          })
       );
 
       const responses = await Promise.all(deletePromises);
@@ -1402,6 +1452,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
+            "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
           },
           body: JSON.stringify({ priority: skill.priority }),
         });
@@ -1446,6 +1497,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
             method: "PATCH",
             headers: {
               "Content-Type": "application/json",
+              "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
             },
             body: JSON.stringify({ feedback: question.feedback }),
           });
@@ -1516,6 +1568,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
           },
           body: JSON.stringify({
             skillId: activeSkillForRegeneration,
@@ -1563,6 +1616,9 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
       for (const question of skillQuestions) {
         await fetch(`/api/questions/${question.id}`, {
           method: "DELETE",
+          headers: {
+            "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
+          },
         });
       }
 
@@ -1605,6 +1661,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
         },
         body: JSON.stringify({ requirement: "OPTIONAL" }),
       });
@@ -1770,6 +1827,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
             method: "PATCH",
             headers: {
               "Content-Type": "application/json",
+              "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
             },
             body: JSON.stringify({ floCareerId: skillData.skill_id }),
           });
@@ -1860,6 +1918,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
               method: "PATCH",
               headers: {
                 "Content-Type": "application/json",
+                "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
               },
               body: JSON.stringify({ floCareerId: questionData.question_id }),
             });
@@ -1935,6 +1994,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
           },
         }
       );
@@ -1995,6 +2055,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
         user_id: record.userId,
         skill_matrix: skillMatrix,
       };
+      console.log("skillRequestBody", skillRequestBody);
 
       const skillResponse = await fetch(
         "https://sandbox.flocareer.com/dynamic/corporate/create-skills/",
@@ -2012,6 +2073,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
       }
 
       const skillResult = await skillResponse.json();
+      console.log("skillResult", skillResult);
 
       if (!skillResult.success) {
         throw new Error(
@@ -2026,6 +2088,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
             method: "PATCH",
             headers: {
               "Content-Type": "application/json",
+              "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
             },
             body: JSON.stringify({ floCareerId: skillData.skill_id }),
           });
@@ -2045,24 +2108,32 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
       }
 
       // Step 2: Save questions to FloCareer
-      const flocareerQuestions = questions.map((question) => ({
-        ai_question_id: question.id,
+      const flocareerQuestions = questions.map((question, index) => ({
+        ai_question_id: `Q${String(index + 1).padStart(3, '0')}`, // Format as Q001, Q002, etc.
         question_type: "descriptive",
-        candidate_description: question.question,
-        title: question.question,
+        candidate_description: "",
+        title: question.question.length > 100 ? question.question.substring(0, 100) + "..." : question.question,
         description: encodeURIComponent(
-          `<h1>${question.question}</h1>\n<p>${question.answer}</p>`
+          `<h1>${question.question}</h1>\n<p>============================</p>\n`
         ),
-        tags: [question.category, question.questionFormat || "Scenario"],
+        tags: Array.isArray(question.category) 
+          ? question.category
+          : [question.category, question.questionFormat || "Scenario"].filter(Boolean),
         ideal_answer: encodeURIComponent(`<p>${question.answer}</p>`),
-        source: "genai_gpt-4.1",
+        source: "genai_gpt-40",
+      }));
+      
+      // Create a mapping to track original IDs
+      const questionIdMapping = questions.map((question, index) => ({
+        originalId: question.id,
+        tempId: `Q${String(index + 1).padStart(3, '0')}`
       }));
 
       const questionRequestBody = {
         user_id: record.userId,
         questions: flocareerQuestions,
       };
-
+      console.log("questionRequestBody", questionRequestBody);
       const questionResponse = await fetch(
         "https://sandbox.flocareer.com/dynamic/corporate/create-question/",
         {
@@ -2073,12 +2144,14 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
           body: JSON.stringify(questionRequestBody),
         }
       );
+      console.log("questionResponse", questionResponse);
 
       if (!questionResponse.ok) {
         throw new Error(`FloCareer Questions API error: ${questionResponse.status}`);
       }
 
       const questionResult = await questionResponse.json();
+      console.log("questionResult", questionResult);
 
       if (!questionResult.success) {
         throw new Error(
@@ -2090,65 +2163,87 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
       if (questionResult.questions) {
         for (const questionData of questionResult.questions) {
           if (questionData.success) {
-            await fetch(`/api/questions/${questionData.ai_question_id}`, {
-              method: "PATCH",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({ floCareerId: questionData.question_id }),
-            });
+            // Find the original ID using our mapping
+            const mapping = questionIdMapping.find(m => m.tempId === questionData.ai_question_id);
+            console.log("mapping", mapping);
+            if (mapping) {
+              await fetch(`/api/questions/${mapping.originalId}`, {
+                method: "PATCH",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
+                },
+                body: JSON.stringify({ floCareerId: questionData.question_id }),
+              });
+              
+            }
           }
         }
 
         // Update local state with the new flocareer IDs
         setQuestions((prevQuestions) =>
           prevQuestions.map((question) => {
+            const mapping = questionIdMapping.find(m => m.originalId === question.id);
+            if (!mapping) return question;
+            
             const questionData = questionResult.questions.find(
-              (q: any) => q.ai_question_id === question.id
+              (q: any) => q.ai_question_id === mapping.tempId
             );
             return questionData && questionData.success
               ? { ...question, floCareerId: questionData.question_id }
               : question;
           })
         );
+        console.log("questions", questions);
       }
 
       // Step 3: Create interview structure (if needed)
       const questionsWithFloId = questions.filter(q => {
+        const mapping = questionIdMapping.find(m => m.originalId === q.id);
+        if (!mapping) return false;
+        
         const questionData = questionResult.questions?.find(
-          (qr: any) => qr.ai_question_id === q.id
+          (qr: any) => qr.ai_question_id === mapping.tempId
         );
         return questionData && questionData.success;
       });
 
       if (questionsWithFloId.length > 0) {
-        const questionPools = [];
+        const questionPoolsList = [];
 
         for (const skill of editedSkills) {
           const skillQuestions = questionsWithFloId.filter(q => q.skillId === skill.id);
           
           if (skillQuestions.length > 0) {
-            const pool = {
-              pool_id: 0,
-              action: "add",
-              name: skill.name,
-              num_of_questions_to_ask: skillQuestions.length,
-              questions: skillQuestions.map(q => {
-                const questionData = questionResult.questions.find(
-                  (qr: any) => qr.ai_question_id === q.id
-                );
-                return questionData.question_id;
-              }),
-            };
-            questionPools.push(pool);
+            // Get FloCareer question IDs for each question
+            const questionIds = skillQuestions.map(q => {
+              const mapping = questionIdMapping.find(m => m.originalId === q.id);
+              if (!mapping) return null;
+              
+              const questionData = questionResult.questions.find(
+                (qr: any) => qr.ai_question_id === mapping.tempId
+              );
+              return questionData?.question_id || null;
+            }).filter(Boolean);
+            
+            if (questionIds.length > 0) {
+              const pool = {
+                pool_id: 0,
+                action: "add",
+                name: skill.name,
+                num_of_questions_to_ask: questionIds.length,
+                questions: questionIds,
+              };
+              questionPoolsList.push(pool);
+            }
           }
         }
 
-        if (questionPools.length > 0) {
+        if (questionPoolsList.length > 0) {
           const structureRequestBody = {
             user_id: record.userId,
             round_id: record.reqId,
-            question_pools: questionPools,
+            question_pools: questionPoolsList,
           };
 
           const structureResponse = await fetch(
@@ -2576,7 +2671,12 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                   onBulkDeleteSkills={handleBulkDeleteSkills}
                   onSkillAdded={() => {
                     // Fetch the latest skills data from the server
-                    fetch(`/api/records/${record.id}`)
+                    fetch(`/api/records/${record.id}`, {
+                      method: "GET",
+                      headers: {
+                        "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
+                      },
+                    })
                       .then((response) => response.json())
                       .then((data) => {
                         if (data.success && data.record) {
