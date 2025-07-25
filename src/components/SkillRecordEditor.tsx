@@ -1798,7 +1798,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
       }));
 
       const requestBody = {
-        round_id: record.reqId,
+        req_id: record.reqId,
         user_id: record.userId,
         skill_matrix: skillMatrix,
       };
@@ -2062,7 +2062,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
       }));
 
       const skillRequestBody = {
-        round_id: record.reqId,
+        req_id: record.reqId,
         user_id: record.userId,
         skill_matrix: skillMatrix,
       };
@@ -2253,7 +2253,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
         if (questionPoolsList.length > 0) {
           const structureRequestBody = {
             user_id: record.userId,
-            round_id: record.reqId,
+            req_id: record.reqId,
             question_pools: questionPoolsList,
           };
 

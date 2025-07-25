@@ -68,7 +68,7 @@ interface JobDetailsResponse {
   min_experience: number;
   max_experience: number;
   rounds: Array<{
-    round_id: number;
+    req_id: number;
     interview_type: string;
     skill_matrix: any[];
     question_pools: any[];
@@ -248,7 +248,7 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
+          Authorization: `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
         },
         body: JSON.stringify({
           jobDescription: jobDescription,
@@ -322,7 +322,7 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
+          Authorization: `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
         },
         body: JSON.stringify({
           jobRole: form.getValues().jobRole,
@@ -438,7 +438,7 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
+          Authorization: `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
         },
         body: JSON.stringify({
           jobRole: form.getValues().jobRole,

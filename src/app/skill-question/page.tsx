@@ -25,7 +25,14 @@ import { Spinner } from "@/components/ui/spinner";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { ChevronRight, Plus, Check, Loader2, Trash2, ArrowRight } from "lucide-react";
+import {
+  ChevronRight,
+  Plus,
+  Check,
+  Loader2,
+  Trash2,
+  ArrowRight,
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -35,7 +42,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { any } from "zod";
 import Link from "next/link";
 
@@ -49,7 +62,7 @@ interface Skill {
 }
 
 interface SkillMatrix {
-  round_id: number;
+  req_id: number;
   user_id: number;
   skill_matrix: Skill[];
 }
@@ -70,7 +83,7 @@ interface Question {
 }
 
 interface QuestionResponse {
-  round_id: number;
+  req_id: number;
   user_id: number;
   total_questions: number;
   questions: Question[];
@@ -108,8 +121,12 @@ function SkillQuestion() {
   const [roundId, setRoundId] = useState("");
   const [userId, setUserId] = useState("");
   const [skillsData, setSkillsData] = useState<SkillMatrix | null>(null);
-  const [questionsData, setQuestionsData] = useState<QuestionResponse | null>(null);
-  const [activeTab, setActiveTab] = useState<"form" | "skills" | "questions" | "job-details">("form");
+  const [questionsData, setQuestionsData] = useState<QuestionResponse | null>(
+    null
+  );
+  const [activeTab, setActiveTab] = useState<
+    "form" | "skills" | "questions" | "job-details"
+  >("form");
 
   // Add state for job details
   const [jobDetails, setJobDetails] = useState<JobDetails | null>(null);
@@ -122,9 +139,15 @@ function SkillQuestion() {
   const [creatingBatchSkills, setCreatingBatchSkills] = useState(false);
   const [skillsCreationProgress, setSkillsCreationProgress] = useState(0);
   const [createdSkills, setCreatedSkills] = useState<Skill[]>([]);
-  const [skillCreationResults, setSkillCreationResults] = useState<{success: number, failed: number}>({success: 0, failed: 0});
-  const [skillResponsesDialogOpen, setSkillResponsesDialogOpen] = useState(false);
-  const [skillResponses, setSkillResponses] = useState<Array<{skill: Skill, response: any}>>([]);
+  const [skillCreationResults, setSkillCreationResults] = useState<{
+    success: number;
+    failed: number;
+  }>({ success: 0, failed: 0 });
+  const [skillResponsesDialogOpen, setSkillResponsesDialogOpen] =
+    useState(false);
+  const [skillResponses, setSkillResponses] = useState<
+    Array<{ skill: Skill; response: any }>
+  >([]);
   const [skillLength, setSkillLength] = useState(0);
   const [lastPriority, setLastPriority] = useState(0);
   // For adding new skills
@@ -135,7 +158,7 @@ function SkillQuestion() {
     name: "",
     level: "Intermediate",
     requirement: "Must-have",
-    priority: lastPriority + 1
+    priority: lastPriority + 1,
   });
 
   // For modified skills
@@ -145,19 +168,24 @@ function SkillQuestion() {
   const [creatingBatchQuestions, setCreatingBatchQuestions] = useState(false);
   const [questionCreationProgress, setQuestionCreationProgress] = useState(0);
   const [createdQuestionIds, setCreatedQuestionIds] = useState<number[]>([]);
-  const [questionCreationResults, setQuestionCreationResults] = useState<{success: number, failed: number}>({success: 0, failed: 0});
-  const [questionResponsesDialogOpen, setQuestionResponsesDialogOpen] = useState(false);
-  const [questionResponses, setQuestionResponses] = useState<Array<{question: any, response: any}>>([]);
-  
+  const [questionCreationResults, setQuestionCreationResults] = useState<{
+    success: number;
+    failed: number;
+  }>({ success: 0, failed: 0 });
+  const [questionResponsesDialogOpen, setQuestionResponsesDialogOpen] =
+    useState(false);
+  const [questionResponses, setQuestionResponses] = useState<
+    Array<{ question: any; response: any }>
+  >([]);
 
   // Track if form was pre-filled from URL
   const [wasPreFilled, setWasPreFilled] = useState(false);
-  
+
   // Effect to pre-fill form from URL query parameters
   useEffect(() => {
     const reqId = searchParams.get("req_id");
     const uid = searchParams.get("user_id");
-    
+
     if (reqId && uid) {
       setRoundId(reqId);
       setUserId(uid);
@@ -168,7 +196,7 @@ function SkillQuestion() {
       setUserId(uid);
     }
   }, [searchParams]);
-  
+
   // Effect to extract skills when pre-filled from URL
   // useEffect(() => {
   //   // Only run extraction if pre-filled from URL
@@ -202,10 +230,10 @@ function SkillQuestion() {
         throw new Error(`Error: ${response.status}`);
       }
 
-             const data = await response.json();
-       setJobDetails(data);
-       setActiveTab("job-details");
-       toast.success("Job details fetched successfully");
+      const data = await response.json();
+      setJobDetails(data);
+      setActiveTab("job-details");
+      toast.success("Job details fetched successfully");
     } catch (error) {
       console.error("Error fetching job details:", error);
       toast.error("Failed to fetch job details");
@@ -243,7 +271,7 @@ function SkillQuestion() {
         name: "",
         level: "Intermediate",
         requirement: "Must-have",
-        priority: data.skill_matrix[data.skill_matrix.length - 1].priority + 1
+        priority: data.skill_matrix[data.skill_matrix.length - 1].priority + 1,
       });
     } catch (error) {
       console.error("Error extracting skills:", error);
@@ -297,20 +325,20 @@ function SkillQuestion() {
     const skills = skillsData.skill_matrix;
     const totalSkills = skills.length;
     const successfulSkills: Skill[] = [];
-    const responses: Array<{skill: Skill, response: any}> = [];
-    
+    const responses: Array<{ skill: Skill; response: any }> = [];
+
     let successCount = 0;
     let failedCount = 0;
 
     for (let i = 0; i < skills.length; i++) {
       const skill = skills[i];
-      
+
       try {
         // Update progress
-        setSkillsCreationProgress(Math.round(((i) / totalSkills) * 100));
-        
+        setSkillsCreationProgress(Math.round((i / totalSkills) * 100));
+
         const payload = {
-          round_id: parseInt(roundId),
+          req_id: parseInt(roundId),
           user_id: parseInt(userId),
           skill_matrix: [
             {
@@ -324,47 +352,56 @@ function SkillQuestion() {
         };
 
         // API call to create skill
-        const response = await fetch("https://sandbox.flocareer.com/dynamic/corporate/create-skills/", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-        });
+        const response = await fetch(
+          "https://sandbox.flocareer.com/dynamic/corporate/create-skills/",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(payload),
+          }
+        );
 
         const data = await response.json();
         responses.push({ skill, response: data });
-        
+
         if (data.success) {
           successCount++;
           successfulSkills.push(skill);
           // Don't show toast for each success to avoid flooding
         } else {
           failedCount++;
-          console.error(`Failed to create skill: ${skill.name}`, data.error_string);
+          console.error(
+            `Failed to create skill: ${skill.name}`,
+            data.error_string
+          );
         }
       } catch (error) {
         failedCount++;
         console.error(`Error creating skill: ${skill.name}`, error);
-        responses.push({ skill, response: { success: false, error_string: "API call failed" } });
+        responses.push({
+          skill,
+          response: { success: false, error_string: "API call failed" },
+        });
       }
     }
-    
+
     // Set final progress
     setSkillsCreationProgress(100);
-    
+
     // Update results
     setSkillCreationResults({
       success: successCount,
-      failed: failedCount
+      failed: failedCount,
     });
-    
+
     // Set created skills
     setCreatedSkills([...createdSkills, ...successfulSkills]);
-    
+
     // Set responses for view
     setSkillResponses(responses);
-    
+
     // Show final toast
     if (successCount > 0) {
       toast.success(`Successfully created ${successCount} skills`);
@@ -392,20 +429,20 @@ function SkillQuestion() {
     const questions = questionsData.questions;
     const totalQuestions = questions.length;
     const successfulQuestionIds: number[] = [];
-    const responses: Array<{question: any, response: any}> = [];
-    
+    const responses: Array<{ question: any; response: any }> = [];
+
     let successCount = 0;
     let failedCount = 0;
 
     for (let i = 0; i < questions.length; i++) {
       const question = questions[i];
-      
+
       try {
         // Update progress
-        setQuestionCreationProgress(Math.round(((i) / totalQuestions) * 100));
-        
+        setQuestionCreationProgress(Math.round((i / totalQuestions) * 100));
+
         // Format tags into an array
-        const tagsArray = question.tags.split(', ').filter(Boolean);
+        const tagsArray = question.tags.split(", ").filter(Boolean);
 
         const payload = {
           user_id: parseInt(userId),
@@ -415,21 +452,24 @@ function SkillQuestion() {
           description: encodeURIComponent(question.question_description),
           tags: tagsArray,
           ideal_answer: encodeURIComponent(question.ideal_answer),
-          source: "api_import"
+          source: "api_import",
         };
 
         // API call to create question
-        const response = await fetch("https://sandbox.flocareer.com/dynamic/corporate/create-question/", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-        });
+        const response = await fetch(
+          "https://sandbox.flocareer.com/dynamic/corporate/create-question/",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(payload),
+          }
+        );
 
         const data = await response.json();
         responses.push({ question, response: data });
-        
+
         if (data.success) {
           successCount++;
           if (data.question_id) {
@@ -438,30 +478,39 @@ function SkillQuestion() {
           // Don't show toast for each success to avoid flooding
         } else {
           failedCount++;
-          console.error(`Failed to create question: ${question.question_title}`, data.error_string);
+          console.error(
+            `Failed to create question: ${question.question_title}`,
+            data.error_string
+          );
         }
       } catch (error) {
         failedCount++;
-        console.error(`Error creating question: ${question.question_title}`, error);
-        responses.push({ question, response: { success: false, error_string: "API call failed" } });
+        console.error(
+          `Error creating question: ${question.question_title}`,
+          error
+        );
+        responses.push({
+          question,
+          response: { success: false, error_string: "API call failed" },
+        });
       }
     }
-    
+
     // Set final progress
     setQuestionCreationProgress(100);
-    
+
     // Update results
     setQuestionCreationResults({
       success: successCount,
-      failed: failedCount
+      failed: failedCount,
     });
-    
+
     // Set created question IDs
     setCreatedQuestionIds([...createdQuestionIds, ...successfulQuestionIds]);
-    
+
     // Set responses for view
     setQuestionResponses(responses);
-    
+
     // Show final toast
     if (successCount > 0) {
       toast.success(`Successfully created ${successCount} questions`);
@@ -482,7 +531,7 @@ function SkillQuestion() {
 
   // Helper function to get the requirement badge class
   const getRequirementClass = (requirement: string) => {
-    return requirement === "Must-have" 
+    return requirement === "Must-have"
       ? "bg-blue-100 text-blue-800 border-blue-200"
       : "bg-gray-100 text-gray-800 border-gray-200";
   };
@@ -503,7 +552,7 @@ function SkillQuestion() {
 
   // Helper function to get the coding badge class
   const getCodingClass = (coding: string) => {
-    return coding === "Yes" 
+    return coding === "Yes"
       ? "bg-green-100 text-green-800 border-green-200"
       : "bg-gray-100 text-gray-800 border-gray-200";
   };
@@ -518,15 +567,15 @@ function SkillQuestion() {
     if (!skillsData) {
       // Create new skills data if it doesn't exist
       setSkillsData({
-        round_id: parseInt(roundId),
+        req_id: parseInt(roundId),
         user_id: parseInt(userId),
-        skill_matrix: [newSkill]
+        skill_matrix: [newSkill],
       });
     } else {
       // Add to existing skills data
       setSkillsData({
         ...skillsData,
-        skill_matrix: [...skillsData.skill_matrix, newSkill]
+        skill_matrix: [...skillsData.skill_matrix, newSkill],
       });
     }
 
@@ -543,7 +592,7 @@ function SkillQuestion() {
       name: "",
       level: "Intermediate",
       requirement: "Must-have",
-      priority: lastPriority + 1
+      priority: lastPriority + 1,
     });
   };
 
@@ -553,18 +602,22 @@ function SkillQuestion() {
 
     // Remove from skills data
     const updatedSkills = skillsData.skill_matrix.filter(
-      skill => !(skill.name === skillToDelete.name && skill.level === skillToDelete.level)
+      (skill) =>
+        !(
+          skill.name === skillToDelete.name &&
+          skill.level === skillToDelete.level
+        )
     );
 
     setSkillsData({
       ...skillsData,
-      skill_matrix: updatedSkills
+      skill_matrix: updatedSkills,
     });
 
     // Add to modified skills with delete action
     const deleteAction = {
       ...skillToDelete,
-      action: "delete"
+      action: "delete",
     };
     setModifiedSkills([...modifiedSkills, deleteAction]);
 
@@ -581,22 +634,25 @@ function SkillQuestion() {
     setCreatingBatchSkills(true);
     try {
       const payload = {
-        round_id: parseInt(roundId),
+        req_id: parseInt(roundId),
         user_id: parseInt(userId),
         skill_matrix: modifiedSkills,
       };
 
       // API call to update skills
-      const response = await fetch("https://sandbox.flocareer.com/dynamic/corporate/create-skills/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
+      const response = await fetch(
+        "https://sandbox.flocareer.com/dynamic/corporate/create-skills/",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        }
+      );
 
       const data = await response.json();
-      
+
       if (data.success) {
         toast.success("Skills updated successfully");
         setModifiedSkills([]); // Clear modified skills after successful update
@@ -617,22 +673,41 @@ function SkillQuestion() {
         <h1 className="text-2xl font-bold">Skill Question Generator</h1>
         <Link href="/">
           <Button variant="outline" size="sm">
-          Go to JD Q&A Generator <ArrowRight className="w-4 h-4" />
-        </Button>
-      </Link>
+            Go to JD Q&A Generator <ArrowRight className="w-4 h-4" />
+          </Button>
+        </Link>
       </div>
 
-      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)}>
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => setActiveTab(value as any)}
+      >
         <TabsList className="w-full justify-start mb-4">
           <TabsTrigger value="form">Form</TabsTrigger>
           <TabsTrigger value="job-details" disabled={!jobDetails}>
             Job Details
           </TabsTrigger>
-          <TabsTrigger value="skills" disabled={!skillsData && createdSkills.length === 0}>
-            Skills {skillsData ? `(${skillsData.skill_matrix.length})` : createdSkills.length > 0 ? `(${createdSkills.length})` : ''}
+          <TabsTrigger
+            value="skills"
+            disabled={!skillsData && createdSkills.length === 0}
+          >
+            Skills{" "}
+            {skillsData
+              ? `(${skillsData.skill_matrix.length})`
+              : createdSkills.length > 0
+              ? `(${createdSkills.length})`
+              : ""}
           </TabsTrigger>
-          <TabsTrigger value="questions" disabled={!questionsData && createdQuestionIds.length === 0}>
-            Questions {questionsData ? `(${questionsData.total_questions})` : createdQuestionIds.length > 0 ? `(${createdQuestionIds.length})` : ''}
+          <TabsTrigger
+            value="questions"
+            disabled={!questionsData && createdQuestionIds.length === 0}
+          >
+            Questions{" "}
+            {questionsData
+              ? `(${questionsData.total_questions})`
+              : createdQuestionIds.length > 0
+              ? `(${createdQuestionIds.length})`
+              : ""}
           </TabsTrigger>
         </TabsList>
 
@@ -641,7 +716,8 @@ function SkillQuestion() {
             <CardHeader>
               <CardTitle>Round & User Information</CardTitle>
               <CardDescription>
-                Enter the round and user information to extract skills or generate questions.
+                Enter the round and user information to extract skills or
+                generate questions.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -668,25 +744,42 @@ function SkillQuestion() {
             </CardContent>
             <CardFooter className="flex flex-col gap-2">
               <div className="flex flex-wrap gap-2 justify-between items-center w-full">
-                <Button variant="outline" onClick={fetchJobDetails} disabled={loadingJobDetails}>
-                  {loadingJobDetails ? <Spinner size="sm" className="mr-2" /> : null}
+                <Button
+                  variant="outline"
+                  onClick={fetchJobDetails}
+                  disabled={loadingJobDetails}
+                >
+                  {loadingJobDetails ? (
+                    <Spinner size="sm" className="mr-2" />
+                  ) : null}
                   Fetch Job Details
                 </Button>
-                  <Button variant="outline" onClick={extractSkills} disabled={loading1}>
-                    {loading1 ? <Spinner size="sm" className="mr-2" /> : null}
-                    Extract Skills
-                  </Button>
-                  <Button onClick={generateQuestions} disabled={loading2}>
-                    {loading2 ? <Spinner size="sm" className="mr-2" /> : null}
-                    Generate Questions
-                  </Button>
+                <Button
+                  variant="outline"
+                  onClick={extractSkills}
+                  disabled={loading1}
+                >
+                  {loading1 ? <Spinner size="sm" className="mr-2" /> : null}
+                  Extract Skills
+                </Button>
+                <Button onClick={generateQuestions} disabled={loading2}>
+                  {loading2 ? <Spinner size="sm" className="mr-2" /> : null}
+                  Generate Questions
+                </Button>
               </div>
-              <Button variant="outline" onClick={() => {
-                extractSkills();
-                generateQuestions();
-                fetchJobDetails();
-              }} disabled={loading1 && loading2 && loadingJobDetails} className="w-full">
-                {(loading1 && loading2 && loadingJobDetails) ? <Spinner size="sm" className="mr-2" /> : null}
+              <Button
+                variant="outline"
+                onClick={() => {
+                  extractSkills();
+                  generateQuestions();
+                  fetchJobDetails();
+                }}
+                disabled={loading1 && loading2 && loadingJobDetails}
+                className="w-full"
+              >
+                {loading1 && loading2 && loadingJobDetails ? (
+                  <Spinner size="sm" className="mr-2" />
+                ) : null}
                 Extract All Data
               </Button>
             </CardFooter>
@@ -703,12 +796,14 @@ function SkillQuestion() {
                   Job information for Round ID: {roundId}, User ID: {userId}
                 </CardDescription>
               </div>
-              <Button 
-                variant="outline" 
-                onClick={fetchJobDetails} 
+              <Button
+                variant="outline"
+                onClick={fetchJobDetails}
                 disabled={loadingJobDetails}
               >
-                {loadingJobDetails ? <Spinner size="sm" className="mr-2" /> : null}
+                {loadingJobDetails ? (
+                  <Spinner size="sm" className="mr-2" />
+                ) : null}
                 Refresh
               </Button>
             </CardHeader>
@@ -725,22 +820,33 @@ function SkillQuestion() {
                       <p className="text-lg">{jobDetails.company_name}</p>
                     </div>
                   </div>
-                  
+
                   <div>
-                    <h3 className="text-lg font-semibold mb-2">Experience Required</h3>
-                    <p className="text-lg">{jobDetails.min_experience} - {jobDetails.max_experience} years</p>
+                    <h3 className="text-lg font-semibold mb-2">
+                      Experience Required
+                    </h3>
+                    <p className="text-lg">
+                      {jobDetails.min_experience} - {jobDetails.max_experience}{" "}
+                      years
+                    </p>
                   </div>
-                  
+
                   <div>
-                    <h3 className="text-lg font-semibold mb-2">Job Description</h3>
-                    <div 
+                    <h3 className="text-lg font-semibold mb-2">
+                      Job Description
+                    </h3>
+                    <div
                       className="prose max-w-none border rounded-md p-4 bg-muted/30"
-                      dangerouslySetInnerHTML={{ __html: jobDetails.job_description }}
+                      dangerouslySetInnerHTML={{
+                        __html: jobDetails.job_description,
+                      }}
                     />
                   </div>
-                  
+
                   <div>
-                    <h3 className="text-lg font-semibold mb-2">Interview Rounds</h3>
+                    <h3 className="text-lg font-semibold mb-2">
+                      Interview Rounds
+                    </h3>
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -765,9 +871,16 @@ function SkillQuestion() {
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center py-12">
-                  <p className="text-muted-foreground mb-4">No job details available</p>
-                  <Button onClick={fetchJobDetails} disabled={loadingJobDetails}>
-                    {loadingJobDetails ? <Spinner size="sm" className="mr-2" /> : null}
+                  <p className="text-muted-foreground mb-4">
+                    No job details available
+                  </p>
+                  <Button
+                    onClick={fetchJobDetails}
+                    disabled={loadingJobDetails}
+                  >
+                    {loadingJobDetails ? (
+                      <Spinner size="sm" className="mr-2" />
+                    ) : null}
                     Fetch Job Details
                   </Button>
                 </div>
@@ -791,7 +904,7 @@ function SkillQuestion() {
                 </CardDescription>
               </div>
               <div className="flex items-center gap-2">
-                <Button 
+                <Button
                   variant="outline"
                   onClick={() => setAddSkillDialogOpen(true)}
                   className="flex items-center gap-2"
@@ -800,8 +913,8 @@ function SkillQuestion() {
                   Add Skill
                 </Button>
                 {modifiedSkills.length > 0 && (
-                  <Button 
-                    onClick={postModifiedSkills} 
+                  <Button
+                    onClick={postModifiedSkills}
                     disabled={creatingBatchSkills}
                     className="flex items-center gap-2"
                   >
@@ -814,8 +927,8 @@ function SkillQuestion() {
                   </Button>
                 )}
                 {skillsData && skillsData.skill_matrix.length > 0 && (
-                  <Button 
-                    onClick={createAllSkills} 
+                  <Button
+                    onClick={createAllSkills}
                     disabled={creatingBatchSkills}
                     className="flex items-center gap-2"
                   >
@@ -833,7 +946,8 @@ function SkillQuestion() {
               <div className="px-6 py-2">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-medium">
-                    Creating skills... ({Math.min(skillsCreationProgress, 100)}%)
+                    Creating skills... ({Math.min(skillsCreationProgress, 100)}
+                    %)
                   </span>
                 </div>
                 <Progress value={skillsCreationProgress} className="h-2" />
@@ -853,33 +967,44 @@ function SkillQuestion() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {skillsData && skillsData.skill_matrix.map((skill) => (
-                      <TableRow key={`api-skill-${skill.skill_id}-${skill.name}`}>
-                        <TableCell>{skill.priority}</TableCell>
-                        <TableCell className="font-medium">{skill.name}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={getLevelClass(skill.level)}>
-                            {skill.level}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={getRequirementClass(skill.requirement)}>
-                            {skill.requirement}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{skill.action}</TableCell>
-                        <TableCell>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            onClick={() => handleDeleteSkill(skill)}
-                            className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {skillsData &&
+                      skillsData.skill_matrix.map((skill) => (
+                        <TableRow
+                          key={`api-skill-${skill.skill_id}-${skill.name}`}
+                        >
+                          <TableCell>{skill.priority}</TableCell>
+                          <TableCell className="font-medium">
+                            {skill.name}
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              variant="outline"
+                              className={getLevelClass(skill.level)}
+                            >
+                              {skill.level}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              variant="outline"
+                              className={getRequirementClass(skill.requirement)}
+                            >
+                              {skill.requirement}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{skill.action}</TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteSkill(skill)}
+                              className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
                     {/* {createdSkills.map((skill, index) => (
                       <TableRow key={`created-skill-${index}`} className="bg-green-50">
                         <TableCell>{skill.priority}</TableCell>
@@ -922,16 +1047,22 @@ function SkillQuestion() {
               </Button>
               {skillCreationResults.success > 0 && (
                 <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="bg-green-100 text-green-800">
+                  <Badge
+                    variant="outline"
+                    className="bg-green-100 text-green-800"
+                  >
                     {skillCreationResults.success} Created
                   </Badge>
                   {skillCreationResults.failed > 0 && (
-                    <Badge variant="outline" className="bg-red-100 text-red-800">
+                    <Badge
+                      variant="outline"
+                      className="bg-red-100 text-red-800"
+                    >
                       {skillCreationResults.failed} Failed
                     </Badge>
                   )}
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     onClick={() => setSkillResponsesDialogOpen(true)}
                   >
                     View Responses
@@ -952,8 +1083,8 @@ function SkillQuestion() {
                 </CardDescription>
               </div>
               {questionsData && questionsData.questions.length > 0 && (
-                <Button 
-                  onClick={createAllQuestions} 
+                <Button
+                  onClick={createAllQuestions}
                   disabled={creatingBatchQuestions}
                   className="flex items-center gap-2"
                 >
@@ -970,7 +1101,8 @@ function SkillQuestion() {
               <div className="px-6 py-2">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-medium">
-                    Creating questions... ({Math.min(questionCreationProgress, 100)}%)
+                    Creating questions... (
+                    {Math.min(questionCreationProgress, 100)}%)
                   </span>
                 </div>
                 <Progress value={questionCreationProgress} className="h-2" />
@@ -991,60 +1123,79 @@ function SkillQuestion() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {questionsData && questionsData.questions.map((question, index) => (
-                      <TableRow 
-                        key={`${question.sl_no}-${question.skill}-${index}`} 
-                        className="cursor-pointer hover:bg-muted/50"
-                      >
-                        <TableCell>{question.sl_no}</TableCell>
-                        <TableCell className="font-medium">{question.question_title}</TableCell>
-                        <TableCell>
-                          <div className="max-h-24 overflow-y-auto text-sm">
-                            {question.candidate_description.length > 150 
-                              ? `${question.candidate_description.substring(0, 150)}...` 
-                              : question.candidate_description}
-                          </div>
-                        </TableCell>
-                        <TableCell>{question.skill}</TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap gap-1">
-                            {question.tags.split(', ').slice(0, 2).map((tag, tagIndex) => (
-                              <Badge key={`${tag}-${tagIndex}`} variant="outline" className="text-xs">
-                                {tag}
-                              </Badge>
-                            ))}
-                            {question.tags.split(', ').length > 2 && (
-                              <Badge variant="outline" className="text-xs">
-                                +{question.tags.split(', ').length - 2}
-                              </Badge>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={getCodingClass(question.coding)}>
-                            {question.coding}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            onClick={() => viewQuestionDetails(question)}
-                            className="w-full flex justify-between items-center"
-                          >
-                            View Details
-                            <ChevronRight className="h-4 w-4" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {questionsData &&
+                      questionsData.questions.map((question, index) => (
+                        <TableRow
+                          key={`${question.sl_no}-${question.skill}-${index}`}
+                          className="cursor-pointer hover:bg-muted/50"
+                        >
+                          <TableCell>{question.sl_no}</TableCell>
+                          <TableCell className="font-medium">
+                            {question.question_title}
+                          </TableCell>
+                          <TableCell>
+                            <div className="max-h-24 overflow-y-auto text-sm">
+                              {question.candidate_description.length > 150
+                                ? `${question.candidate_description.substring(
+                                    0,
+                                    150
+                                  )}...`
+                                : question.candidate_description}
+                            </div>
+                          </TableCell>
+                          <TableCell>{question.skill}</TableCell>
+                          <TableCell>
+                            <div className="flex flex-wrap gap-1">
+                              {question.tags
+                                .split(", ")
+                                .slice(0, 2)
+                                .map((tag, tagIndex) => (
+                                  <Badge
+                                    key={`${tag}-${tagIndex}`}
+                                    variant="outline"
+                                    className="text-xs"
+                                  >
+                                    {tag}
+                                  </Badge>
+                                ))}
+                              {question.tags.split(", ").length > 2 && (
+                                <Badge variant="outline" className="text-xs">
+                                  +{question.tags.split(", ").length - 2}
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              variant="outline"
+                              className={getCodingClass(question.coding)}
+                            >
+                              {question.coding}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => viewQuestionDetails(question)}
+                              className="w-full flex justify-between items-center"
+                            >
+                              View Details
+                              <ChevronRight className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
                     {/* Batch created questions display */}
                     {createdQuestionIds.length > 0 && (
                       <TableRow className="bg-green-50">
                         <TableCell colSpan={7} className="text-center py-4">
                           <div className="flex flex-col items-center gap-2">
                             <Check className="h-5 w-5 text-green-600" />
-                            <p className="font-medium">Successfully created {createdQuestionIds.length} question(s)</p>
+                            <p className="font-medium">
+                              Successfully created {createdQuestionIds.length}{" "}
+                              question(s)
+                            </p>
                             <p className="text-sm text-muted-foreground">
                               Question IDs: {createdQuestionIds.join(", ")}
                             </p>
@@ -1062,16 +1213,22 @@ function SkillQuestion() {
               </Button>
               {questionCreationResults.success > 0 && (
                 <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="bg-green-100 text-green-800">
+                  <Badge
+                    variant="outline"
+                    className="bg-green-100 text-green-800"
+                  >
                     {questionCreationResults.success} Created
                   </Badge>
                   {questionCreationResults.failed > 0 && (
-                    <Badge variant="outline" className="bg-red-100 text-red-800">
+                    <Badge
+                      variant="outline"
+                      className="bg-red-100 text-red-800"
+                    >
                       {questionCreationResults.failed} Failed
                     </Badge>
                   )}
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     onClick={() => setQuestionResponsesDialogOpen(true)}
                   >
                     View Responses
@@ -1100,7 +1257,9 @@ function SkillQuestion() {
               <Input
                 id="skillName"
                 value={newSkill.name}
-                onChange={(e) => setNewSkill({...newSkill, name: e.target.value})}
+                onChange={(e) =>
+                  setNewSkill({ ...newSkill, name: e.target.value })
+                }
                 className="col-span-3"
               />
             </div>
@@ -1110,7 +1269,9 @@ function SkillQuestion() {
               </Label>
               <Select
                 value={newSkill.level}
-                onValueChange={(value) => setNewSkill({...newSkill, level: value})}
+                onValueChange={(value) =>
+                  setNewSkill({ ...newSkill, level: value })
+                }
               >
                 <SelectTrigger className="col-span-3">
                   <SelectValue placeholder="Select Level" />
@@ -1128,7 +1289,9 @@ function SkillQuestion() {
               </Label>
               <Select
                 value={newSkill.requirement}
-                onValueChange={(value) => setNewSkill({...newSkill, requirement: value})}
+                onValueChange={(value) =>
+                  setNewSkill({ ...newSkill, requirement: value })
+                }
               >
                 <SelectTrigger className="col-span-3">
                   <SelectValue placeholder="Select Requirement" />
@@ -1148,13 +1311,21 @@ function SkillQuestion() {
                 type="number"
                 min="1"
                 value={newSkill.priority}
-                onChange={(e) => setNewSkill({...newSkill, priority: parseInt(e.target.value) || 1})}
+                onChange={(e) =>
+                  setNewSkill({
+                    ...newSkill,
+                    priority: parseInt(e.target.value) || 1,
+                  })
+                }
                 className="col-span-3"
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAddSkillDialogOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setAddSkillDialogOpen(false)}
+            >
               Cancel
             </Button>
             <Button onClick={handleAddSkill}>Add Skill</Button>
@@ -1163,7 +1334,10 @@ function SkillQuestion() {
       </Dialog>
 
       {/* Skills Responses Dialog */}
-      <Dialog open={skillResponsesDialogOpen} onOpenChange={setSkillResponsesDialogOpen}>
+      <Dialog
+        open={skillResponsesDialogOpen}
+        onOpenChange={setSkillResponsesDialogOpen}
+      >
         <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Skills Creation Responses</DialogTitle>
@@ -1195,7 +1369,10 @@ function SkillQuestion() {
       </Dialog>
 
       {/* Questions Responses Dialog */}
-      <Dialog open={questionResponsesDialogOpen} onOpenChange={setQuestionResponsesDialogOpen}>
+      <Dialog
+        open={questionResponsesDialogOpen}
+        onOpenChange={setQuestionResponsesDialogOpen}
+      >
         <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto overflow-x-auto">
           <DialogHeader>
             <DialogTitle>Questions Creation Responses</DialogTitle>
@@ -1215,7 +1392,9 @@ function SkillQuestion() {
               )}
             </div>
             <div className="mb-4">
-              <h4 className="text-sm font-medium mb-2">Created Question IDs:</h4>
+              <h4 className="text-sm font-medium mb-2">
+                Created Question IDs:
+              </h4>
               <div className="p-2 bg-muted/50 rounded-md overflow-x-auto  whitespace-pre-wrap flex flex-wrap gap-2">
                 {createdQuestionIds.join(", ")}
               </div>

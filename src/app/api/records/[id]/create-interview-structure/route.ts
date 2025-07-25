@@ -72,7 +72,7 @@ export async function POST(
     // Prepare request body for FloCareer API
     const requestBody = {
       user_id: record.userId,
-      round_id: record.reqId,
+      req_id: record.reqId,
       question_pools: questionPools,
     };
 
