@@ -2020,6 +2020,17 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
     }
   };
 
+  // Add function to get query parameters
+  const getQueryParam = (name: string) => {
+    console.log('....', window.location.search);
+    name = name.replace(/[\[\]]/g, '\\$&');
+    var regex = new RegExp('[?&]' + name + '(=([^&#]*)|&|#|$)'),
+        results = regex.exec(window.location.href);
+    if (!results) return null;
+    if (!results[2]) return '';
+    return decodeURIComponent(results[2].replace(/\+/g, ' '));
+  };
+
   // Combined function to save both skills and questions to FloCareer
   const finalSubmitToFloCareer = async () => {
     if (!record.reqId || !record.userId) {
@@ -2269,9 +2280,43 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
       toast.success("Successfully submitted all skills and questions to FloCareer!");
       setFinalSubmitDialogOpen(false);
       
+      // Send success message to parent window
+      try {
+        const parentUrl = getQueryParam('parenturl');
+        if (parentUrl && window.parent) {
+          window.parent.postMessage(
+            { 
+              type: 'iframeData', 
+              payload: { success: true, message: 'FloCareer submission completed successfully' }
+            }, 
+            parentUrl
+          );
+          console.log('Success message sent to parent:', parentUrl);
+        }
+      } catch (error) {
+        console.error('Error sending message to parent:', error);
+      }
+      
     } catch (error: any) {
       console.error("Error submitting to FloCareer:", error);
       toast.error(error.message || "Failed to submit to FloCareer");
+      
+      // Send error message to parent window
+      try {
+        const parentUrl = getQueryParam('parenturl');
+        if (parentUrl && window.parent) {
+          window.parent.postMessage(
+            { 
+              type: 'iframeData', 
+              payload: { success: false, message: error.message || 'FloCareer submission failed' }
+            }, 
+            parentUrl
+          );
+          console.log('Error message sent to parent:', parentUrl);
+        }
+      } catch (postMessageError) {
+        console.error('Error sending error message to parent:', postMessageError);
+      }
     } finally {
       setSavingToFloCareer(false);
     }
@@ -3334,10 +3379,10 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                   {savingToFloCareer ? (
                     <>
                       <Spinner size="sm" className="mr-2" />
-                      Submitting to FloCareer...
+                      Submitting...
                     </>
                   ) : (
-                    "Final Submit to FloCareer"
+                    "Submit"
                   )}
                 </Button>
               )}
