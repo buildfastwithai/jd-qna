@@ -68,8 +68,10 @@ interface JobDetailsResponse {
   min_experience: number;
   max_experience: number;
   rounds: Array<{
-    req_id: number;
+    round_id: number;
     interview_type: string;
+    interview_duration: number;
+    interviewer_briefing: string;
     skill_matrix: any[];
     question_pools: any[];
   }>;
@@ -105,6 +107,7 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
   });
   const [fetchingJobDetails, setFetchingJobDetails] = useState(false);
   const [isPreFilled, setIsPreFilled] = useState(false);
+  const [extractedReqId, setExtractedReqId] = useState<string | null>(null);
 
   const router = useRouter();
 
@@ -140,6 +143,16 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
 
           console.log(data);
 
+          // Extract round_id from the first round and store it as reqId
+          const firstRoundId = data.rounds?.[0]?.round_id;
+          if (firstRoundId) {
+            setExtractedReqId(firstRoundId.toString());
+          } else {
+            toast.error(
+              "Round ID is missing from job details. Skills extraction and auto-generation will not work."
+            );
+          }
+
           // Pre-fill the form with the response data
           form.setValue("jobRole", data.job_title);
           form.setValue("companyName", data.company_name);
@@ -153,8 +166,10 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
           // Switch to text input method
           setInputMethod("text");
 
-          // Calculate interview length based on experience (just an example calculation)
-          const interviewLength = Math.min(90, 30 + data.max_experience * 5);
+          // Set interview length from the first round or calculate based on experience
+          const interviewLength =
+            data.rounds?.[0]?.interview_duration ||
+            Math.min(90, 30 + data.max_experience * 5);
           form.setValue("interviewLength", interviewLength);
 
           // Mark form as pre-filled
@@ -241,6 +256,14 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
       return;
     }
 
+    // Check if round_id is missing when form is pre-filled
+    if (isPreFilled && !extractedReqId) {
+      toast.error(
+        "Round ID is missing from job details. Cannot proceed with skill extraction."
+      );
+      return;
+    }
+
     setExtractingSkills(true);
 
     try {
@@ -256,7 +279,7 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
           interviewLength: Number(form.getValues().interviewLength),
           minExperience: form.getValues().minExperience,
           maxExperience: form.getValues().maxExperience,
-          reqId: reqId,
+          reqId: extractedReqId || reqId,
           userId: userId,
         }),
       });
@@ -422,6 +445,14 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
       return;
     }
 
+    // Check if round_id is missing when form is pre-filled
+    if (isPreFilled && !extractedReqId) {
+      toast.error(
+        "Round ID is missing from job details. Cannot proceed with auto-generation."
+      );
+      return;
+    }
+
     setLoading(true);
     setQuestionGenerationDialogOpen(true);
     setGenerationProgress({
@@ -447,7 +478,7 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
           customInstructions: form.getValues().customInstructions || "",
           minExperience: form.getValues().minExperience,
           maxExperience: form.getValues().maxExperience,
-          reqId: reqId,
+          reqId: extractedReqId || reqId,
           userId: userId,
         }),
       });
