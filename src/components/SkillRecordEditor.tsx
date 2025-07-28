@@ -2317,7 +2317,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
 
       // Send success message to parent window
       try {
-        const parentUrl = getQueryParam("parenturl");
+        const parentUrl = getQueryParam("parentUrl");
         if (parentUrl && window.parent) {
           window.parent.postMessage(
             {
@@ -2340,7 +2340,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
 
       // Send error message to parent window
       try {
-        const parentUrl = getQueryParam("parenturl");
+        const parentUrl = getQueryParam("parentUrl");
         if (parentUrl && window.parent) {
           window.parent.postMessage(
             {
