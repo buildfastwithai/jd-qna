@@ -574,6 +574,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
 
   // Call fetchGlobalFeedback when component mounts
   useEffect(() => {
+   
     fetchGlobalFeedback();
   }, [record.id]);
 

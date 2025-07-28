@@ -294,11 +294,18 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
         throw new Error(data.error || "Failed to extract skills");
       }
 
+      const parentUrl = getQueryParam("parentUrl");
+      console.log("parentUrl", parentUrl);
+      if (!parentUrl) {
+        toast.error("Parent URL is missing");
+        return;
+      }
+
       // Set the recordId and open skills dialog instead of navigating
       if (data.recordId) {
         setRecordId(data.recordId);
         setSkills(data.analysis.skills || []);
-        router.push(`/records/${data.recordId}`);
+        router.push(`/records/${data.recordId}?parentUrl=${parentUrl}`);
       } else {
         throw new Error("No record ID was returned from the API");
       }
@@ -308,6 +315,16 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
     } finally {
       setExtractingSkills(false);
     }
+  };
+
+  const getQueryParam = (name: string) => {
+    console.log("....", window.location.search);
+    name = name.replace(/[\[\]]/g, "\\$&");
+    var regex = new RegExp("[?&]" + name + "(=([^&#]*)|&|#|$)"),
+      results = regex.exec(window.location.href);
+    if (!results) return null;
+    if (!results[2]) return "";
+    return decodeURIComponent(results[2].replace(/\+/g, " "));
   };
 
   // Generate questions based on selected skills
@@ -494,8 +511,13 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
       }
 
       if (data.recordId) {
-        // Navigate directly to the record page
-        router.push(`/records/${data.recordId}`);
+        const parentUrl = getQueryParam("parentUrl");
+        console.log("parentUrl", parentUrl);
+        if (!parentUrl) {
+          toast.error("Parent URL is missing");
+          return;
+        }
+        router.push(`/records/${data.recordId}?parentUrl=${parentUrl}`);
       } else {
         throw new Error("No record ID was returned from the API");
       }
