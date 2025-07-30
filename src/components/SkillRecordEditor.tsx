@@ -674,15 +674,15 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
 
       // Set column widths
       const wscols = [
-        { wch: 20 },  // Skill
-        { wch: 40 },  // Question
-        { wch: 40 },  // Answer
-        { wch: 15 },  // Category
-        { wch: 15 },  // Difficulty
-        { wch: 15 },  // Format
-        { wch: 10 },  // Priority
+        { wch: 20 }, // Skill
+        { wch: 40 }, // Question
+        { wch: 40 }, // Answer
+        { wch: 15 }, // Category
+        { wch: 15 }, // Difficulty
+        { wch: 15 }, // Format
+        { wch: 10 }, // Priority
       ];
-      ws['!cols'] = wscols;
+      ws["!cols"] = wscols;
 
       // Create workbook
       const wb = XLSX.utils.book_new();
@@ -1341,7 +1341,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => router.push("/")}
+            onClick={() => router.back()}
             className="mb-2"
           >
             <ArrowLeft className="h-4 w-4 mr-2" /> Back to Home
@@ -1875,7 +1875,11 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                   size="sm"
                   onClick={handleGenerateExcel}
                   disabled={
-                    excelLoading || pdfLoading || questionsLoading || generatingQuestions || questions.length === 0
+                    excelLoading ||
+                    pdfLoading ||
+                    questionsLoading ||
+                    generatingQuestions ||
+                    questions.length === 0
                   }
                 >
                   {excelLoading ? (
@@ -1895,7 +1899,10 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                   size="sm"
                   onClick={handleGeneratePDF}
                   disabled={
-                    pdfLoading || questionsLoading || generatingQuestions || questions.length === 0
+                    pdfLoading ||
+                    questionsLoading ||
+                    generatingQuestions ||
+                    questions.length === 0
                   }
                 >
                   {pdfLoading ? (
