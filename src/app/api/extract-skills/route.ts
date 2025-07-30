@@ -121,7 +121,7 @@ async function checkForExistingRecords(
   }
 
   // If no reqId matches, look for title-based matches for dialog
-  const existingRecords = [];
+  const existingRecords: any[] = [];
 
   // Check by exact job title match
   const recordsByTitle = await prisma.skillRecord.findMany({
