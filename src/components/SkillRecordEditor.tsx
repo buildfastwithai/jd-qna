@@ -574,7 +574,6 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
 
   // Call fetchGlobalFeedback when component mounts
   useEffect(() => {
-   
     fetchGlobalFeedback();
   }, [record.id]);
 
@@ -2342,7 +2341,6 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
 
       // Send error message to parent window
       try {
-
         const parentUrl = getQueryParam("parentUrl");
         console.log("parentUrl", parentUrl);
         if (parentUrl && window.parent) {
@@ -2376,7 +2374,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => router.push("/")}
+            onClick={() => router.back()}
             className="mb-2"
           >
             <ArrowLeft className="h-4 w-4 mr-2" /> Back to Home
