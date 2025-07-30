@@ -34,6 +34,15 @@ import { SkillLevel, Requirement } from "@prisma/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { QuestionGenerationDialog } from "./ui/question-generation-dialog";
 import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "./ui/dialog";
+import { Badge } from "./ui/badge";
+import { CalendarDays, Users } from "lucide-react";
 
 // Form validation schema
 const formSchema = z.object({
@@ -108,6 +117,13 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
   const [fetchingJobDetails, setFetchingJobDetails] = useState(false);
   const [isPreFilled, setIsPreFilled] = useState(false);
   const [extractedReqId, setExtractedReqId] = useState<string | null>(null);
+
+  // New state for existing records
+  const [existingRecords, setExistingRecords] = useState<any[]>([]);
+  const [showExistingRecords, setShowExistingRecords] = useState(false);
+  const [selectedExistingRecord, setSelectedExistingRecord] = useState<
+    string | null
+  >(null);
 
   const router = useRouter();
 
@@ -247,7 +263,7 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
   };
 
   // Extract skills from job description
-  const extractSkills = async () => {
+  const extractSkills = async (forceCreate = false) => {
     const jobDescription =
       inputMethod === "file" ? pdfContent : form.getValues().jobDescriptionText;
 
@@ -281,6 +297,7 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
           maxExperience: form.getValues().maxExperience,
           reqId: extractedReqId || reqId,
           userId: userId,
+          forceCreate: forceCreate, // Add this parameter
         }),
       });
 
@@ -301,6 +318,29 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
         return;
       }
 
+      // Handle auto-selected existing record (reqId+userId or reqId match)
+      if (data.existingRecords && !Array.isArray(data.existingRecords)) {
+        toast.success(
+          "Found existing record with matching criteria. Redirecting..."
+        );
+        router.push(
+          `/records/${data.existingRecords.id}?parentUrl=${parentUrl}`
+        );
+        return;
+      }
+
+      // Handle title-based matches that need user choice (show dialog)
+      if (
+        data.existingRecords &&
+        Array.isArray(data.existingRecords) &&
+        data.existingRecords.length > 0 &&
+        !forceCreate
+      ) {
+        setExistingRecords(data.existingRecords);
+        setShowExistingRecords(true);
+        return;
+      }
+
       // Set the recordId and open skills dialog instead of navigating
       if (data.recordId) {
         setRecordId(data.recordId);
@@ -315,6 +355,23 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
     } finally {
       setExtractingSkills(false);
     }
+  };
+
+  // Handle using an existing record
+  const handleUseExistingRecord = (recordId: string) => {
+    const parentUrl = getQueryParam("parentUrl");
+    if (!parentUrl) {
+      toast.error("Parent URL is missing");
+      return;
+    }
+
+    router.push(`/records/${recordId}?parentUrl=${parentUrl}`);
+  };
+
+  // Handle creating a new record despite existing ones
+  const handleCreateNewRecord = () => {
+    setShowExistingRecords(false);
+    extractSkills(true); // Force create new record
   };
 
   const getQueryParam = (name: string) => {
@@ -853,6 +910,120 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
         progressValue={generationProgress.progressValue}
         progressText={generationProgress.progressText}
       />
+
+      {/* Existing Records Dialog */}
+      <Dialog open={showExistingRecords} onOpenChange={setShowExistingRecords}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Existing Records Found</DialogTitle>
+            <DialogDescription>
+              We found existing records that match your criteria. You can use
+              one of these existing records or create a new one.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {existingRecords.map((record) => (
+              <div
+                key={record.id}
+                className={`border rounded-lg p-4 cursor-pointer hover:bg-gray-50 transition-colors ${
+                  selectedExistingRecord === record.id
+                    ? "border-blue-500 bg-blue-50"
+                    : ""
+                }`}
+                onClick={() => setSelectedExistingRecord(record.id)}
+              >
+                <div className="flex justify-between items-start mb-2">
+                  <h3 className="font-semibold text-lg">{record.jobTitle}</h3>
+                  <div className="flex gap-2">
+                    <Badge
+                      variant={
+                        record.matchType === "reqId"
+                          ? "default"
+                          : record.matchType === "exactTitle"
+                          ? "secondary"
+                          : "outline"
+                      }
+                    >
+                      {record.matchType === "reqId"
+                        ? "Exact Req ID"
+                        : record.matchType === "exactTitle"
+                        ? "Exact Title"
+                        : "Similar Title"}
+                    </Badge>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm text-gray-600 mb-3">
+                  <div className="flex items-center gap-1">
+                    <CalendarDays className="h-4 w-4" />
+                    <span>
+                      Created: {new Date(record.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                  {record.reqId && (
+                    <div className="flex items-center gap-1">
+                      <FileText className="h-4 w-4" />
+                      <span>Req ID: {record.reqId}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-1">
+                    <Users className="h-4 w-4" />
+                    <span>{record.skills?.length || 0} skills</span>
+                  </div>
+                </div>
+
+                {record.skills && record.skills.length > 0 && (
+                  <div className="mb-3">
+                    <p className="text-sm font-medium mb-2">Skills:</p>
+                    <div className="flex flex-wrap gap-1">
+                      {record.skills.slice(0, 8).map((skill: any) => (
+                        <Badge
+                          key={skill.id}
+                          variant="outline"
+                          className="text-xs"
+                        >
+                          {skill.name}
+                        </Badge>
+                      ))}
+                      {record.skills.length > 8 && (
+                        <Badge variant="outline" className="text-xs">
+                          +{record.skills.length - 8} more
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {record.questions && record.questions.length > 0 && (
+                  <div className="text-sm text-gray-600">
+                    <span className="font-medium">Questions:</span>{" "}
+                    {record.questions.length} generated
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t">
+            <Button variant="outline" onClick={handleCreateNewRecord}>
+              Create New Record
+            </Button>
+            <Button
+              onClick={() => {
+                if (selectedExistingRecord) {
+                  handleUseExistingRecord(selectedExistingRecord);
+                } else if (existingRecords.length > 0) {
+                  handleUseExistingRecord(existingRecords[0].id);
+                }
+              }}
+              disabled={!selectedExistingRecord && existingRecords.length === 0}
+            >
+              Use {selectedExistingRecord ? "Selected" : "First"} Record
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
