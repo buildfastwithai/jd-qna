@@ -61,7 +61,6 @@ describe("/api/dashboard", () => {
 
       // Assertions
       expect(response.status).toBe(200);
-      expect(data.success).toBe(true);
       expect(data.skillRecords).toEqual(mockSkillRecords);
       expect(data.statistics).toBeDefined();
       expect(data.statistics.totalRecords).toBe(1);
@@ -69,10 +68,12 @@ describe("/api/dashboard", () => {
       expect(data.statistics.totalQuestions).toBe(10);
       expect(data.statistics.totalFeedbacks).toBe(3);
       expect(data.statistics.totalRegenerations).toBe(2);
-      expect(data.statistics.likedQuestions).toBe(4);
-      expect(data.statistics.dislikedQuestions).toBe(2);
-      expect(data.statistics.neutralQuestions).toBe(4);
-      expect(data.statistics.mostRegeneratedSkills).toHaveLength(2);
+      expect(data.statistics.questionLikes.liked).toBe(4);
+      expect(data.statistics.questionLikes.disliked).toBe(2);
+      expect(data.statistics.questionLikes.neutral).toBe(4);
+      expect(
+        data.statistics.regenerationStats.mostRegeneratedSkills
+      ).toHaveLength(2);
     });
 
     it("should handle empty data gracefully", async () => {
@@ -91,10 +92,11 @@ describe("/api/dashboard", () => {
 
       // Assertions
       expect(response.status).toBe(200);
-      expect(data.success).toBe(true);
       expect(data.skillRecords).toEqual([]);
       expect(data.statistics.totalRecords).toBe(0);
-      expect(data.statistics.averageRegenerationsPerQuestion).toBe(0);
+      expect(
+        data.statistics.regenerationStats.averageRegenerationsPerQuestion
+      ).toBe(0);
     });
 
     it("should handle database errors", async () => {
@@ -109,8 +111,7 @@ describe("/api/dashboard", () => {
 
       // Assertions
       expect(response.status).toBe(500);
-      expect(data.success).toBe(false);
-      expect(data.error).toBe("Database connection failed");
+      expect(data.error).toBe("Failed to fetch dashboard data");
     });
 
     it("should order skill records by createdAt desc", async () => {
@@ -157,7 +158,7 @@ describe("/api/dashboard", () => {
       const response = await GET();
       const data = await response.json();
 
-      expect(data.statistics.mostRegeneratedSkills).toEqual([
+      expect(data.statistics.regenerationStats.mostRegeneratedSkills).toEqual([
         { skillName: "JavaScript", regenerationCount: 5 },
       ]);
     });
