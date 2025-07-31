@@ -70,14 +70,9 @@ export interface JobAnalysis {
   summary: string;
 }
 
-// Function to check for existing records
-async function checkForExistingRecords(
-  jobTitle: string,
-  reqId?: number,
-  userId?: number,
-  jobDescription?: string
-) {
-  // First check for exact reqId and userId match (auto-select)
+// Function to check for existing records with exact reqId and userId match
+async function checkForExistingRecords(reqId?: number, userId?: number) {
+  // Only check for exact reqId and userId match
   if (reqId && userId) {
     const exactMatch = await prisma.skillRecord.findFirst({
       where: {
@@ -100,111 +95,11 @@ async function checkForExistingRecords(
     }
   }
 
-  // If no exact reqId+userId match, check for reqId only
-  if (reqId) {
-    const recordByReqId = await prisma.skillRecord.findFirst({
-      where: { reqId },
-      include: {
-        skills: { orderBy: { priority: "asc" } },
-        questions: { include: { skill: true } },
-      },
-      orderBy: { createdAt: "desc" },
-    });
-
-    if (recordByReqId) {
-      return {
-        autoSelect: recordByReqId,
-        showDialog: false,
-        alternatives: [],
-      };
-    }
-  }
-
-  // If no reqId matches, look for title-based matches for dialog
-  const existingRecords: any[] = [];
-
-  // Check by exact job title match
-  const recordsByTitle = await prisma.skillRecord.findMany({
-    where: {
-      jobTitle: {
-        equals: jobTitle,
-        mode: "insensitive",
-      },
-    },
-    include: {
-      skills: { orderBy: { priority: "asc" } },
-      questions: { include: { skill: true } },
-    },
-    orderBy: { createdAt: "desc" },
-    take: 3, // Limit to 3 most recent
-  });
-
-  recordsByTitle.forEach((record) => {
-    existingRecords.push({
-      ...record,
-      matchType: "exactTitle",
-      priority: 2,
-    });
-  });
-
-  // Check by similar job title (contains keywords)
-  if (jobTitle.length > 3) {
-    const keywords = jobTitle.split(" ").filter((word) => word.length > 2);
-    const similarRecords = await prisma.skillRecord.findMany({
-      where: {
-        AND: [
-          {
-            jobTitle: {
-              contains: keywords[0], // Use the first meaningful word
-              mode: "insensitive",
-            },
-          },
-          {
-            id: {
-              notIn: existingRecords.map((r) => r.id), // Exclude already found records
-            },
-          },
-        ],
-      },
-      include: {
-        skills: { orderBy: { priority: "asc" } },
-        questions: { include: { skill: true } },
-      },
-      orderBy: { createdAt: "desc" },
-      take: 2, // Limit to 2 most recent
-    });
-
-    similarRecords.forEach((record) => {
-      existingRecords.push({
-        ...record,
-        matchType: "similarTitle",
-        priority: 3,
-      });
-    });
-  }
-
-  // Sort by priority and return results
-  const sortedRecords = existingRecords
-    .sort((a, b) => a.priority - b.priority)
-    .slice(0, 5) // Return top 5 matches
-    .map(({ priority, matchType, ...record }) => ({
-      ...record,
-      matchType,
-    }));
-
-  if (sortedRecords.length === 0) {
-    return {
-      autoSelect: null,
-      showDialog: false,
-      alternatives: [],
-    };
-  }
-
-  // Only show dialog for title-based matches, never auto-select them
+  // No existing record found
   return {
     autoSelect: null,
-    showDialog: true,
-    alternatives: sortedRecords,
+    showDialog: false,
+    alternatives: [],
   };
 }
 
@@ -265,12 +160,10 @@ export async function POST(request: Request) {
           providedJobTitle || parsedResponse.generalInfo.jobTitle;
 
         // Check for existing records unless forceCreate is true
-        if (!forceCreate && jobTitle) {
+        if (!forceCreate) {
           const existingRecords = await checkForExistingRecords(
-            jobTitle,
             reqId ? parseInt(reqId) : undefined,
-            userId ? parseInt(userId) : undefined,
-            jobDescription
+            userId ? parseInt(userId) : undefined
           );
 
           if (existingRecords.autoSelect) {
@@ -278,16 +171,7 @@ export async function POST(request: Request) {
               success: true,
               existingRecords: existingRecords.autoSelect,
               analysis: parsedResponse,
-              message: "Found existing record with exact criteria",
-            });
-          }
-
-          if (existingRecords.showDialog) {
-            return NextResponse.json({
-              success: true,
-              existingRecords: existingRecords.alternatives,
-              analysis: parsedResponse,
-              message: "Found existing records with similar criteria",
+              message: "Found existing record with exact reqId and userId",
             });
           }
         }

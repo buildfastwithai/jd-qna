@@ -195,6 +195,18 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
   // Add state for final submit dialog
   const [finalSubmitDialogOpen, setFinalSubmitDialogOpen] = useState(false);
 
+  // Track deleted skills for FloCareer submission
+  const [deletedSkills, setDeletedSkills] = useState<
+    Array<{
+      id: string;
+      name: string;
+      floCareerId?: number;
+      poolId?: number;
+      level: string;
+      requirement: string;
+    }>
+  >([]);
+
   // Parse question content from JSON string
   function formatQuestions(questions: Question[]): QuestionData[] {
     return questions
@@ -1270,6 +1282,22 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
     try {
       setLoading(true);
 
+      // Find the skill to be deleted and track it if it has a FloCareer ID
+      const skillToDelete = editedSkills.find((skill) => skill.id === skillId);
+      if (skillToDelete && skillToDelete.floCareerId) {
+        setDeletedSkills((prevDeleted) => [
+          ...prevDeleted,
+          {
+            id: skillToDelete.id,
+            name: skillToDelete.name,
+            floCareerId: skillToDelete.floCareerId,
+            poolId: skillToDelete.floCareerId, // Using floCareerId as poolId for now
+            level: mapSkillLevel(skillToDelete.level),
+            requirement: mapSkillRequirement(skillToDelete.requirement),
+          },
+        ]);
+      }
+
       const response = await fetch(`/api/skills/${skillId}`, {
         method: "DELETE",
         headers: {
@@ -1312,6 +1340,25 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
   const handleBulkDeleteSkills = async (skillIds: string[]) => {
     try {
       setLoading(true);
+
+      // Track skills to be deleted if they have FloCareer IDs
+      const skillsToDelete = editedSkills.filter(
+        (skill) => skillIds.includes(skill.id) && skill.floCareerId
+      );
+
+      if (skillsToDelete.length > 0) {
+        setDeletedSkills((prevDeleted) => [
+          ...prevDeleted,
+          ...skillsToDelete.map((skill) => ({
+            id: skill.id,
+            name: skill.name,
+            floCareerId: skill.floCareerId!,
+            poolId: skill.floCareerId!, // Using floCareerId as poolId for now
+            level: mapSkillLevel(skill.level),
+            requirement: mapSkillRequirement(skill.requirement),
+          })),
+        ]);
+      }
 
       // Delete skills in parallel
       const deletePromises = skillIds.map((skillId) =>
@@ -1797,14 +1844,37 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
       setSavingToFloCareer(true);
 
       // Map our skill data to FloCareer format
-      const skillMatrix = editedSkills.map((skill) => ({
-        ai_skill_id: skill.id,
-        skill_id: 0,
-        action: "add",
-        name: skill.name,
-        level: mapSkillLevel(skill.level),
-        requirement: mapSkillRequirement(skill.requirement),
-      }));
+      // const skillMatrix = editedSkills.map((skill) => ({
+      //   ai_skill_id: skill.id,
+      //   skill_id: 0,
+      //   action: "add",
+      //   name: skill.name,
+      //   level: mapSkillLevel(skill.level),
+      //   requirement: mapSkillRequirement(skill.requirement),
+      // }));
+
+      // Step 1: Save skills to FloCareer
+      const skillMatrix = [
+        // Add new/existing skills
+        ...editedSkills.map((skill) => ({
+          ai_skill_id: skill.id,
+          skill_id: skill.floCareerId || 0,
+          // action: skill.floCareerId ? "update" : "add",
+          action: "add",
+          name: skill.name,
+          level: mapSkillLevel(skill.level),
+          requirement: mapSkillRequirement(skill.requirement),
+        })),
+        // Add deleted skills with delete action
+        ...deletedSkills.map((skill: any) => ({
+          ai_skill_id: skill.id,
+          skill_id: skill.floCareerId || 0,
+          action: "delete",
+          name: skill.name,
+          level: mapSkillLevel(skill.level),
+          requirement: mapSkillRequirement(skill.requirement),
+        })),
+      ];
 
       const requestBody = {
         round_id: record.reqId,
@@ -2065,14 +2135,27 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
       setSavingToFloCareer(true);
 
       // Step 1: Save skills to FloCareer
-      const skillMatrix = editedSkills.map((skill) => ({
-        ai_skill_id: skill.id,
-        skill_id: 0,
-        action: "add",
-        name: skill.name,
-        level: mapSkillLevel(skill.level),
-        requirement: mapSkillRequirement(skill.requirement),
-      }));
+      const skillMatrix = [
+        // Add new/existing skills
+        ...editedSkills.map((skill) => ({
+          ai_skill_id: skill.id,
+          skill_id: skill.floCareerId || 0,
+          // action: skill.floCareerId ? "update" : "add",
+          action: "add",
+          name: skill.name,
+          level: mapSkillLevel(skill.level),
+          requirement: mapSkillRequirement(skill.requirement),
+        })),
+        // Add deleted skills with delete action
+        ...deletedSkills.map((skill) => ({
+          ai_skill_id: skill.id,
+          skill_id: skill.floCareerId || 0,
+          action: "delete",
+          name: skill.name,
+          level: mapSkillLevel(skill.level),
+          requirement: mapSkillRequirement(skill.requirement),
+        })),
+      ];
 
       const skillRequestBody = {
         round_id: record.reqId,
@@ -2080,6 +2163,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
         skill_matrix: skillMatrix,
       };
       console.log("skillRequestBody", skillRequestBody);
+      console.log("Deleted skills being submitted:", deletedSkills);
 
       const skillResponse = await fetch(
         "https://sandbox.flocareer.com/dynamic/corporate/create-skills/",
@@ -2283,11 +2367,25 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
           }
         }
 
-        if (questionPoolsList.length > 0) {
+        // Add delete actions for deleted skills' pools
+        const deletedSkillPools = deletedSkills
+          .filter((skill) => skill.poolId)
+          .map((skill) => ({
+            pool_id: skill.poolId!,
+            action: "delete",
+            name: skill.name,
+            num_of_questions_to_ask: 0,
+            questions: [],
+          }));
+
+        // Combine all pools (new/updated and deleted)
+        const allQuestionPools = [...questionPoolsList, ...deletedSkillPools];
+
+        if (allQuestionPools.length > 0) {
           const structureRequestBody = {
             user_id: record.userId,
             round_id: record.reqId,
-            question_pools: questionPoolsList,
+            question_pools: allQuestionPools,
           };
 
           const structureResponse = await fetch(
@@ -2314,6 +2412,9 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
         "Successfully submitted all skills and questions to FloCareer!"
       );
       setFinalSubmitDialogOpen(false);
+
+      // Clear deleted skills after successful submission
+      setDeletedSkills([]);
 
       // Send success message to parent window
       try {
@@ -2520,9 +2621,62 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
 
             <CardContent>
               {editedSkills.length === 0 ? (
-                <p className="text-muted-foreground">
-                  No skills found for this job.
-                </p>
+                <div className="space-y-4">
+                  <p className="text-muted-foreground">
+                    No skills found for this job.
+                  </p>
+                  <SkillsTable
+                    skills={[]}
+                    recordId={record.id}
+                    onUpdateSkill={updateSkill}
+                    getSkillQuestionCount={getSkillQuestionCount}
+                    onDeleteSkill={(skillId) => {
+                      handleDeleteSkill(skillId);
+                    }}
+                    onBulkDeleteSkills={handleBulkDeleteSkills}
+                    onSkillAdded={() => {
+                      // Fetch the latest skills data from the server
+                      fetch(`/api/records/${record.id}`, {
+                        method: "GET",
+                        headers: {
+                          Authorization: `Bearer ${
+                            process.env.NEXT_PUBLIC_AUTH_TOKEN || ""
+                          }`,
+                        },
+                      })
+                        .then((response) => response.json())
+                        .then((data) => {
+                          if (data.success && data.record) {
+                            // Sort skills by priority
+                            const sortedSkills = [...data.record.skills].sort(
+                              (a, b) => {
+                                // First sort by requirement type (MANDATORY first)
+                                if (a.requirement !== b.requirement) {
+                                  return a.requirement === "MANDATORY" ? -1 : 1;
+                                }
+                                // Then sort by priority
+                                const aPriority = a.priority ?? 999;
+                                const bPriority = b.priority ?? 999;
+                                return aPriority - bPriority;
+                              }
+                            );
+
+                            // Update the skills state
+                            setEditedSkills(sortedSkills);
+                            toast.success("Skill added successfully");
+                          }
+                        })
+                        .catch((error) => {
+                          console.error(
+                            "Error fetching updated skills:",
+                            error
+                          );
+                          toast.error("Failed to refresh skills");
+                        });
+                    }}
+                    loading={loading}
+                  />
+                </div>
               ) : priorityMode ? (
                 // Drag and drop priority mode
                 <div className="space-y-4">

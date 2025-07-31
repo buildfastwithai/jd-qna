@@ -34,15 +34,7 @@ import { SkillLevel, Requirement } from "@prisma/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { QuestionGenerationDialog } from "./ui/question-generation-dialog";
 import { toast } from "sonner";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "./ui/dialog";
-import { Badge } from "./ui/badge";
-import { CalendarDays, Users } from "lucide-react";
+// Removed unused dialog and badge imports
 
 // Form validation schema
 const formSchema = z.object({
@@ -101,7 +93,6 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
   const [fileName, setFileName] = useState<string | null>(null);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [skills, setSkills] = useState<SkillWithMetadata[]>([]);
-  const [skillsDialogOpen, setSkillsDialogOpen] = useState(false);
   const [recordId, setRecordId] = useState<string | null>(null);
   const [inputMethod, setInputMethod] = useState<"file" | "text">("file");
   const [questionGenerationDialogOpen, setQuestionGenerationDialogOpen] =
@@ -118,12 +109,7 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
   const [isPreFilled, setIsPreFilled] = useState(false);
   const [extractedReqId, setExtractedReqId] = useState<string | null>(null);
 
-  // New state for existing records
-  const [existingRecords, setExistingRecords] = useState<any[]>([]);
-  const [showExistingRecords, setShowExistingRecords] = useState(false);
-  const [selectedExistingRecord, setSelectedExistingRecord] = useState<
-    string | null
-  >(null);
+  // Removed existing records dialog state (auto-handling now)
 
   const router = useRouter();
 
@@ -263,6 +249,10 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
   };
 
   // Extract skills from job description
+  // API Contract: /api/extract-skills returns either:
+  // 1. existingRecords (if exact reqId+userId match found) OR
+  // 2. recordId (newly created record) + analysis.skills
+  // Note: No longer returns multiple records for title-based matches
   const extractSkills = async (forceCreate = false) => {
     const jobDescription =
       inputMethod === "file" ? pdfContent : form.getValues().jobDescriptionText;
@@ -283,22 +273,36 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
     setExtractingSkills(true);
 
     try {
+      const requestBody = {
+        jobDescription: jobDescription,
+        jobTitle: form.getValues().jobRole,
+        interviewLength: Number(form.getValues().interviewLength),
+        minExperience: form.getValues().minExperience,
+        maxExperience: form.getValues().maxExperience,
+        reqId: extractedReqId || reqId,
+        userId: userId,
+        forceCreate: forceCreate, // Add this parameter
+      };
+
+      // Debug: Log the request being sent
+      console.log("Extract Skills Request:", {
+        ...requestBody,
+        hasJobDescription: !!requestBody.jobDescription,
+        hasJobTitle: !!requestBody.jobTitle,
+        jobDescriptionLength: requestBody.jobDescription?.length || 0,
+      });
+
+      if (!requestBody.jobTitle) {
+        throw new Error("Job title is required to create a record");
+      }
+
       const response = await fetch("/api/extract-skills", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
         },
-        body: JSON.stringify({
-          jobDescription: jobDescription,
-          jobTitle: form.getValues().jobRole,
-          interviewLength: Number(form.getValues().interviewLength),
-          minExperience: form.getValues().minExperience,
-          maxExperience: form.getValues().maxExperience,
-          reqId: extractedReqId || reqId,
-          userId: userId,
-          forceCreate: forceCreate, // Add this parameter
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
@@ -307,7 +311,14 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
 
       const data = await response.json();
 
+      // Debug: Log the full API response
+      console.log(
+        "Extract Skills API Response:",
+        JSON.stringify(data, null, 2)
+      );
+
       if (!data.success) {
+        console.error("API returned success=false:", data.error);
         throw new Error(data.error || "Failed to extract skills");
       }
 
@@ -318,8 +329,9 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
         return;
       }
 
-      // Handle auto-selected existing record (reqId+userId or reqId match)
+      // Handle auto-selected existing record (reqId+userId exact match)
       if (data.existingRecords && !Array.isArray(data.existingRecords)) {
+        console.log("Using existing record:", data.existingRecords);
         toast.success(
           "Found existing record with matching criteria. Redirecting..."
         );
@@ -329,25 +341,39 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
         return;
       }
 
-      // Handle title-based matches that need user choice (show dialog)
-      if (
-        data.existingRecords &&
-        Array.isArray(data.existingRecords) &&
-        data.existingRecords.length > 0 &&
-        !forceCreate
-      ) {
-        setExistingRecords(data.existingRecords);
-        setShowExistingRecords(true);
-        return;
-      }
+      // Note: Array of existing records no longer returned by simplified API
 
-      // Set the recordId and open skills dialog instead of navigating
+      // If no exact match found, ensure a new record was created
       if (data.recordId) {
+        // New record was successfully created
+        console.log("New record created with ID:", data.recordId);
         setRecordId(data.recordId);
-        setSkills(data.analysis.skills || []);
+        setSkills(data.analysis?.skills || []);
+        toast.success("New record created successfully");
         router.push(`/records/${data.recordId}?parentUrl=${parentUrl}`);
+      } else if (data.analysis && data.analysis.skills) {
+        // API succeeded with skills but no record created - force create by calling again
+        console.log(
+          "API returned skills but no recordId, retrying with forceCreate=true"
+        );
+        toast.info("Creating new record...");
+        extractSkills(true); // Retry with forceCreate=true
+        return;
       } else {
-        throw new Error("No record ID was returned from the API");
+        // No existing record found and no new record created - this should not happen
+        console.error("API Response structure:", {
+          hasExistingRecords: !!data.existingRecords,
+          hasRecordId: !!data.recordId,
+          hasAnalysis: !!data.analysis,
+          allKeys: Object.keys(data),
+        });
+        throw new Error(
+          `Failed to extract skills or create record. API Response: ${JSON.stringify(
+            data,
+            null,
+            2
+          )}`
+        );
       }
     } catch (error) {
       console.error("Error extracting skills:", error);
@@ -357,22 +383,7 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
     }
   };
 
-  // Handle using an existing record
-  const handleUseExistingRecord = (recordId: string) => {
-    const parentUrl = getQueryParam("parentUrl");
-    if (!parentUrl) {
-      toast.error("Parent URL is missing");
-      return;
-    }
-
-    router.push(`/records/${recordId}?parentUrl=${parentUrl}`);
-  };
-
-  // Handle creating a new record despite existing ones
-  const handleCreateNewRecord = () => {
-    setShowExistingRecords(false);
-    extractSkills(true); // Force create new record
-  };
+  // Removed existing records dialog handlers (auto-handling now)
 
   const getQueryParam = (name: string) => {
     console.log("....", window.location.search);
@@ -447,7 +458,6 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
       }
 
       setQuestions(data.questions);
-      setSkillsDialogOpen(false);
 
       // If record was created, navigate to the record page to edit skills
       if (recordId) {
@@ -505,6 +515,8 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
   }, [fileWatch]);
 
   // Auto-generate both skills and questions in one go
+  // API Contract: /api/auto-generate should always create a new record
+  // and return recordId (no existing record checking in auto-generate)
   const autoGenerateSkillsAndQuestions = async () => {
     const jobDescription =
       inputMethod === "file" ? pdfContent : form.getValues().jobDescriptionText;
@@ -563,20 +575,40 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
 
       const data = await response.json();
 
+      // Debug: Log the full API response
+      console.log("Auto-Generate API Response:", JSON.stringify(data, null, 2));
+
       if (!data.success) {
+        console.error("Auto-generate API returned success=false:", data.error);
         throw new Error(data.error || "Failed to auto-generate");
       }
 
       if (data.recordId) {
+        // New record was successfully created with skills and questions
+        console.log("Auto-generate created new record with ID:", data.recordId);
         const parentUrl = getQueryParam("parentUrl");
         console.log("parentUrl", parentUrl);
         if (!parentUrl) {
           toast.error("Parent URL is missing");
           return;
         }
+        toast.success(
+          "New record with skills and questions created successfully"
+        );
         router.push(`/records/${data.recordId}?parentUrl=${parentUrl}`);
       } else {
-        throw new Error("No record ID was returned from the API");
+        // No record was created - this should not happen
+        console.error("Auto-generate API Response structure:", {
+          hasRecordId: !!data.recordId,
+          allKeys: Object.keys(data),
+        });
+        throw new Error(
+          `Failed to create new record. Auto-generate API Response: ${JSON.stringify(
+            data,
+            null,
+            2
+          )}`
+        );
       }
     } catch (error) {
       console.error("Error auto-generating:", error);
@@ -910,120 +942,6 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
         progressValue={generationProgress.progressValue}
         progressText={generationProgress.progressText}
       />
-
-      {/* Existing Records Dialog */}
-      <Dialog open={showExistingRecords} onOpenChange={setShowExistingRecords}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Existing Records Found</DialogTitle>
-            <DialogDescription>
-              We found existing records that match your criteria. You can use
-              one of these existing records or create a new one.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            {existingRecords.map((record) => (
-              <div
-                key={record.id}
-                className={`border rounded-lg p-4 cursor-pointer hover:bg-gray-50 transition-colors ${
-                  selectedExistingRecord === record.id
-                    ? "border-blue-500 bg-blue-50"
-                    : ""
-                }`}
-                onClick={() => setSelectedExistingRecord(record.id)}
-              >
-                <div className="flex justify-between items-start mb-2">
-                  <h3 className="font-semibold text-lg">{record.jobTitle}</h3>
-                  <div className="flex gap-2">
-                    <Badge
-                      variant={
-                        record.matchType === "reqId"
-                          ? "default"
-                          : record.matchType === "exactTitle"
-                          ? "secondary"
-                          : "outline"
-                      }
-                    >
-                      {record.matchType === "reqId"
-                        ? "Exact Req ID"
-                        : record.matchType === "exactTitle"
-                        ? "Exact Title"
-                        : "Similar Title"}
-                    </Badge>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm text-gray-600 mb-3">
-                  <div className="flex items-center gap-1">
-                    <CalendarDays className="h-4 w-4" />
-                    <span>
-                      Created: {new Date(record.createdAt).toLocaleDateString()}
-                    </span>
-                  </div>
-                  {record.reqId && (
-                    <div className="flex items-center gap-1">
-                      <FileText className="h-4 w-4" />
-                      <span>Req ID: {record.reqId}</span>
-                    </div>
-                  )}
-                  <div className="flex items-center gap-1">
-                    <Users className="h-4 w-4" />
-                    <span>{record.skills?.length || 0} skills</span>
-                  </div>
-                </div>
-
-                {record.skills && record.skills.length > 0 && (
-                  <div className="mb-3">
-                    <p className="text-sm font-medium mb-2">Skills:</p>
-                    <div className="flex flex-wrap gap-1">
-                      {record.skills.slice(0, 8).map((skill: any) => (
-                        <Badge
-                          key={skill.id}
-                          variant="outline"
-                          className="text-xs"
-                        >
-                          {skill.name}
-                        </Badge>
-                      ))}
-                      {record.skills.length > 8 && (
-                        <Badge variant="outline" className="text-xs">
-                          +{record.skills.length - 8} more
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {record.questions && record.questions.length > 0 && (
-                  <div className="text-sm text-gray-600">
-                    <span className="font-medium">Questions:</span>{" "}
-                    {record.questions.length} generated
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-
-          <div className="flex justify-end gap-3 pt-4 border-t">
-            <Button variant="outline" onClick={handleCreateNewRecord}>
-              Create New Record
-            </Button>
-            <Button
-              onClick={() => {
-                if (selectedExistingRecord) {
-                  handleUseExistingRecord(selectedExistingRecord);
-                } else if (existingRecords.length > 0) {
-                  handleUseExistingRecord(existingRecords[0].id);
-                }
-              }}
-              disabled={!selectedExistingRecord && existingRecords.length === 0}
-            >
-              Use {selectedExistingRecord ? "Selected" : "First"} Record
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
