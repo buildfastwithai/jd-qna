@@ -8,34 +8,20 @@ const createJestConfig = nextJest({
 // Add any custom config to be passed to Jest
 const customJestConfig = {
   setupFilesAfterEnv: ["<rootDir>/jest.setup.js"],
-  testEnvironment: "jest-environment-jsdom",
-  testMatch: ["**/__tests__/**/*.[jt]s?(x)", "**/?(*.)+(spec|test).[jt]s?(x)"],
-  testPathIgnorePatterns: [
-    "<rootDir>/.next/",
-    "<rootDir>/node_modules/",
-    "<rootDir>/prisma/",
-    "<rootDir>/.git/",
-  ],
-  moduleNameMapper: {
+  testEnvironment: "jsdom",
+  moduleNameMapping: {
+    // Handle module aliases (this will allow Jest to resolve imports like @/components/ui/button)
     "^@/(.*)$": "<rootDir>/src/$1",
   },
+  testPathIgnorePatterns: ["<rootDir>/.next/", "<rootDir>/node_modules/"],
+  moduleDirectories: ["node_modules", "<rootDir>/"],
   collectCoverageFrom: [
     "src/**/*.{js,jsx,ts,tsx}",
     "!src/**/*.d.ts",
-    "!src/**/*.stories.{js,jsx,ts,tsx}",
-    "!src/**/*.test.{js,jsx,ts,tsx}",
-    "!src/**/*.spec.{js,jsx,ts,tsx}",
+    "!src/types/**/*",
+    "!src/app/layout.tsx",
+    "!src/app/globals.css",
   ],
-  coverageReporters: ["text", "lcov", "html"],
-  coverageDirectory: "coverage",
-  transform: {
-    "^.+\\.(js|jsx|ts|tsx)$": ["babel-jest", { presets: ["next/babel"] }],
-  },
-  transformIgnorePatterns: [
-    "/node_modules/",
-    "^.+\\.module\\.(css|sass|scss)$",
-  ],
-  moduleFileExtensions: ["ts", "tsx", "js", "jsx", "json", "node"],
 };
 
 // createJestConfig is exported this way to ensure that next/jest can load the Next.js config which is async

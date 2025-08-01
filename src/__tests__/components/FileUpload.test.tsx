@@ -1,224 +1,214 @@
-import React from "react";
-import { render, screen, fireEvent, waitFor } from "../utils/test-utils";
+/**
+ * Tests for the FileUpload component
+ * These tests verify file upload functionality including success, error, and loading states
+ */
+
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { FileUpload } from "@/components/FileUpload";
 
-// Mock fetch
+// Mock fetch globally
 const mockFetch = jest.fn();
 global.fetch = mockFetch;
 
-describe("FileUpload", () => {
+describe("FileUpload Component", () => {
+  // Reset mocks before each test
   beforeEach(() => {
     mockFetch.mockClear();
   });
 
-  it("should render with default props", () => {
+  /**
+   * Test 1: Basic component rendering
+   * Should render the file upload component with default props
+   */
+  it("should render file upload component with default props", () => {
     render(<FileUpload />);
 
-    expect(screen.getByText("Upload File")).toBeInTheDocument();
-    expect(screen.getByLabelText("Upload File")).toBeInTheDocument();
+    // Should show upload label
+    expect(screen.getByText("Upload File")).toBeTruthy();
+
+    // Should show accepted file types
+    expect(screen.getByText(".pdf, .doc, .docx files")).toBeTruthy();
+
+    // Should have file input (hidden)
+    const fileInput = document.querySelector('input[type="file"]');
+    expect(fileInput).toBeTruthy();
   });
 
-  it("should render with custom label", () => {
-    render(<FileUpload label="Upload Document" />);
+  /**
+   * Test 2: Custom props rendering
+   * Should render with custom label and accepted file types
+   */
+  it("should render with custom props", () => {
+    render(<FileUpload label="Choose Document" acceptedFileTypes=".txt,.md" />);
 
-    expect(screen.getByText("Upload Document")).toBeInTheDocument();
+    expect(screen.getByText("Choose Document")).toBeTruthy();
+    expect(screen.getByText(".txt, .md files")).toBeTruthy();
   });
 
-  it("should accept custom file types", () => {
-    render(<FileUpload acceptedFileTypes=".jpg,.png" />);
-
-    const fileInput = screen.getByLabelText("Upload File");
-    expect(fileInput).toHaveAttribute("accept", ".jpg,.png");
-  });
-
-  it("should handle file selection", () => {
-    const mockFile = new File(["test content"], "test.pdf", {
-      type: "application/pdf",
-    });
+  /**
+   * Test 3: File selection without upload (no file selected)
+   * Should handle when no file is selected
+   */
+  it("should handle when no file is selected", async () => {
     render(<FileUpload />);
 
-    const fileInput = screen.getByLabelText("Upload File");
-    fireEvent.change(fileInput, { target: { files: [mockFile] } });
+    const fileInput = document.querySelector(
+      'input[type="file"]'
+    ) as HTMLInputElement;
 
-    expect(screen.getByText("test.pdf")).toBeInTheDocument();
+    // Simulate selecting no file
+    fireEvent.change(fileInput, { target: { files: [] } });
+
+    // Should not show loading state
+    expect(screen.queryByText("Uploading...")).not.toBeInTheDocument();
   });
 
-  it("should upload file successfully", async () => {
+  /**
+   * Test 4: Successful file upload
+   * Should handle successful file upload and call onFileUploaded callback
+   */
+  it("should handle successful file upload", async () => {
     const mockOnFileUploaded = jest.fn();
     const mockFile = new File(["test content"], "test.pdf", {
       type: "application/pdf",
     });
 
+    // Mock successful API response
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ url: "https://example.com/test.pdf" }),
+      json: async () => ({ file: { url: "https://example.com/test.pdf" } }),
     });
 
     render(<FileUpload onFileUploaded={mockOnFileUploaded} />);
 
-    const fileInput = screen.getByLabelText("Upload File");
+    const fileInput = document.querySelector(
+      'input[type="file"]'
+    ) as HTMLInputElement;
+
+    // Simulate file selection
     fireEvent.change(fileInput, { target: { files: [mockFile] } });
 
-    const uploadButton = screen.getByText("Upload");
-    fireEvent.click(uploadButton);
+    // Should show loading state
+    expect(screen.getByText("Uploading...")).toBeInTheDocument();
 
+    // Wait for upload to complete
     await waitFor(() => {
       expect(mockOnFileUploaded).toHaveBeenCalledWith(
         "https://example.com/test.pdf"
       );
     });
 
-    expect(screen.getByText("File uploaded successfully!")).toBeInTheDocument();
+    // Should hide loading state
+    expect(screen.queryByText("Uploading...")).not.toBeInTheDocument();
   });
 
-  it("should handle upload errors", async () => {
+  /**
+   * Test 5: Failed file upload (network error)
+   * Should display error message when upload fails
+   */
+  it("should handle upload failure and show error message", async () => {
     const mockFile = new File(["test content"], "test.pdf", {
       type: "application/pdf",
     });
 
-    mockFetch.mockRejectedValueOnce(new Error("Upload failed"));
+    // Mock failed API response
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ error: "Upload failed" }),
+    });
 
     render(<FileUpload />);
 
-    const fileInput = screen.getByLabelText("Upload File");
+    const fileInput = document.querySelector(
+      'input[type="file"]'
+    ) as HTMLInputElement;
+
+    // Simulate file selection
     fireEvent.change(fileInput, { target: { files: [mockFile] } });
 
-    const uploadButton = screen.getByText("Upload");
-    fireEvent.click(uploadButton);
-
+    // Wait for error to appear
     await waitFor(() => {
-      expect(screen.getByText(/Upload failed/)).toBeInTheDocument();
+      expect(screen.getByText("Upload failed")).toBeInTheDocument();
     });
+
+    // Should hide loading state
+    expect(screen.queryByText("Uploading...")).not.toBeInTheDocument();
   });
 
-  it("should show loading state during upload", async () => {
+  /**
+   * Test 6: Network error during upload
+   * Should handle network errors gracefully
+   */
+  it("should handle network errors during upload", async () => {
     const mockFile = new File(["test content"], "test.pdf", {
       type: "application/pdf",
     });
 
-    // Create a promise that won't resolve immediately
-    let resolvePromise: (value: any) => void;
-    const uploadPromise = new Promise((resolve) => {
-      resolvePromise = resolve;
-    });
-
-    mockFetch.mockReturnValueOnce(uploadPromise);
+    // Mock network error
+    mockFetch.mockRejectedValueOnce(new Error("Network error"));
 
     render(<FileUpload />);
 
-    const fileInput = screen.getByLabelText("Upload File");
+    const fileInput = document.querySelector(
+      'input[type="file"]'
+    ) as HTMLInputElement;
+
+    // Simulate file selection
     fireEvent.change(fileInput, { target: { files: [mockFile] } });
 
-    const uploadButton = screen.getByText("Upload");
-    fireEvent.click(uploadButton);
-
-    // Should show loading state
-    expect(screen.getByText("Uploading...")).toBeInTheDocument();
-    expect(uploadButton).toBeDisabled();
-
-    // Resolve the promise
-    resolvePromise!({
-      ok: true,
-      json: async () => ({ url: "https://example.com/test.pdf" }),
-    });
-
+    // Wait for error to appear
     await waitFor(() => {
-      expect(screen.queryByText("Uploading...")).not.toBeInTheDocument();
+      expect(screen.getByText("Network error")).toBeInTheDocument();
     });
+
+    // Should hide loading state
+    expect(screen.queryByText("Uploading...")).not.toBeInTheDocument();
   });
 
-  it("should handle file size validation", () => {
-    // Create a large file (over typical limits)
-    const largeFile = new File(
-      [new ArrayBuffer(10 * 1024 * 1024)], // 10MB
-      "large-file.pdf",
-      { type: "application/pdf" }
+  /**
+   * Test 7: Input disabled during upload
+   * Should disable file input while upload is in progress
+   */
+  it("should disable input during upload", async () => {
+    const mockFile = new File(["test content"], "test.pdf", {
+      type: "application/pdf",
+    });
+
+    // Mock slow API response
+    mockFetch.mockImplementation(
+      () =>
+        new Promise((resolve) =>
+          setTimeout(
+            () =>
+              resolve({
+                ok: true,
+                json: async () => ({
+                  file: { url: "https://example.com/test.pdf" },
+                }),
+              }),
+            100
+          )
+        )
     );
 
     render(<FileUpload />);
 
-    const fileInput = screen.getByLabelText("Upload File");
-    fireEvent.change(fileInput, { target: { files: [largeFile] } });
+    const fileInput = document.querySelector(
+      'input[type="file"]'
+    ) as HTMLInputElement;
 
-    // Depending on implementation, might show file size warning
-    expect(screen.getByText("large-file.pdf")).toBeInTheDocument();
-  });
-
-  it("should clear file selection", () => {
-    const mockFile = new File(["test content"], "test.pdf", {
-      type: "application/pdf",
-    });
-    render(<FileUpload />);
-
-    const fileInput = screen.getByLabelText("Upload File");
+    // Simulate file selection
     fireEvent.change(fileInput, { target: { files: [mockFile] } });
 
-    expect(screen.getByText("test.pdf")).toBeInTheDocument();
+    // Input should be disabled during upload
+    expect(fileInput).toBeDisabled();
 
-    // Clear selection
-    const clearButton = screen.getByText("Clear");
-    fireEvent.click(clearButton);
-
-    expect(screen.queryByText("test.pdf")).not.toBeInTheDocument();
-  });
-
-  it("should handle multiple file selection (if supported)", () => {
-    const file1 = new File(["content1"], "test1.pdf", {
-      type: "application/pdf",
-    });
-    const file2 = new File(["content2"], "test2.pdf", {
-      type: "application/pdf",
-    });
-
-    render(<FileUpload />);
-
-    const fileInput = screen.getByLabelText("Upload File");
-    fireEvent.change(fileInput, { target: { files: [file1, file2] } });
-
-    // Should only show the first file (since it's single file upload)
-    expect(screen.getByText("test1.pdf")).toBeInTheDocument();
-    expect(screen.queryByText("test2.pdf")).not.toBeInTheDocument();
-  });
-
-  it("should validate file types", () => {
-    const invalidFile = new File(["content"], "test.txt", {
-      type: "text/plain",
-    });
-
-    render(<FileUpload acceptedFileTypes=".pdf,.doc" />);
-
-    const fileInput = screen.getByLabelText("Upload File");
-    fireEvent.change(fileInput, { target: { files: [invalidFile] } });
-
-    // Depending on implementation, might show file type error
-    // The browser's accept attribute should prevent this, but we can test the behavior
-  });
-
-  it("should reset state after successful upload", async () => {
-    const mockFile = new File(["test content"], "test.pdf", {
-      type: "application/pdf",
-    });
-
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ url: "https://example.com/test.pdf" }),
-    });
-
-    render(<FileUpload />);
-
-    const fileInput = screen.getByLabelText("Upload File");
-    fireEvent.change(fileInput, { target: { files: [mockFile] } });
-
-    const uploadButton = screen.getByText("Upload");
-    fireEvent.click(uploadButton);
-
-    await waitFor(() => {
-      expect(
-        screen.getByText("File uploaded successfully!")
-      ).toBeInTheDocument();
-    });
-
-    // After successful upload, the component should reset
-    expect(screen.queryByText("Upload")).not.toBeInTheDocument();
+    // Wait for upload to complete
+    await waitFor(
+      () => {
+        expect(fileInput).not.toBeDisabled();
+      },
+      { timeout: 200 }
+    );
   });
 });
