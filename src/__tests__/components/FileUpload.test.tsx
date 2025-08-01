@@ -60,7 +60,7 @@ describe("FileUpload Component", () => {
     fireEvent.change(fileInput, { target: { files: [] } });
 
     // Should not show loading state
-    expect(screen.queryByText("Uploading...")).not.toBeInTheDocument();
+    expect(screen.queryByText("Uploading...")).not.toBeTruthy();
   });
 
   /**
@@ -89,7 +89,7 @@ describe("FileUpload Component", () => {
     fireEvent.change(fileInput, { target: { files: [mockFile] } });
 
     // Should show loading state
-    expect(screen.getByText("Uploading...")).toBeInTheDocument();
+    expect(screen.getByText("Uploading...")).toBeTruthy();
 
     // Wait for upload to complete
     await waitFor(() => {
@@ -99,7 +99,7 @@ describe("FileUpload Component", () => {
     });
 
     // Should hide loading state
-    expect(screen.queryByText("Uploading...")).not.toBeInTheDocument();
+    expect(screen.queryByText("Uploading...")).not.toBeTruthy();
   });
 
   /**
@@ -128,11 +128,11 @@ describe("FileUpload Component", () => {
 
     // Wait for error to appear
     await waitFor(() => {
-      expect(screen.getByText("Upload failed")).toBeInTheDocument();
+      expect(screen.getByText("Upload failed")).toBeTruthy();
     });
 
     // Should hide loading state
-    expect(screen.queryByText("Uploading...")).not.toBeInTheDocument();
+    expect(screen.queryByText("Uploading...")).not.toBeTruthy();
   });
 
   /**
@@ -158,11 +158,11 @@ describe("FileUpload Component", () => {
 
     // Wait for error to appear
     await waitFor(() => {
-      expect(screen.getByText("Network error")).toBeInTheDocument();
+      expect(screen.getByText("Network error")).toBeTruthy();
     });
 
     // Should hide loading state
-    expect(screen.queryByText("Uploading...")).not.toBeInTheDocument();
+    expect(screen.queryByText("Uploading...")).not.toBeTruthy();
   });
 
   /**
@@ -201,12 +201,12 @@ describe("FileUpload Component", () => {
     fireEvent.change(fileInput, { target: { files: [mockFile] } });
 
     // Input should be disabled during upload
-    expect(fileInput).toBeDisabled();
+    expect(fileInput.disabled).toBe(true);
 
     // Wait for upload to complete
     await waitFor(
       () => {
-        expect(fileInput).not.toBeDisabled();
+        expect(fileInput.disabled).toBe(false);
       },
       { timeout: 200 }
     );
