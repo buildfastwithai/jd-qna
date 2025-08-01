@@ -7,18 +7,20 @@ import { verifyApiAuth } from "@/lib/auth";
 
 // Create a mock NextRequest class for testing
 class MockNextRequest {
-  constructor(url, options = {}) {
+  url: string;
+  headers: any;
+  constructor(url: string, options = {}) {
     this.url = url;
-    this.headers = new Map();
+    (this as any).headers = new Map();
 
-    if (options.headers) {
-      Object.entries(options.headers).forEach(([key, value]) => {
-        this.headers.set(key, value);
+    if ((options as any).headers) {
+      Object.entries((options as any).headers).forEach(([key, value]) => {
+        (this as any).headers.set(key, value);
       });
     }
   }
 
-  get(name) {
+  get(name: any) {
     return this.headers.get(name);
   }
 }
@@ -61,12 +63,16 @@ describe("Auth Utils", () => {
     it("should return 401 when Authorization header is missing", () => {
       process.env.AUTH_TOKEN = "test-token";
 
-      const request = new MockNextRequest("http://localhost:3000/api/test");
+      // Use a real NextRequest instead of MockNextRequest to match the expected type
+      // Import NextRequest and NextRequestInit at the top of your file:
+      // import { NextRequest, NextRequestInit } from "next/server";
+      const { NextRequest } = require("next/server");
+
+      const request = new NextRequest("http://localhost:3000/api/test");
       const result = verifyApiAuth(request);
 
       expect(result).not.toBeNull();
       expect(result!.status).toBe(401);
-    });
 
     /**
      * Test 3: Invalid Authorization header format

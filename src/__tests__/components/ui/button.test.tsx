@@ -15,8 +15,9 @@ describe("Button Component", () => {
     render(<Button>Click me</Button>);
 
     const button = screen.getByRole("button", { name: /click me/i });
-    expect(button).toBeInTheDocument();
-    expect(button).toHaveClass("inline-flex"); // Should have default classes
+    // Use standard Jest assertions for presence and class
+    expect(button).not.toBeNull();
+    expect(button.className).toContain("inline-flex"); // Should have default classes
   });
 
   /**
@@ -26,22 +27,22 @@ describe("Button Component", () => {
   it("should render different button variants correctly", () => {
     const { rerender } = render(<Button variant="default">Default</Button>);
     let button = screen.getByRole("button");
-    expect(button).toHaveClass("bg-primary");
+    expect(button.className).toContain("bg-primary");
 
     // Test destructive variant
     rerender(<Button variant="destructive">Destructive</Button>);
     button = screen.getByRole("button");
-    expect(button).toHaveClass("bg-destructive");
+    expect(button.className).toContain("bg-destructive");
 
     // Test outline variant
     rerender(<Button variant="outline">Outline</Button>);
     button = screen.getByRole("button");
-    expect(button).toHaveClass("border");
+    expect(button.className).toContain("border");
 
     // Test ghost variant
     rerender(<Button variant="ghost">Ghost</Button>);
     button = screen.getByRole("button");
-    expect(button).toHaveClass("hover:bg-accent");
+    expect(button.className).toContain("hover:bg-accent");
   });
 
   /**
@@ -51,22 +52,23 @@ describe("Button Component", () => {
   it("should render different button sizes correctly", () => {
     const { rerender } = render(<Button size="default">Default Size</Button>);
     let button = screen.getByRole("button");
-    expect(button).toHaveClass("h-10");
+    expect(button.className).toContain("h-10");
 
     // Test small size
     rerender(<Button size="sm">Small</Button>);
     button = screen.getByRole("button");
-    expect(button).toHaveClass("h-9");
+    expect(button.className).toContain("h-9");
 
     // Test large size
     rerender(<Button size="lg">Large</Button>);
     button = screen.getByRole("button");
-    expect(button).toHaveClass("h-11");
+    expect(button.className).toContain("h-11");
 
     // Test icon size
     rerender(<Button size="icon">Icon</Button>);
     button = screen.getByRole("button");
-    expect(button).toHaveClass("h-10", "w-10");
+    expect(button.className).toContain("h-10");
+    expect(button.className).toContain("w-10");
   });
 
   /**
@@ -96,11 +98,9 @@ describe("Button Component", () => {
     );
 
     const button = screen.getByRole("button");
-    expect(button).toBeDisabled();
-    expect(button).toHaveClass(
-      "disabled:pointer-events-none",
-      "disabled:opacity-50"
-    );
+    expect(button.getAttribute("disabled")).toBe("disabled");
+    expect(button.className).toContain("disabled:pointer-events-none");
+    expect(button.className).toContain("disabled:opacity-50");
 
     // Should not call onClick when disabled
     fireEvent.click(button);
@@ -115,8 +115,8 @@ describe("Button Component", () => {
     render(<Button className="custom-class">Custom Button</Button>);
 
     const button = screen.getByRole("button");
-    expect(button).toHaveClass("custom-class");
-    expect(button).toHaveClass("inline-flex"); // Should still have default classes
+    expect(button.className).toContain("custom-class");
+    expect(button.className).toContain("inline-flex"); // Should still have default classes
   });
 
   /**
@@ -131,9 +131,9 @@ describe("Button Component", () => {
     );
 
     const link = screen.getByRole("link");
-    expect(link).toBeInTheDocument();
-    expect(link).toHaveAttribute("href", "/test");
-    expect(link).toHaveClass("inline-flex"); // Should still have button classes
+      expect(link).not.toBeNull();
+    expect(link.getAttribute("href")).toBe("/test");
+    expect(link.className).toContain("inline-flex"); // Should still have button classes
   });
 
   /**
@@ -152,7 +152,7 @@ describe("Button Component", () => {
     );
 
     const button = screen.getByTestId("submit-button");
-    expect(button).toHaveAttribute("type", "submit");
-    expect(button).toHaveAttribute("aria-label", "Submit form");
+    expect(button.getAttribute("type")).toBe("submit");
+    expect(button.getAttribute("aria-label")).toBe("Submit form");
   });
 });

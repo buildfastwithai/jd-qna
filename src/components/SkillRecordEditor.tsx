@@ -136,6 +136,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
   );
   const [loading, setLoading] = useState(false);
   const [generatingQuestions, setGeneratingQuestions] = useState(false);
+  const [regeneratingQuestions, setRegeneratingQuestions] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("skills");
   const [questionsLoading, setQuestionsLoading] = useState(false);
@@ -617,7 +618,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
   // Update the regenerateQuestionsWithFeedback function to include global feedback
   const regenerateQuestionsWithFeedback = async () => {
     try {
-      setQuestionsLoading(true);
+      setRegeneratingQuestions(true);
       setQuestionGenerationDialogOpen(true);
       setGenerationProgress({
         title: "Regenerating with Feedback",
@@ -696,7 +697,7 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
       // Fall back to regular regeneration if the feedback-based one fails
       generateQuestionsForRecord(true);
     } finally {
-      setQuestionsLoading(false);
+      setRegeneratingQuestions(false);
       setQuestionGenerationDialogOpen(false);
     }
   };
@@ -2992,7 +2993,10 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                 <Button
                   onClick={() => generateQuestionsForRecord(false)}
                   disabled={
-                    generatingQuestions || questionsLoading || pdfLoading
+                    generatingQuestions ||
+                    regeneratingQuestions ||
+                    questionsLoading ||
+                    pdfLoading
                   }
                   variant="outline"
                 >
@@ -3009,12 +3013,13 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                   onClick={regenerateAllQuestions}
                   disabled={
                     generatingQuestions ||
+                    regeneratingQuestions ||
                     questionsLoading ||
                     pdfLoading ||
                     questions.length === 0
                   }
                 >
-                  {generatingQuestions ? (
+                  {regeneratingQuestions ? (
                     <>
                       <Spinner size="sm" className="mr-2" />
                       Regenerating...
@@ -3081,7 +3086,10 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                   size="sm"
                   onClick={() => setGlobalFeedbackDialogOpen(true)}
                   disabled={
-                    questionsLoading || generatingQuestions || pdfLoading
+                    questionsLoading ||
+                    generatingQuestions ||
+                    regeneratingQuestions ||
+                    pdfLoading
                   }
                 >
                   <MessageSquare className="h-4 w-4 mr-2" />
@@ -3093,7 +3101,10 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                     size="sm"
                     onClick={regenerateAllDislikedQuestions}
                     disabled={
-                      questionsLoading || generatingQuestions || pdfLoading
+                      questionsLoading ||
+                      generatingQuestions ||
+                      regeneratingQuestions ||
+                      pdfLoading
                     }
                   >
                     {questionsLoading ? (
@@ -3115,10 +3126,13 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                     size="sm"
                     onClick={regenerateAllQuestions}
                     disabled={
-                      questionsLoading || generatingQuestions || pdfLoading
+                      questionsLoading ||
+                      generatingQuestions ||
+                      regeneratingQuestions ||
+                      pdfLoading
                     }
                   >
-                    {generatingQuestions ? (
+                    {regeneratingQuestions ? (
                       <>
                         <Spinner size="sm" className="mr-2" />
                         Regenerating...
@@ -3133,7 +3147,10 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                   size="sm"
                   onClick={handleGenerateExcel}
                   disabled={
-                    excelExporting || questionsLoading || generatingQuestions
+                    excelExporting ||
+                    questionsLoading ||
+                    generatingQuestions ||
+                    regeneratingQuestions
                   }
                 >
                   {excelExporting ? (
@@ -3153,7 +3170,10 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                   size="sm"
                   onClick={handleGeneratePDF}
                   disabled={
-                    pdfLoading || questionsLoading || generatingQuestions
+                    pdfLoading ||
+                    questionsLoading ||
+                    generatingQuestions ||
+                    regeneratingQuestions
                   }
                 >
                   {pdfLoading ? (
@@ -3185,7 +3205,10 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                     <Button
                       onClick={() => generateQuestionsForRecord(false)}
                       disabled={
-                        generatingQuestions || questionsLoading || pdfLoading
+                        generatingQuestions ||
+                        regeneratingQuestions ||
+                        questionsLoading ||
+                        pdfLoading
                       }
                       variant="outline"
                     >
@@ -3201,10 +3224,13 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                     <Button
                       onClick={regenerateAllQuestions}
                       disabled={
-                        generatingQuestions || questionsLoading || pdfLoading
+                        generatingQuestions ||
+                        regeneratingQuestions ||
+                        questionsLoading ||
+                        pdfLoading
                       }
                     >
-                      {generatingQuestions ? (
+                      {regeneratingQuestions ? (
                         <>
                           <Spinner size="sm" className="mr-2" />
                           Regenerating...
