@@ -47,18 +47,37 @@ export async function POST(
     const questionPools = [];
 
     for (const skill of record.skills) {
-      // Only include skills that have questions with floCareerId
+      // Get all questions with floCareerId for this skill
       const questionsWithFloId = skill.questions.filter((q) => q.floCareerId);
 
       if (questionsWithFloId.length > 0) {
-        const pool = {
-          pool_id: 0,
-          action: "add",
-          name: skill.name,
-          num_of_questions_to_ask: questionsWithFloId.length,
-          questions: questionsWithFloId.map((q) => q.floCareerId),
-        };
-        questionPools.push(pool);
+        // Separate active and deleted questions
+        const activeQuestions = questionsWithFloId.filter(q => !q.deleted);
+        const deletedQuestions = questionsWithFloId.filter(q => q.deleted);
+
+        // Handle active questions
+        if (activeQuestions.length > 0) {
+          const pool = {
+            pool_id: 0,
+            action: "add",
+            name: skill.name,
+            num_of_questions_to_ask: activeQuestions.length,
+            questions: activeQuestions.map((q) => q.floCareerId),
+          };
+          questionPools.push(pool);
+        }
+
+        // Handle deleted questions
+        if (deletedQuestions.length > 0) {
+          const deletedPool = {
+            pool_id: 0,
+            action: "delete",
+            name: skill.name,
+            num_of_questions_to_ask: 0,
+            questions: deletedQuestions.map((q) => q.floCareerId),
+          };
+          questionPools.push(deletedPool);
+        }
       }
     }
 

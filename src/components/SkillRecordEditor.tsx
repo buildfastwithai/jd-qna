@@ -838,8 +838,10 @@ export default function SkillRecordEditor({
     try {
       setPdfLoading(true);
 
-      // Only include liked or neutral questions, not disliked ones
-      const filteredQuestions = questions.filter((q) => q.liked !== "DISLIKED");
+      // Only include liked or neutral questions, not disliked or deleted ones
+      const filteredQuestions = questions.filter(
+        (q) => q.liked !== "DISLIKED" && !q.deleted
+      );
 
       // Format questions for PDF
       const pdfQuestions = filteredQuestions.map((q) => {
@@ -892,8 +894,9 @@ export default function SkillRecordEditor({
         .toLowerCase()
         .replace(/\s+/g, "-")}-${Date.now()}.xlsx`;
 
-      // Prepare questions data for export
-      const exportQuestions = questions.map((q, index) => {
+      // Prepare questions data for export (exclude deleted questions)
+      const activeQuestions = questions.filter((q) => !q.deleted);
+      const exportQuestions = activeQuestions.map((q, index) => {
         const skill = editedSkills.find((s) => s.id === q.skillId);
         return {
           slNo: index + 1,
@@ -2111,7 +2114,8 @@ export default function SkillRecordEditor({
       return;
     }
 
-    if (questions.length === 0) {
+    const activeQuestions = questions.filter((q) => !q.deleted);
+    if (activeQuestions.length === 0) {
       toast.error("No questions to save to FloCareer");
       return;
     }
@@ -2290,7 +2294,8 @@ export default function SkillRecordEditor({
       return;
     }
 
-    if (questions.length === 0) {
+    const activeQuestions = questions.filter((q) => !q.deleted);
+    if (activeQuestions.length === 0) {
       toast.error("No questions to save to FloCareer");
       return;
     }
@@ -2484,6 +2489,7 @@ export default function SkillRecordEditor({
       }
 
       // Step 3: Create interview structure (if needed)
+      // Get all questions with FloCareer IDs (both active and deleted)
       const questionsWithFloId = questions.filter((q) => {
         const mapping = questionIdMapping.find((m) => m.originalId === q.id);
         if (!mapping) return false;
@@ -2503,30 +2509,64 @@ export default function SkillRecordEditor({
           );
 
           if (skillQuestions.length > 0) {
-            // Get FloCareer question IDs for each question
-            const questionIds = skillQuestions
-              .map((q) => {
-                const mapping = questionIdMapping.find(
-                  (m) => m.originalId === q.id
-                );
-                if (!mapping) return null;
+            // Separate active and deleted questions for this skill
+            const activeQuestions = skillQuestions.filter((q) => !q.deleted);
+            const deletedQuestions = skillQuestions.filter((q) => q.deleted);
 
-                const questionData = questionResult.questions.find(
-                  (qr: any) => qr.ai_question_id === mapping.tempId
-                );
-                return questionData?.question_id || null;
-              })
-              .filter(Boolean);
+            // Handle active questions
+            if (activeQuestions.length > 0) {
+              const activeQuestionIds = activeQuestions
+                .map((q) => {
+                  const mapping = questionIdMapping.find(
+                    (m) => m.originalId === q.id
+                  );
+                  if (!mapping) return null;
 
-            if (questionIds.length > 0) {
-              const pool = {
-                pool_id: 0,
-                action: "add",
-                name: skill.name,
-                num_of_questions_to_ask: questionIds.length,
-                questions: questionIds,
-              };
-              questionPoolsList.push(pool);
+                  const questionData = questionResult.questions.find(
+                    (qr: any) => qr.ai_question_id === mapping.tempId
+                  );
+                  return questionData?.question_id || null;
+                })
+                .filter(Boolean);
+
+              if (activeQuestionIds.length > 0) {
+                const pool = {
+                  pool_id: 0,
+                  action: "add",
+                  name: skill.name,
+                  num_of_questions_to_ask: activeQuestionIds.length,
+                  questions: activeQuestionIds,
+                };
+                questionPoolsList.push(pool);
+              }
+            }
+
+            // Handle deleted questions
+            if (deletedQuestions.length > 0) {
+              const deletedQuestionIds = deletedQuestions
+                .map((q) => {
+                  const mapping = questionIdMapping.find(
+                    (m) => m.originalId === q.id
+                  );
+                  if (!mapping) return null;
+
+                  const questionData = questionResult.questions.find(
+                    (qr: any) => qr.ai_question_id === mapping.tempId
+                  );
+                  return questionData?.question_id || null;
+                })
+                .filter(Boolean);
+
+              if (deletedQuestionIds.length > 0) {
+                const deletedPool = {
+                  pool_id: 0,
+                  action: "delete",
+                  name: skill.name,
+                  num_of_questions_to_ask: 0,
+                  questions: deletedQuestionIds,
+                };
+                questionPoolsList.push(deletedPool);
+              }
             }
           }
         }
@@ -2648,7 +2688,7 @@ export default function SkillRecordEditor({
             onClick={handleGenerateExcel}
             disabled={
               excelExporting ||
-              questions.length === 0 ||
+              questions.filter((q) => !q.deleted).length === 0 ||
               generatingQuestions ||
               questionsLoading
             }
@@ -2670,7 +2710,7 @@ export default function SkillRecordEditor({
             onClick={handleGeneratePDF}
             disabled={
               pdfLoading ||
-              questions.length === 0 ||
+              questions.filter((q) => !q.deleted).length === 0 ||
               generatingQuestions ||
               questionsLoading
             }
@@ -2732,7 +2772,7 @@ export default function SkillRecordEditor({
               }
             }}
           >
-            Questions ({questions.length})
+            Questions ({questions.filter((q) => !q.deleted).length})
           </TabsTrigger>
         </TabsList>
 
@@ -3174,7 +3214,7 @@ export default function SkillRecordEditor({
                     regeneratingQuestions ||
                     questionsLoading ||
                     pdfLoading ||
-                    questions.length === 0
+                    questions.filter((q) => !q.deleted).length === 0
                   }
                 >
                   {regeneratingQuestions ? (
@@ -3278,7 +3318,7 @@ export default function SkillRecordEditor({
                     )}
                   </Button>
                 )}
-                {questions.length > 0 && (
+                {questions.filter((q) => !q.deleted).length > 0 && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -3354,7 +3394,7 @@ export default function SkillRecordEditor({
                   <Spinner size="lg" className="mb-4" />
                   <p className="text-muted-foreground">Loading questions...</p>
                 </div>
-              ) : questions.length === 0 ? (
+              ) : questions.filter((q) => !q.deleted).length === 0 ? (
                 <div className="text-center py-8">
                   <p className="text-muted-foreground mb-4">
                     No questions have been generated yet.
@@ -3776,7 +3816,7 @@ export default function SkillRecordEditor({
                     generatingQuestions ||
                     pdfLoading ||
                     editedSkills.length === 0 ||
-                    questions.length === 0
+                    questions.filter((q) => !q.deleted).length === 0
                   }
                   variant="default"
                 >
@@ -3935,8 +3975,9 @@ export default function SkillRecordEditor({
               <strong>Summary:</strong>
               <br />• {editedSkills.length} skill
               {editedSkills.length > 1 ? "s" : ""} will be saved
-              <br />• {questions.length} question
-              {questions.length > 1 ? "s" : ""} will be saved
+              <br />• {questions.filter((q) => !q.deleted).length} question
+              {questions.filter((q) => !q.deleted).length > 1 ? "s" : ""} will
+              be saved
               <br />
               • Interview structure will be created automatically
               <br />

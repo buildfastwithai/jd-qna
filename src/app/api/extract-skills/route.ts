@@ -81,9 +81,9 @@ async function checkForExistingRecords(reqId?: number, userId?: number) {
       },
       include: {
         skills: { orderBy: { priority: "asc" } },
-        questions: { 
+        questions: {
           where: { deleted: false }, // Exclude deleted questions
-          include: { skill: true } 
+          include: { skill: true },
         },
       },
       orderBy: { createdAt: "desc" },
@@ -199,10 +199,11 @@ export async function POST(request: Request) {
             // Sort mandatory skills first, then optional
             const sortedSkills = [
               ...parsedResponse.skills.filter(
-                (skill) => skill.requirement === "MANDATORY"
+                (skill, index) =>
+                  skill.requirement === "MANDATORY" && index < 15
               ),
               ...parsedResponse.skills.filter(
-                (skill) => skill.requirement === "OPTIONAL"
+                (skill, index) => skill.requirement === "OPTIONAL" && index < 15
               ),
             ];
 
