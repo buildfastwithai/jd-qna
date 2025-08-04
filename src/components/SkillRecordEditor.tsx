@@ -13,6 +13,7 @@ import {
   GripVertical,
   MessageSquare,
   FileSpreadsheet,
+  ArrowRight,
 } from "lucide-react";
 import PDFDoc from "./PDFDocument";
 import { Question as PDFQuestion } from "./ui/questions-display";
@@ -2634,54 +2635,15 @@ export default function SkillRecordEditor({
   return (
     <div className="space-y-6 w-full overflow-hidden">
       <div className="flex items-center justify-between">
-        <div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => router.back()}
-            className="mb-2"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" /> Back to Home
-          </Button>
-          <h1 className="text-2xl font-bold">{record.jobTitle}</h1>
-          <p className="text-muted-foreground">
-            Created: {new Date(record.createdAt).toLocaleDateString()}
-          </p>
+        <div className="flex items-center gap-4">
+          <div>
+            <h1 className="text-2xl font-bold">{record.jobTitle}</h1>
+            <p className="text-muted-foreground">
+              Created: {new Date(record.createdAt).toLocaleDateString()}
+            </p>
+          </div>
         </div>
         <div className="flex gap-2">
-          {/* Show Save to FloCareer button only if reqId and userId exist */}
-          {/* {record.reqId && record.userId && (
-            <Button
-              onClick={saveToFloCareer}
-              disabled={
-                savingToFloCareer || generatingQuestions || questionsLoading
-              }
-              variant="default"
-            >
-              {savingToFloCareer ? (
-                <>
-                  <Spinner size="sm" className="mr-2" />
-                  Saving to FloCareer...
-                </>
-              ) : (
-                "Save to FloCareer"
-              )}
-            </Button>
-          )} */}
-          {/* <Button
-            onClick={autoGenerateSkillsAndQuestions}
-            disabled={generatingQuestions}
-            variant="default"
-          >
-            {generatingQuestions ? (
-              <>
-                <Spinner size="sm" className="mr-2" />
-                Auto-Generating...
-              </>
-            ) : (
-              <>Auto-Generate All</>
-            )}
-          </Button> */}
           <Button
             onClick={handleGenerateExcel}
             disabled={
@@ -2726,6 +2688,34 @@ export default function SkillRecordEditor({
             )}
           </Button>
         </div>
+      </div>
+
+      <div className="flex justify-between">
+        {activeTab === "questions" && (
+          <div className="flex items-center justify-start">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setActiveTab("skills")}
+              className="mb-2"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" /> Back to Skills
+            </Button>
+          </div>
+        )}
+
+        {activeTab === "skills" && (
+          <div className="flex items-center justify-end w-full">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setActiveTab("questions")}
+              className="mb-2"
+            >
+              Next <ArrowRight className="h-4 w-4 ml-2" />
+            </Button>
+          </div>
+        )}
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
