@@ -134,7 +134,7 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
         setFetchingJobDetails(true);
         try {
           const response = await fetch(
-            `https://sandbox.flocareer.com/dynamic/corporate/req-details/${reqId}/${userId}/`
+            `https://sandbox.flocareer.com/dynamic/corporate/req-details/${reqId.trim()}/${userId.trim()}/`
           );
 
           if (!response.ok) {
