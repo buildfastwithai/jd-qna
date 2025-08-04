@@ -20,6 +20,7 @@ model SkillRecord {
   updatedAt      DateTime  @updatedAt
   reqId          Int?
   userId         Int?
+  roundId        Int?
   skills         Skill[]
   questions      Question[]
   interviewLength Int?     // Interview length in minutes

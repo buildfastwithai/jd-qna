@@ -104,6 +104,7 @@ interface SkillRecord {
   updatedAt: Date;
   reqId?: number;
   userId?: number;
+  roundId?: number;
 }
 
 type RecordWithRelations = SkillRecord & {
@@ -2055,7 +2056,7 @@ export default function SkillRecordEditor({
       ];
 
       const requestBody = {
-        round_id: record.reqId,
+        round_id: record.roundId,
         user_id: record.userId,
         skill_matrix: skillMatrix,
       };
@@ -2338,7 +2339,7 @@ export default function SkillRecordEditor({
       ];
 
       const skillRequestBody = {
-        round_id: record.reqId,
+        round_id: record.roundId,
         user_id: record.userId,
         skill_matrix: skillMatrix,
       };
@@ -2599,7 +2600,7 @@ export default function SkillRecordEditor({
         if (allQuestionPools.length > 0) {
           const structureRequestBody = {
             user_id: record.userId,
-            round_id: record.reqId,
+            round_id: record.roundId, 
             question_pools: allQuestionPools,
           };
 

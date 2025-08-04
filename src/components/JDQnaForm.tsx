@@ -107,7 +107,7 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
   });
   const [fetchingJobDetails, setFetchingJobDetails] = useState(false);
   const [isPreFilled, setIsPreFilled] = useState(false);
-  const [extractedReqId, setExtractedReqId] = useState<string | null>(null);
+  const [extractedRoundId, setExtractedRoundId] = useState<string | null>(null);
 
   // Removed existing records dialog state (auto-handling now)
 
@@ -148,7 +148,7 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
           // Extract round_id from the first round and store it as reqId
           const firstRoundId = data.rounds?.[0]?.round_id;
           if (firstRoundId) {
-            setExtractedReqId(firstRoundId.toString());
+            setExtractedRoundId(firstRoundId.toString());
           } else {
             toast.error(
               "Round ID is missing from job details. Skills extraction and auto-generation will not work."
@@ -263,7 +263,7 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
     }
 
     // Check if round_id is missing when form is pre-filled
-    if (isPreFilled && !extractedReqId) {
+    if (isPreFilled && !extractedRoundId) {
       toast.error(
         "Round ID is missing from job details. Cannot proceed with skill extraction."
       );
@@ -279,7 +279,8 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
         interviewLength: Number(form.getValues().interviewLength),
         minExperience: form.getValues().minExperience,
         maxExperience: form.getValues().maxExperience,
-        reqId: extractedReqId || reqId,
+        reqId: reqId,
+        roundId: extractedRoundId,
         userId: userId,
         forceCreate: forceCreate, // Add this parameter
       };
@@ -532,7 +533,7 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
     }
 
     // Check if round_id is missing when form is pre-filled
-    if (isPreFilled && !extractedReqId) {
+    if (isPreFilled && !extractedRoundId) {
       toast.error(
         "Round ID is missing from job details. Cannot proceed with auto-generation."
       );
@@ -564,7 +565,8 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
           customInstructions: form.getValues().customInstructions || "",
           minExperience: form.getValues().minExperience,
           maxExperience: form.getValues().maxExperience,
-          reqId: extractedReqId || reqId,
+          reqId: reqId,
+          roundId: extractedRoundId,
           userId: userId,
         }),
       });
