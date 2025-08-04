@@ -126,9 +126,13 @@ interface QuestionData {
 
 interface SkillRecordEditorProps {
   record: RecordWithRelations;
+  defaultTab?: string;
 }
 
-export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
+export default function SkillRecordEditor({
+  record,
+  defaultTab,
+}: SkillRecordEditorProps) {
   const router = useRouter();
   const [editedSkills, setEditedSkills] = useState<Skill[]>(record.skills);
   const [questions, setQuestions] = useState<QuestionData[]>(
@@ -138,7 +142,11 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
   const [generatingQuestions, setGeneratingQuestions] = useState(false);
   const [regeneratingQuestions, setRegeneratingQuestions] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState("skills");
+  const [activeTab, setActiveTab] = useState(
+    defaultTab && (defaultTab === "questions" || defaultTab === "skills")
+      ? defaultTab
+      : "skills"
+  );
   const [questionsLoading, setQuestionsLoading] = useState(false);
   const [feedbackRefreshTrigger, setFeedbackRefreshTrigger] = useState(0);
   const [activeSkillFeedback, setActiveSkillFeedback] = useState<string | null>(
@@ -458,6 +466,83 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
       }
     } catch (error: any) {
       console.error("Error generating questions:", error);
+      // Only show error toast for actual errors, not network issues
+      if (error.name === "TypeError" && error.message.includes("fetch")) {
+        toast.error(
+          "Network error. Please check your connection and try again."
+        );
+      } else if (error.message) {
+        toast.error(error.message);
+      } else {
+        toast.error("An unexpected error occurred. Please try again.");
+      }
+    } finally {
+      setGeneratingQuestions(false);
+      setQuestionGenerationDialogOpen(false);
+    }
+  };
+
+  // Generate questions for specific selected skills
+  const generateQuestionsForSelectedSkills = async (skillIds: string[]) => {
+    try {
+      setGeneratingQuestions(true);
+      setQuestionGenerationDialogOpen(true);
+      setGenerationProgress({
+        title: "Generating Questions for Selected Skills",
+        description: "Creating interview questions for your selected skills...",
+        showProgress: false,
+        progressValue: 0,
+        progressText: "",
+      });
+
+      const response = await fetch(
+        `/api/records/${record.id}/generate-questions`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
+          },
+          body: JSON.stringify({
+            skillIds: skillIds,
+            forceRegenerate: false,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Show success toast
+        toast.success(
+          `${
+            data.message ||
+            "Questions generated successfully for selected skills!"
+          }`
+        );
+
+        // Fetch the latest questions directly
+        await fetchLatestQuestions();
+
+        // Switch to questions tab
+        setActiveTab("questions");
+      } else {
+        // Only show error if there's actually an error message
+        if (data.error) {
+          toast.error(data.error);
+        } else {
+          // If no specific error but questions might have been generated, just show info
+          toast.info(
+            "Questions generation completed. Check the questions tab."
+          );
+
+          // Still try to fetch latest questions in case some were generated
+          await fetchLatestQuestions();
+          setActiveTab("questions");
+        }
+      }
+    } catch (error: any) {
+      console.error("Error generating questions for selected skills:", error);
       // Only show error toast for actual errors, not network issues
       if (error.name === "TypeError" && error.message.includes("fetch")) {
         toast.error(
@@ -2676,6 +2761,9 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                         });
                     }}
                     loading={loading}
+                    onGenerateQuestionsForSkills={
+                      generateQuestionsForSelectedSkills
+                    }
                   />
                 </div>
               ) : priorityMode ? (
@@ -2953,6 +3041,9 @@ export default function SkillRecordEditor({ record }: SkillRecordEditorProps) {
                       });
                   }}
                   loading={loading}
+                  onGenerateQuestionsForSkills={
+                    generateQuestionsForSelectedSkills
+                  }
                 />
               )}
             </CardContent>

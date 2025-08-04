@@ -79,26 +79,31 @@ export async function POST(
   try {
     const { id } = await params;
 
-    // Accept force parameter from request body
+    // Accept force parameter and skillIds from request body
     const requestBody = await request.json();
     const forceRegenerate = requestBody.forceRegenerate === true;
+    const specificSkillIds = requestBody.skillIds; // Array of skill IDs to generate questions for
 
     // Find the record with skills
     const record = await prisma.skillRecord.findUnique({
       where: { id },
       include: {
         skills: {
-          where: {
-            OR: [
-              { requirement: "MANDATORY" }, // Generate for mandatory skills
-              { 
-                AND: [
-                  { requirement: "OPTIONAL" },
-                  { numQuestions: { gt: 0 } } // Also generate for optional skills with question count > 0
-                ] 
-              }
-            ]
-          },
+          where: specificSkillIds
+            ? // If specific skill IDs are provided, filter by those
+              { id: { in: specificSkillIds } }
+            : // Otherwise, use the original logic
+              {
+                OR: [
+                  { requirement: "MANDATORY" }, // Generate for mandatory skills
+                  {
+                    AND: [
+                      { requirement: "OPTIONAL" },
+                      { numQuestions: { gt: 0 } }, // Also generate for optional skills with question count > 0
+                    ],
+                  },
+                ],
+              },
         },
       },
     });
@@ -111,8 +116,11 @@ export async function POST(
     }
 
     if (record.skills.length === 0) {
+      const errorMessage = specificSkillIds
+        ? "No skills found with the provided IDs"
+        : "No mandatory skills found";
       return NextResponse.json(
-        { success: false, error: "No mandatory skills found" },
+        { success: false, error: errorMessage },
         { status: 400 }
       );
     }
@@ -294,9 +302,13 @@ export async function POST(
       }
     }
 
+    const messagePrefix = specificSkillIds
+      ? `Generated ${totalQuestionsGenerated} questions for ${record.skills.length} selected skills`
+      : `Generated ${totalQuestionsGenerated} questions across ${record.skills.length} skills`;
+
     return NextResponse.json({
       success: true,
-      message: `Generated ${totalQuestionsGenerated} questions across ${record.skills.length} skills for ${record.jobTitle}`,
+      message: `${messagePrefix} for ${record.jobTitle}`,
       questions: allGeneratedQuestions,
     });
   } catch (error: any) {

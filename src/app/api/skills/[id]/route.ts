@@ -79,9 +79,16 @@ export async function PATCH(
     if (numQuestions !== undefined) {
       // Validate numQuestions
       const numQuestionsValue = Number(numQuestions);
-      if (isNaN(numQuestionsValue) || numQuestionsValue < 1) {
+      if (
+        isNaN(numQuestionsValue) ||
+        numQuestionsValue < 0 ||
+        numQuestionsValue > 10
+      ) {
         return NextResponse.json(
-          { success: false, error: "Number of questions must be at least 1" },
+          {
+            success: false,
+            error: "Number of questions must be between 0 and 10",
+          },
           { status: 400 }
         );
       }

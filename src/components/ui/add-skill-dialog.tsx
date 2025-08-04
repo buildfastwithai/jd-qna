@@ -28,7 +28,7 @@ const newSkillSchema = z.object({
   name: z.string().min(1, "Skill name is required"),
   level: z.enum(["BEGINNER", "INTERMEDIATE", "PROFESSIONAL", "EXPERT"]),
   requirement: z.enum(["MANDATORY", "OPTIONAL"]),
-  numQuestions: z.number().int().min(0).max(5),
+  numQuestions: z.number().int().min(0).max(10),
   difficulty: z.enum(["Easy", "Medium", "Hard"]).optional(),
   category: z.enum(["TECHNICAL", "FUNCTIONAL", "BEHAVIORAL", "COGNITIVE"]),
   questionFormat: z.enum([
@@ -84,7 +84,7 @@ export function AddSkillDialog({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
+          Authorization: `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
         },
         body: JSON.stringify(skillData),
       });
@@ -203,7 +203,7 @@ export function AddSkillDialog({
                 <SelectValue placeholder="Select number" />
               </SelectTrigger>
               <SelectContent>
-                {[0, 1, 2, 3, 4, 5].map((num) => (
+                {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
                   <SelectItem key={num} value={String(num)}>
                     {num}
                   </SelectItem>

@@ -74,6 +74,7 @@ interface SkillsTableProps {
   onBulkDeleteSkills?: (skillIds: string[]) => void;
   onSkillAdded: () => void;
   loading: boolean;
+  onGenerateQuestionsForSkills?: (skillIds: string[]) => void;
 }
 
 export default function SkillsTable({
@@ -85,6 +86,7 @@ export default function SkillsTable({
   onBulkDeleteSkills,
   onSkillAdded,
   loading,
+  onGenerateQuestionsForSkills,
 }: SkillsTableProps) {
   // State to track feedback counts and refresh trigger
   const [feedbackCounts, setFeedbackCounts] = useState<Record<string, number>>(
@@ -103,20 +105,24 @@ export default function SkillsTable({
   useEffect(() => {
     const fetchFeedbackCounts = async () => {
       const counts: Record<string, number> = {};
-      const newSkillIds = skills.map(skill => skill.id);
-      
+      const newSkillIds = skills.map((skill) => skill.id);
+
       // Keep existing counts for skills that haven't changed
       const existingCounts = { ...feedbackCounts };
-      
+
       // Only fetch for skills that don't already have counts
-      const skillsToFetch = skills.filter(skill => existingCounts[skill.id] === undefined);
-      
+      const skillsToFetch = skills.filter(
+        (skill) => existingCounts[skill.id] === undefined
+      );
+
       // Fetch counts only for new skills
       for (const skill of skillsToFetch) {
         try {
           const response = await fetch(`/api/skills/${skill.id}/feedback`, {
             headers: {
-              "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
+              Authorization: `Bearer ${
+                process.env.NEXT_PUBLIC_AUTH_TOKEN || ""
+              }`,
             },
           });
           if (response.ok) {
@@ -130,18 +136,18 @@ export default function SkillsTable({
           );
         }
       }
-      
+
       // Combine existing counts with new counts, but only for skills that still exist
       const updatedCounts = { ...existingCounts, ...counts };
       const finalCounts: Record<string, number> = {};
-      
+
       // Filter out counts for skills that no longer exist
-      newSkillIds.forEach(id => {
+      newSkillIds.forEach((id) => {
         if (updatedCounts[id] !== undefined) {
           finalCounts[id] = updatedCounts[id];
         }
       });
-      
+
       setFeedbackCounts(finalCounts);
     };
 
@@ -151,12 +157,12 @@ export default function SkillsTable({
   // Create a wrapper for the onDeleteSkill function to clean up feedback counts
   const handleDeleteSkill = (skillId: string) => {
     // Remove the feedback count for the deleted skill
-    setFeedbackCounts(prevCounts => {
+    setFeedbackCounts((prevCounts) => {
       const newCounts = { ...prevCounts };
       delete newCounts[skillId];
       return newCounts;
     });
-    
+
     // Call the original onDeleteSkill function
     onDeleteSkill(skillId);
   };
@@ -236,19 +242,19 @@ export default function SkillsTable({
     if (onBulkDeleteSkills) {
       // Remove feedback counts for all deleted skills
       const skillsToDelete = Array.from(selectedSkills);
-      setFeedbackCounts(prevCounts => {
+      setFeedbackCounts((prevCounts) => {
         const newCounts = { ...prevCounts };
-        skillsToDelete.forEach(skillId => {
+        skillsToDelete.forEach((skillId) => {
           delete newCounts[skillId];
         });
         return newCounts;
       });
-      
+
       onBulkDeleteSkills(skillsToDelete);
     } else {
       // Fallback to individual deletions if bulk delete not provided
       selectedSkills.forEach((skillId) => {
-        setFeedbackCounts(prevCounts => {
+        setFeedbackCounts((prevCounts) => {
           const newCounts = { ...prevCounts };
           delete newCounts[skillId];
           return newCounts;
@@ -300,7 +306,7 @@ export default function SkillsTable({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
+          Authorization: `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
         },
         body: JSON.stringify({
           questions: exportSkills,
@@ -386,7 +392,12 @@ export default function SkillsTable({
             >
               <SelectValue placeholder="Select category" />
             </SelectTrigger>
-            <SelectContent className="min-w-[160px]" position="popper" sideOffset={5} align="start">
+            <SelectContent
+              className="min-w-[160px]"
+              position="popper"
+              sideOffset={5}
+              align="start"
+            >
               <SelectItem value="TECHNICAL">Technical</SelectItem>
               <SelectItem value="FUNCTIONAL">Functional</SelectItem>
               <SelectItem value="BEHAVIORAL">Behavioral</SelectItem>
@@ -412,7 +423,12 @@ export default function SkillsTable({
             >
               <SelectValue placeholder="Select level" />
             </SelectTrigger>
-            <SelectContent className="min-w-[160px]" position="popper" sideOffset={5} align="start">
+            <SelectContent
+              className="min-w-[160px]"
+              position="popper"
+              sideOffset={5}
+              align="start"
+            >
               <SelectItem value="BEGINNER">Beginner</SelectItem>
               <SelectItem value="INTERMEDIATE">Intermediate</SelectItem>
               <SelectItem value="PROFESSIONAL">Professional</SelectItem>
@@ -430,13 +446,13 @@ export default function SkillsTable({
             onValueChange={(value) => {
               const skillId = info.row.original.id;
               const currentQuestionCount = getSkillQuestionCount(skillId);
-              
+
               // Remove the validation check that prevents changing from MANDATORY to OPTIONAL
               // This is now handled by the confirmation dialog in SkillRecordEditor.tsx
-              
-                                            // Just update requirement without changing numQuestions 
-                              // to allow OPTIONAL skills with numQuestions > 0
-                              onUpdateSkill(info.row.original.id, "requirement", value);
+
+              // Just update requirement without changing numQuestions
+              // to allow OPTIONAL skills with numQuestions > 0
+              onUpdateSkill(info.row.original.id, "requirement", value);
             }}
             disabled={loading}
           >
@@ -446,7 +462,12 @@ export default function SkillsTable({
             >
               <SelectValue placeholder="Requirement" />
             </SelectTrigger>
-            <SelectContent className="min-w-[160px]" position="popper" sideOffset={5} align="start">
+            <SelectContent
+              className="min-w-[160px]"
+              position="popper"
+              sideOffset={5}
+              align="start"
+            >
               <SelectItem value="MANDATORY">Mandatory</SelectItem>
               <SelectItem value="OPTIONAL">Optional</SelectItem>
             </SelectContent>
@@ -505,8 +526,13 @@ export default function SkillsTable({
               >
                 <SelectValue placeholder="Count" />
               </SelectTrigger>
-              <SelectContent className="min-w-[60px]" position="popper" sideOffset={5} align="start">
-                {[0, 1, 2, 3, 4, 5].map((num) => (
+              <SelectContent
+                className="min-w-[60px]"
+                position="popper"
+                sideOffset={5}
+                align="start"
+              >
+                {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
                   <SelectItem key={num} value={String(num)}>
                     {num}
                   </SelectItem>
@@ -651,15 +677,30 @@ export default function SkillsTable({
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-2">
           {selectedSkills.size > 0 && (
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={handleBulkDelete}
-              disabled={loading}
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Delete Selected ({selectedSkills.size})
-            </Button>
+            <>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => {
+                  if (onGenerateQuestionsForSkills) {
+                    onGenerateQuestionsForSkills(Array.from(selectedSkills));
+                  }
+                }}
+                disabled={loading}
+              >
+                <MessageSquarePlus className="h-4 w-4 mr-2" />
+                Generate Questions ({selectedSkills.size})
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleBulkDelete}
+                disabled={loading}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete Selected ({selectedSkills.size})
+              </Button>
+            </>
           )}
         </div>
         <div className="flex items-center gap-2">

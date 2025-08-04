@@ -1,21 +1,22 @@
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
-import { verifyApiAuth } from '@/lib/auth';
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { verifyApiAuth } from "@/lib/auth";
 
 // List of paths that don't require authentication
 const publicPaths = [
-  '/api/public', // Add any public API paths here
+  "/api/public", // Add any public API paths here
+  "/api/find-record", // Allow public access to find records by reqId and userId
 ];
 
 // This function can be marked `async` if using `await` inside
 export function middleware(request: NextRequest) {
   // Only check API routes
-  if (!request.nextUrl.pathname.startsWith('/api/')) {
+  if (!request.nextUrl.pathname.startsWith("/api/")) {
     return NextResponse.next();
   }
 
   // Skip authentication for public paths
-  if (publicPaths.some(path => request.nextUrl.pathname.startsWith(path))) {
+  if (publicPaths.some((path) => request.nextUrl.pathname.startsWith(path))) {
     return NextResponse.next();
   }
 
@@ -35,5 +36,5 @@ export function middleware(request: NextRequest) {
 
 // Configure which paths this middleware applies to
 export const config = {
-  matcher: '/api/:path*',
-}; 
+  matcher: "/api/:path*",
+};
