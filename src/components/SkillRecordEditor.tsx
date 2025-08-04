@@ -346,13 +346,18 @@ export default function SkillRecordEditor({
       });
 
       // Find skills that need questions (mandatory skills or optional skills with numQuestions > 0)
-      const skillsNeedingQuestions = editedSkills.filter(
-        (skill) =>
+      const skillsNeedingQuestions = editedSkills.filter((skill) => {
+        const requiredQuestions = skill.numQuestions || 1;
+        const existingQuestions = questions.filter(
+          (q) => q.skillId === skill.id && !q.deleted
+        ).length;
+
+        return (
           (skill.requirement === "MANDATORY" ||
-            (skill.requirement === "OPTIONAL" &&
-              (skill.numQuestions || 0) > 0)) &&
-          !questions.some((q) => q.skillId === skill.id)
-      );
+            (skill.requirement === "OPTIONAL" && requiredQuestions > 0)) &&
+          existingQuestions < requiredQuestions
+        );
+      });
 
       if (skillsNeedingQuestions.length === 0) {
         toast.info("All mandatory skills already have questions!");

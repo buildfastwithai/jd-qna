@@ -36,11 +36,14 @@ export async function POST(
       );
     }
 
-    // Get all questions for this skill
+    // Get all questions for this skill (excluding deleted ones)
     const questions = await prisma.question.findMany({
       where: { 
         skillId: skillId,
-        recordId: recordId
+        recordId: recordId,
+        deleted: {
+          not: true,
+        },
       },
     });
 

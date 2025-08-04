@@ -96,11 +96,14 @@ export async function POST(request: Request) {
 
     const allQuestions = [];
 
-    // First, check how many questions already exist for each skill
+    // First, check how many questions already exist for each skill (excluding deleted ones)
     const existingQuestions = await prisma.question.findMany({
       where: {
         skillId: { in: skillIds },
         recordId: recordId,
+        deleted: {
+          not: true,
+        },
       },
       select: {
         id: true,

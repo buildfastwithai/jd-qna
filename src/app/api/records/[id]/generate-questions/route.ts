@@ -125,12 +125,15 @@ export async function POST(
       );
     }
 
-    // Get existing questions
+    // Get existing questions (excluding deleted ones)
     const existingQuestions = await prisma.question.findMany({
       where: {
         recordId: id,
         skillId: {
           in: record.skills.map((skill: any) => skill.id),
+        },
+        deleted: {
+          not: true,
         },
       },
       select: {
