@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 // Initialize OpenAI client
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
+  timeout: 1200000,
 });
 
 // Generate prompt for a specific skill batch
