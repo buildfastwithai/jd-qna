@@ -18,7 +18,7 @@ const nextConfig = {
             value: "Content-Type, Authorization",
           },
           { key: "Connection", value: "keep-alive" },
-          { key: "Keep-Alive", value: "timeout=1200" },
+          { key: "Keep-Alive", value: "timeout=120000" },
         ],
       },
     ];
