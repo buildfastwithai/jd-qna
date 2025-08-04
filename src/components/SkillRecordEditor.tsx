@@ -2135,7 +2135,7 @@ export default function SkillRecordEditor({
       setSavingToFloCareer(true);
 
       // Map our question data to FloCareer format
-      const flocareerQuestions = questions.map((question) => ({
+      const flocareerQuestions = activeQuestions.map((question) => ({
         ai_question_id: question.id,
         question_type: "descriptive", // Default to descriptive
         candidate_description: question.question,
@@ -2398,7 +2398,7 @@ export default function SkillRecordEditor({
       }
 
       // Step 2: Save questions to FloCareer
-      const flocareerQuestions = questions.map((question, index) => ({
+      const flocareerQuestions = activeQuestions.map((question, index) => ({
         ai_question_id: `Q${String(index + 1).padStart(3, "0")}`, // Format as Q001, Q002, etc.
         question_type: "descriptive",
         candidate_description: "",
@@ -2419,7 +2419,7 @@ export default function SkillRecordEditor({
       }));
 
       // Create a mapping to track original IDs
-      const questionIdMapping = questions.map((question, index) => ({
+      const questionIdMapping = activeQuestions.map((question, index) => ({
         originalId: question.id,
         tempId: `Q${String(index + 1).padStart(3, "0")}`,
       }));

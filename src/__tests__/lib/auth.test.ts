@@ -73,6 +73,7 @@ describe("Auth Utils", () => {
 
       expect(result).not.toBeNull();
       expect(result!.status).toBe(401);
+    });
 
     /**
      * Test 3: Invalid Authorization header format
