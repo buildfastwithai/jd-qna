@@ -26,6 +26,9 @@ export async function GET(
           ],
         },
         questions: {
+          where: {
+            deleted: false, // Exclude deleted questions
+          },
           include: {
             skill: true,
           },

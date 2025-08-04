@@ -79,6 +79,8 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
+    const body = await request.json();
+    const { deletedFeedback } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -87,14 +89,19 @@ export async function DELETE(
       );
     }
 
-    // Delete the question
-    await prisma.question.delete({
+    // Soft delete the question by setting deleted flag and storing feedback
+    const updatedQuestion = await prisma.question.update({
       where: { id },
+      data: {
+        deleted: true,
+        deletedFeedback: deletedFeedback || null,
+      },
     });
 
     return NextResponse.json({
       success: true,
       message: "Question deleted successfully",
+      question: updatedQuestion,
     });
   } catch (error: any) {
     console.error("Error deleting question:", error);

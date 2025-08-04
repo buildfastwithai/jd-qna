@@ -60,6 +60,8 @@ model Question {
   liked        LikeStatus?  @default(NONE)
   feedback     String?      @db.Text
   coding       Boolean      @default(false) // Whether this question involves coding
+  deleted      Boolean      @default(false) // Soft delete flag
+  deletedFeedback String?   @db.Text // User feedback for why question was deleted
   regenerations Regeneration[] @relation("OriginalQuestion")
   regeneratedFrom Regeneration[] @relation("RegeneratedQuestion")
 }

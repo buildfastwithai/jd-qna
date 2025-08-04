@@ -51,6 +51,7 @@ import {
   TooltipTrigger,
 } from "./ui/tooltip";
 import { QuestionDialog } from "./ui/question-dialog";
+import { DeleteQuestionDialog } from "./ui/delete-question-dialog";
 import { Badge } from "./ui/badge";
 import { Separator } from "./ui/separator";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
@@ -91,6 +92,8 @@ interface Question {
   skill?: Skill;
   feedback?: string;
   floCareerId?: number;
+  deleted?: boolean;
+  deletedFeedback?: string;
 }
 
 interface SkillRecord {
@@ -122,6 +125,8 @@ interface QuestionData {
   feedback?: string;
   coding?: boolean;
   floCareerId?: number;
+  deleted?: boolean;
+  deletedFeedback?: string;
 }
 
 interface SkillRecordEditorProps {
@@ -204,6 +209,14 @@ export default function SkillRecordEditor({
   // Add state for final submit dialog
   const [finalSubmitDialogOpen, setFinalSubmitDialogOpen] = useState(false);
 
+  // Add state for delete question dialog
+  const [deleteQuestionDialogOpen, setDeleteQuestionDialogOpen] =
+    useState(false);
+  const [questionToDelete, setQuestionToDelete] = useState<Question | null>(
+    null
+  );
+  const [deletingQuestion, setDeletingQuestion] = useState(false);
+
   // Track deleted skills for FloCareer submission
   const [deletedSkills, setDeletedSkills] = useState<
     Array<{
@@ -234,6 +247,8 @@ export default function SkillRecordEditor({
             feedback: q.feedback || "",
             coding: content.coding || false,
             floCareerId: q.floCareerId,
+            deleted: q.deleted || false,
+            deletedFeedback: q.deletedFeedback || "",
           };
         } catch (e) {
           console.error("Error parsing question content:", e);
@@ -1070,21 +1085,23 @@ export default function SkillRecordEditor({
     }
   };
 
-  // Sort questions by skillId then by difficulty
-  const sortedQuestions = [...questions].sort((a, b) => {
-    // First sort by skillId
-    if (a.skillId !== b.skillId) {
-      return a.skillId.localeCompare(b.skillId);
-    }
+  // Sort questions by skillId then by difficulty, excluding deleted questions
+  const sortedQuestions = [...questions]
+    .filter((question) => !question.deleted) // Filter out deleted questions
+    .sort((a, b) => {
+      // First sort by skillId
+      if (a.skillId !== b.skillId) {
+        return a.skillId.localeCompare(b.skillId);
+      }
 
-    // Then by difficulty (Hard, Medium, Easy)
-    const difficultyOrder = { Hard: 0, Medium: 1, Easy: 2 };
-    const aDiffValue =
-      difficultyOrder[a.difficulty as keyof typeof difficultyOrder] ?? 1;
-    const bDiffValue =
-      difficultyOrder[b.difficulty as keyof typeof difficultyOrder] ?? 1;
-    return aDiffValue - bDiffValue;
-  });
+      // Then by difficulty (Hard, Medium, Easy)
+      const difficultyOrder = { Hard: 0, Medium: 1, Easy: 2 };
+      const aDiffValue =
+        difficultyOrder[a.difficulty as keyof typeof difficultyOrder] ?? 1;
+      const bDiffValue =
+        difficultyOrder[b.difficulty as keyof typeof difficultyOrder] ?? 1;
+      return aDiffValue - bDiffValue;
+    });
 
   // Track the current skill to know when to add a divider
   let currentSkillId = "";
@@ -1677,6 +1694,66 @@ export default function SkillRecordEditor({
       handleQuestionFeedbackChange(activeQuestion, feedback);
     }
     setFeedbackDialogOpen(false);
+  };
+
+  const handleDeleteQuestion = async (feedback: string) => {
+    if (!questionToDelete) return;
+
+    setDeletingQuestion(true);
+    try {
+      const response = await fetch(`/api/questions/${questionToDelete.id}`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
+        },
+        body: JSON.stringify({ deletedFeedback: feedback }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to delete question");
+      }
+
+      // Update the questions state to reflect the deletion
+      setQuestions((prevQuestions) =>
+        prevQuestions.map((q) =>
+          q.id === questionToDelete.id
+            ? { ...q, deleted: true, deletedFeedback: feedback }
+            : q
+        )
+      );
+
+      toast.success("Question deleted successfully");
+    } catch (error) {
+      console.error("Error deleting question:", error);
+      toast.error("Failed to delete question");
+    } finally {
+      setDeletingQuestion(false);
+    }
+  };
+
+  const handleOpenDeleteQuestionDialog = (question: QuestionData) => {
+    // Convert QuestionData to Question format for the dialog
+    const questionForDialog: Question = {
+      id: question.id,
+      content: JSON.stringify({
+        question: question.question,
+        answer: question.answer,
+        category: question.category,
+        difficulty: question.difficulty,
+        questionFormat: question.questionFormat,
+        coding: question.coding,
+      }),
+      skillId: question.skillId,
+      recordId: record.id,
+      liked: question.liked,
+      feedback: question.feedback,
+      floCareerId: question.floCareerId,
+      deleted: question.deleted,
+      deletedFeedback: question.deletedFeedback,
+    };
+    setQuestionToDelete(questionForDialog);
+    setDeleteQuestionDialogOpen(true);
   };
 
   const regenerateQuestionsFromSkill = async (skillId: string) => {
@@ -3640,6 +3717,25 @@ export default function SkillRecordEditor({
                                       </Tooltip>
                                     </TooltipProvider>
                                   </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() =>
+                                      handleOpenDeleteQuestionDialog(question)
+                                    }
+                                    className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                  >
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Trash2 className="h-4 w-4" />
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          Delete question
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  </Button>
                                 </div>
                               </TableCell>
                             </TableRow>
@@ -3883,6 +3979,17 @@ export default function SkillRecordEditor({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Question Dialog */}
+      <DeleteQuestionDialog
+        open={deleteQuestionDialogOpen}
+        onOpenChange={setDeleteQuestionDialogOpen}
+        questionContent={
+          questionToDelete ? JSON.parse(questionToDelete.content).question : ""
+        }
+        onDelete={handleDeleteQuestion}
+        isLoading={deletingQuestion}
+      />
     </div>
   );
 }

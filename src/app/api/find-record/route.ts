@@ -22,7 +22,10 @@ export async function GET(request: NextRequest) {
       },
       include: {
         skills: { orderBy: { priority: "asc" } },
-        questions: { include: { skill: true } },
+        questions: { 
+          where: { deleted: false }, // Exclude deleted questions
+          include: { skill: true } 
+        },
       },
       orderBy: { createdAt: "desc" },
     });

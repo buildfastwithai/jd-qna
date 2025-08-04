@@ -81,7 +81,10 @@ async function checkForExistingRecords(reqId?: number, userId?: number) {
       },
       include: {
         skills: { orderBy: { priority: "asc" } },
-        questions: { include: { skill: true } },
+        questions: { 
+          where: { deleted: false }, // Exclude deleted questions
+          include: { skill: true } 
+        },
       },
       orderBy: { createdAt: "desc" },
     });
