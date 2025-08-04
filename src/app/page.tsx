@@ -12,12 +12,11 @@ function JDQnaFormPage() {
   const reqId = searchParams.get("req_id") as string;
   const userId = searchParams.get("user_id") as string;
   const parentUrl = searchParams.get("parentUrl") as string;
-  const page = searchParams.get("page") as "skill" | "question";
+  const page = searchParams.get("page") as "skill" | "questions";
+  const tab = searchParams.get("page") as "skill" | "questions";
 
   const [isCheckingRecord, setIsCheckingRecord] = useState(false);
   const [showForm, setShowForm] = useState(false);
-
-  console.log(reqId, userId, parentUrl);
 
   // Check for existing record and navigate if found
   useEffect(() => {
@@ -33,7 +32,7 @@ function JDQnaFormPage() {
 
           if (data.success && data.record) {
             // Determine the active tab based on the page parameter
-            const activeTab = page === "question" ? "questions" : "skills";
+            const activeTab = page === "questions" ? "questions" : "skills";
 
             // Build the navigation URL with parentUrl and tab
             const currentUrl = window.location.href;
