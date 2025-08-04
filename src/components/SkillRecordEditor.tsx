@@ -1007,7 +1007,7 @@ export default function SkillRecordEditor({
 
   // Count questions for each skill
   const getSkillQuestionCount = (skillId: string) => {
-    return questions.filter((q) => q.skillId === skillId).length;
+    return questions.filter((q) => q.skillId === skillId && !q.deleted).length;
   };
 
   // Add useEffect to fetch questions when tab changes
@@ -1313,7 +1313,9 @@ export default function SkillRecordEditor({
 
   // Get number of liked/disliked questions for a skill
   const getSkillLikeStats = (skillId: string) => {
-    const skillQuestions = questions.filter((q) => q.skillId === skillId);
+    const skillQuestions = questions.filter(
+      (q) => q.skillId === skillId && !q.deleted
+    );
     const liked = skillQuestions.filter((q) => q.liked === "LIKED").length;
     const disliked = skillQuestions.filter(
       (q) => q.liked === "DISLIKED"
@@ -1640,8 +1642,10 @@ export default function SkillRecordEditor({
   // Add regenerate all disliked questions function
   const regenerateAllDislikedQuestions = async () => {
     try {
-      // Find all disliked questions
-      const dislikedQuestions = questions.filter((q) => q.liked === "DISLIKED");
+      // Find all disliked questions (excluding deleted ones)
+      const dislikedQuestions = questions.filter(
+        (q) => q.liked === "DISLIKED" && !q.deleted
+      );
 
       if (dislikedQuestions.length === 0) {
         toast.info("No disliked questions to regenerate");
@@ -1683,7 +1687,7 @@ export default function SkillRecordEditor({
 
   // Add function to check if there are any disliked questions
   const hasDislikedQuestions = () => {
-    return questions.some((q) => q.liked === "DISLIKED");
+    return questions.some((q) => q.liked === "DISLIKED" && !q.deleted);
   };
 
   // Add a function to handle opening the feedback dialog
@@ -1831,8 +1835,10 @@ export default function SkillRecordEditor({
     try {
       setLoading(true);
 
-      // Find questions for this skill
-      const skillQuestions = questions.filter((q) => q.skillId === skillId);
+      // Find questions for this skill (excluding already deleted ones)
+      const skillQuestions = questions.filter(
+        (q) => q.skillId === skillId && !q.deleted
+      );
       if (skillQuestions.length === 0) return;
 
       // Delete each question

@@ -13,7 +13,7 @@ const generatePrompt = (
   level: string,
   difficulty: string,
   feedback: string[] = [],
-  batchSize: number = 5
+  batchSize: number = 10
 ) => {
   // Map skill level to difficulty if not provided
   const effectiveDifficulty =
@@ -176,8 +176,8 @@ export async function POST(request: Request) {
       // Get feedback for this skill
       const skillFeedback = feedbackMap.get(skill.id) || [];
 
-      // Process in batches of max 5
-      const batchSize = Math.min(5, questionsToGenerate);
+      // Process in batches of max 10
+      const batchSize = Math.min(10, questionsToGenerate);
 
       // Generate the exact number of questions needed
       console.log(
