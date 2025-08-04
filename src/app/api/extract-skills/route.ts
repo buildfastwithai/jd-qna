@@ -114,6 +114,7 @@ export async function POST(request: Request) {
       interviewLength,
       reqId,
       userId,
+      roundId,
       minExperience,
       maxExperience,
       forceCreate, // New parameter to force creation even if records exist
@@ -191,6 +192,7 @@ export async function POST(request: Request) {
               rawJobDescription: jobDescription, // Store the raw job description
               reqId: reqId ? parseInt(reqId) : null, // Convert to int if provided
               userId: userId ? parseInt(userId) : null, // Convert to int if provided
+              roundId: roundId ? parseInt(roundId) : null, // Convert to int if provided
             },
           });
 

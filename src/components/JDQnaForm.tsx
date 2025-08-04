@@ -107,7 +107,7 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
   });
   const [fetchingJobDetails, setFetchingJobDetails] = useState(false);
   const [isPreFilled, setIsPreFilled] = useState(false);
-  const [extractedRoundId, setExtractedRoundId] = useState<string | null>(null);
+  const [extractedRoundId, setExtractedRoundId] = useState<number | null>(null);
 
   // Removed existing records dialog state (auto-handling now)
 
@@ -148,7 +148,7 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
           // Extract round_id from the first round and store it as reqId
           const firstRoundId = data.rounds?.[0]?.round_id;
           if (firstRoundId) {
-            setExtractedRoundId(firstRoundId.toString());
+            setExtractedRoundId(firstRoundId);
           } else {
             toast.error(
               "Round ID is missing from job details. Skills extraction and auto-generation will not work."
