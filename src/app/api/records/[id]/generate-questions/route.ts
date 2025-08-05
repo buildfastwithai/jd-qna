@@ -5,37 +5,53 @@ import OpenAI from "openai";
 // Initialize OpenAI client
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
+  timeout: 1200000,
 });
 
-// Generate prompt for skills
-const generatePrompt = (
-  jobTitle: string,
-  skills: any[],
-  questionsPerSkill: Map<string, number>
+// Generate prompt for a single question
+const generateSingleQuestionPrompt = (
+  skillName: string,
+  level: string,
+  difficulty: string,
+  existingQuestions: string[] = [],
+  feedback: string[] = []
 ) => {
-  const skillsFormatted = skills
-    .map((skill) => {
-      const numQuestions = questionsPerSkill.get(skill.id) || 0;
-      if (numQuestions <= 0) return null; // Skip skills that don't need questions
+  // Map skill level to difficulty if not provided
+  const effectiveDifficulty =
+    difficulty ||
+    (level === "PROFESSIONAL"
+      ? "Hard"
+      : level === "INTERMEDIATE"
+      ? "Medium"
+      : "Easy");
 
-      return `- ${skill.name} (Level: ${skill.level}, Difficulty: ${
-        skill.difficulty || "Medium"
-      }, Questions: ${numQuestions})`;
-    })
-    .filter(Boolean) // Remove null entries
-    .join("\n");
+  // Format feedback if available
+  const feedbackSection =
+    feedback.length > 0
+      ? `\nIMPORTANT FEEDBACK TO CONSIDER:\n${feedback
+          .map((fb, i) => `${i + 1}. ${fb}`)
+          .join(
+            "\n"
+          )}\n\nPlease ensure that the generated question takes this feedback into account.`
+      : "";
 
-  return `Generate interview questions for the following skills for a ${jobTitle} position.
-IMPORTANT: Generate the EXACT number of questions specified for each skill - no more, no less.
+  // Format existing questions to avoid duplicates
+  const existingQuestionsSection =
+    existingQuestions.length > 0
+      ? `\nEXISTING QUESTIONS (avoid generating similar questions):\n${existingQuestions
+          .map((q, i) => `${i + 1}. ${q}`)
+          .join("\n")}\n\nGenerate a completely different and unique question.`
+      : "";
 
-${skillsFormatted}
+  return `Generate exactly 1 unique interview question for the skill "${skillName}" at a ${level} level (${effectiveDifficulty} difficulty).
+The question should be challenging but fair, testing both theoretical knowledge and practical application.${feedbackSection}${existingQuestionsSection}
 
-Create questions that test the candidate's knowledge and experience:
-- For PROFESSIONAL level skills, create challenging, in-depth questions.
-- For INTERMEDIATE level skills, create moderately difficult questions.
-- For BEGINNER level skills, create basic but relevant questions.
+Expectations based on experience level:
+- BEGINNER: Focus on foundational concepts, simple application, definitions, and basic logic.
+- INTERMEDIATE: Mix of conceptual and applied questions, moderate coding tasks, and situational judgment.
+- PROFESSIONAL: Emphasize real-world problem solving, architecture/design, optimization, decision-making, and advanced coding or domain-specific knowledge.
 
-For each question, randomly choose one of these question formats and design the question accordingly:
+Randomly choose one of these question formats and design the question accordingly:
 1. "Open-ended" - Requires a descriptive or narrative answer. Useful for assessing communication, reasoning, or opinion-based responses.
 2. "Coding" - Candidate writes or debugs code. Used for evaluating problem-solving skills, algorithms, and programming language proficiency.
 3. "Scenario" - Presents a short, realistic situation and asks how the candidate would respond or act. Tests decision-making, ethics, soft skills, or role-specific judgment.
@@ -43,33 +59,89 @@ For each question, randomly choose one of these question formats and design the 
 5. "Design" - Asks the candidate to architect a system, process, or solution. Often used in software/system design, business process optimization, or operational planning.
 6. "Live Assessment" - Real-time tasks like pair programming, whiteboarding, or collaborative exercises. Tests real-world working ability and communication under pressure.
 
-Format your response as a JSON object with a 'questions' key containing an array of question objects, where each object has:
-1. A "question" field with the interview question
-2. A "answer" field with a suggested model answer for the interviewer
+Format your response as a JSON object with a 'question' key containing a single question object, where the object has:
+1. A "question" field with the interview question (must not exceed 400 characters)
+2. A "answer" field with a suggested model answer for the interviewer (should be comprehensive)
 3. A "category" field with one of: "Technical", "Experience", "Problem Solving", or "Soft Skills"
-4. A "difficulty" field matching the skill's specified difficulty
-5. A "skillName" field that specifies which skill from the list this question is targeting (must match exactly one of the skill names provided)
-6. A "questionFormat" field that must be the same for all questions generated for a given skill: either "Coding" (for coding questions) or one of: "Open-ended", "Scenario", "Case Study", "Design", or "Live Assessment" (for non-coding questions). For each skill, generate either all coding questions or all non-coding questions, not a mix.
-7. A "coding" field with a boolean value: true if the questionFormat is "Coding", false otherwise
-8. For a skill, questions generated should be either coding questions or non coding questions, not both.
+4. A "difficulty" field with "${effectiveDifficulty}"
+5. A "skillName" field with "${skillName}"
+6. A "questionFormat" field with one of: "Open-ended", "Coding", "Scenario", "Case Study", "Design", or "Live Assessment"
+7. A "coding" field with a boolean value: true if the questionFormat is "Coding" OR if the question involves writing, debugs, or analyzing code, false otherwise
 
-IMPORTANT: The "coding" field must be set to true when questionFormat is "Coding" .
-
-
-Example:
-{"questions": [
-  {
-    "question": "Can you describe your experience with deploying applications using Docker containers?",
-    "answer": "A strong answer would demonstrate hands-on experience with Docker, including creating Dockerfiles, managing containers, using Docker Compose for multi-container applications, and understanding Docker networking and volumes. The candidate should explain specific projects where they've used Docker in production environments, challenges they faced, and how they solved them. Knowledge of Docker orchestration with Kubernetes or Docker Swarm would be a plus.",
-    "category": "Technical",
+Example Response:
+{
+  "question": {
+    "question": "You're working on a Java service that suddenly starts throwing 'OutOfMemoryError'. How would you debug and resolve the issue?",
+    "answer": "Check JVM heap size configuration, analyze heap dumps using tools like VisualVM or Eclipse MAT. Look for memory leaks, large object retention, or improper caching. Use profiling tools to monitor object creation and garbage collection behavior.",
+    "category": "Experience",
     "difficulty": "Medium",
-    "skillName": "Docker",
-    "questionFormat": "Open-ended",
+    "skillName": "Java",
+    "questionFormat": "Scenario",
     "coding": false
   }
-]}
+}
 
-IMPORTANT: You must generate the EXACT number of questions requested for each skill - no more, no less.`;
+IMPORTANT: The "coding" field must be set to true when questionFormat is "Coding" or when the question requires the candidate to write, debug, or analyze code. This includes code reviews, algorithm problems, debugging exercises, or any hands-on programming tasks.
+
+Make sure the question matches the specified difficulty level, is appropriate for the skill, follows the chosen question format, and is completely unique from any existing questions.`;
+};
+
+// Generate a single question for a skill
+const generateSingleQuestion = async (
+  skill: any,
+  recordId: string,
+  existingQuestions: string[] = [],
+  feedback: string[] = []
+) => {
+  try {
+    const prompt = generateSingleQuestionPrompt(
+      skill.name,
+      skill.level,
+      skill.difficulty || "Medium",
+      existingQuestions,
+      feedback
+    );
+
+    const chatCompletion = await openai.chat.completions.create({
+      model: "gpt-4.1",
+      messages: [
+        {
+          role: "system",
+          content: `You are an expert interviewer who creates relevant interview questions for specific technical skills. Generate exactly 1 unique question that must not exceed 400 characters. Include a detailed suggested answer. ${
+            feedback.length > 0
+              ? "Incorporate the provided feedback into your question generation."
+              : ""
+          }`,
+        },
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+      temperature: 0.7,
+      response_format: { type: "json_object" },
+    });
+
+    const content = chatCompletion.choices[0]?.message?.content;
+
+    if (!content) {
+      throw new Error("No response received from OpenAI");
+    }
+
+    const parsedResponse = JSON.parse(content);
+
+    if (!parsedResponse.question) {
+      throw new Error("Invalid response format from OpenAI");
+    }
+
+    return parsedResponse.question;
+  } catch (error) {
+    console.error(
+      `Error generating single question for skill ${skill.name}:`,
+      error
+    );
+    throw error;
+  }
 };
 
 export async function POST(
@@ -126,6 +198,27 @@ export async function POST(
       );
     }
 
+    // Get feedback for all skills
+    const allFeedback = await prisma.feedback.findMany({
+      where: {
+        skillId: {
+          in: record.skills.map((skill: any) => skill.id),
+        },
+      },
+      select: {
+        content: true,
+        skillId: true,
+      },
+    });
+
+    // Create a map of skill IDs to feedback
+    const feedbackMap = new Map<string, string[]>();
+    allFeedback.forEach((feedback) => {
+      const currentFeedback = feedbackMap.get(feedback.skillId) || [];
+      currentFeedback.push(feedback.content);
+      feedbackMap.set(feedback.skillId, currentFeedback);
+    });
+
     // Get existing questions (excluding deleted ones)
     const existingQuestions = await prisma.question.findMany({
       where: {
@@ -139,14 +232,28 @@ export async function POST(
       },
       select: {
         skillId: true,
+        content: true,
       },
     });
 
-    // Count existing questions per skill
+    // Count existing questions per skill and store question texts
     const existingQuestionCounts = new Map<string, number>();
+    const existingQuestionTexts = new Map<string, string[]>();
+
     existingQuestions.forEach((question) => {
       const currentCount = existingQuestionCounts.get(question.skillId) || 0;
       existingQuestionCounts.set(question.skillId, currentCount + 1);
+
+      // Parse the content to get the question text
+      try {
+        const parsedContent = JSON.parse(question.content);
+        const questionText = parsedContent.question;
+        const currentTexts = existingQuestionTexts.get(question.skillId) || [];
+        currentTexts.push(questionText);
+        existingQuestionTexts.set(question.skillId, currentTexts);
+      } catch (error) {
+        console.error("Error parsing question content:", error);
+      }
     });
 
     // Store all generated questions
@@ -176,133 +283,106 @@ export async function POST(
         `Generating ${neededCount} questions for skill ${skill.name}`
       );
 
-      // Create a map with just this skill
-      const questionsToGenerate = new Map<string, number>();
-      questionsToGenerate.set(skill.id, neededCount);
-
-      // Generate prompt for only this skill
-      const prompt = generatePrompt(
-        record.jobTitle,
-        [skill], // Pass only the current skill
-        questionsToGenerate
-      );
-
-      // Call OpenAI API for this skill
-      const chatCompletion = await openai.chat.completions.create({
-        model: "gpt-4.1",
-        messages: [
-          {
-            role: "system",
-            content: `You are an expert interviewer who creates relevant interview questions based on specific skills. Include detailed suggested answers for each question. You must generate EXACTLY ${neededCount} unique questions for the skill "${skill.name}" - no more, no less.`,
-          },
-          {
-            role: "user",
-            content: prompt,
-          },
-        ],
-        temperature: 0.7,
-        response_format: { type: "json_object" },
-      });
-
-      const questionsContent = chatCompletion.choices[0]?.message?.content;
-
-      if (!questionsContent) {
-        console.error(
-          `No response received from OpenAI for skill: ${skill.name}`
+      // If forceRegenerate is true and we already have questions, delete the existing ones
+      if (forceRegenerate && existingCount > 0) {
+        console.log(
+          `Deleting ${existingCount} existing questions for skill ${skill.name}`
         );
-        continue;
+
+        // Delete existing questions for this skill
+        await prisma.question.deleteMany({
+          where: {
+            skillId: skill.id,
+            recordId: id,
+          },
+        });
+
+        // Reset the existing count and texts
+        existingQuestionCounts.set(skill.id, 0);
+        existingQuestionTexts.set(skill.id, []);
       }
 
-      try {
-        // Parse the JSON response
-        const parsedResponse = JSON.parse(questionsContent);
+      // Get feedback for this skill
+      const skillFeedback = feedbackMap.get(skill.id) || [];
 
-        // Check if the response has the expected format
-        if (
-          parsedResponse.questions &&
-          Array.isArray(parsedResponse.questions)
-        ) {
-          const questions = parsedResponse.questions.slice(0, neededCount); // Ensure we only take what we need
+      // Get existing question texts for this skill (to avoid duplicates)
+      const existingTexts = existingQuestionTexts.get(skill.id) || [];
 
-          // If forceRegenerate is true and we already have questions, delete the existing ones
-          if (forceRegenerate && existingCount > 0) {
-            console.log(
-              `Deleting ${existingCount} existing questions for skill ${skill.name}`
-            );
+      // Generate questions one by one
+      for (let i = 0; i < neededCount; i++) {
+        try {
+          console.log(
+            `Generating question ${i + 1}/${neededCount} for skill ${
+              skill.name
+            }`
+          );
 
-            // Delete existing questions for this skill
-            await prisma.question.deleteMany({
-              where: {
-                skillId: skill.id,
-                recordId: id,
-              },
-            });
+          // Generate a single question
+          const question = await generateSingleQuestion(
+            skill,
+            id,
+            existingTexts, // Pass existing questions to avoid duplicates
+            skillFeedback
+          );
 
-            // Reset the existing count
-            existingQuestionCounts.set(skill.id, 0);
-          }
+          // Ensure coding flag is properly set
+          const isCoding =
+            question.coding === true ||
+            question.questionFormat?.toLowerCase() === "coding" ||
+            (question.question &&
+              question.question.toLowerCase().includes("code")) ||
+            (question.question &&
+              question.question.toLowerCase().includes("algorithm")) ||
+            (question.question &&
+              question.question.toLowerCase().includes("programming"));
 
-          // Create a map of skill names to ids (just for this skill)
-          const skillId = skill.id;
-          const skillName = skill.name.toLowerCase();
-
-          // Save questions to the database
-          for (const question of questions) {
-            // Ensure coding flag is properly set
-            const isCoding =
-              question.coding === true ||
-              question.questionFormat?.toLowerCase() === "coding" ||
-              (question.question &&
-                question.question.toLowerCase().includes("code")) ||
-              (question.question &&
-                question.question.toLowerCase().includes("algorithm")) ||
-              (question.question &&
-                question.question.toLowerCase().includes("programming"));
-
-            // Create the question
-            const createdQuestion = await prisma.question.create({
-              data: {
-                content: JSON.stringify({
-                  question: question.question,
-                  answer: question.answer,
-                  category: question.category,
-                  difficulty:
-                    question.difficulty || skill.difficulty || "Medium",
-                  questionFormat: question.questionFormat || "Scenario",
-                  coding: isCoding,
-                }),
-                skillId: skillId,
-                recordId: id,
+          // Create the question in database
+          const createdQuestion = await prisma.question.create({
+            data: {
+              content: JSON.stringify({
+                question: question.question,
+                answer: question.answer,
+                category: question.category,
+                difficulty: question.difficulty || skill.difficulty || "Medium",
+                questionFormat: question.questionFormat || "Scenario",
                 coding: isCoding,
-              },
-            });
+              }),
+              skillId: skill.id,
+              recordId: id,
+              coding: isCoding,
+            },
+          });
 
-            // Add this question to our collection with all metadata
-            allGeneratedQuestions.push({
-              ...question,
-              id: createdQuestion.id,
-              skillId: skillId,
-              skillName: skill.name,
-            });
-          }
+          // Add this question to our collection with all metadata
+          allGeneratedQuestions.push({
+            ...question,
+            id: createdQuestion.id,
+            skillId: skill.id,
+            skillName: skill.name,
+          });
+
+          // Add the new question text to existing texts to avoid duplicates in future generations
+          existingTexts.push(question.question);
+          existingQuestionTexts.set(skill.id, existingTexts);
 
           // Update count of total questions generated
-          totalQuestionsGenerated += questions.length;
+          totalQuestionsGenerated++;
 
-          // Update the existing count for next skills
+          // Update the existing count for next iterations
           existingQuestionCounts.set(
-            skillId,
-            (existingQuestionCounts.get(skillId) || 0) + questions.length
+            skill.id,
+            (existingQuestionCounts.get(skill.id) || 0) + 1
           );
-        } else {
-          console.error(`Unexpected response format for skill ${skill.name}`);
+
+          // Add a small delay between API calls to avoid rate limiting
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        } catch (error) {
+          console.error(
+            `Error generating question ${i + 1} for skill ${skill.name}:`,
+            error
+          );
+          // Continue with the next question
         }
-      } catch (error: any) {
-        console.error(
-          `Error processing questions for skill ${skill.name}:`,
-          error
-        );
-        // Continue with the next skill
       }
     }
 
