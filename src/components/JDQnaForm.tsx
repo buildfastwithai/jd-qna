@@ -862,6 +862,7 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
               </div>
 
               <div className="grid grid-cols-2 gap-2">
+                {/*
                 <Button
                   variant="outline"
                   type="button"
@@ -883,6 +884,7 @@ export function JDQnaForm({ reqId, userId }: JDQnaFormProps) {
                     "Auto-Generate Questions"
                   )}
                 </Button>
+                */}
                 <Button
                   type="submit"
                   disabled={
