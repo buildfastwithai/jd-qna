@@ -52,6 +52,7 @@ interface Skill {
   category?: "TECHNICAL" | "FUNCTIONAL" | "BEHAVIORAL" | "COGNITIVE";
   questionFormat?: string;
   feedbacks?: { id: string; content: string; createdAt: string }[];
+  deleted?: boolean;
 }
 
 interface SkillsTableProps {
@@ -211,7 +212,12 @@ export default function SkillsTable({
   // Handle select all checkbox
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedSkills(new Set(skills.map((skill) => skill.id)));
+      // Only select non-deleted skills
+      setSelectedSkills(
+        new Set(
+          skills.filter((skill) => !skill.deleted).map((skill) => skill.id)
+        )
+      );
     } else {
       setSelectedSkills(new Set());
     }
@@ -219,6 +225,12 @@ export default function SkillsTable({
 
   // Handle individual skill selection
   const handleSkillSelect = (skillId: string, checked: boolean) => {
+    // Don't allow selection of deleted skills
+    const skill = skills.find((s) => s.id === skillId);
+    if (skill && skill.deleted) {
+      return;
+    }
+
     const newSelected = new Set(selectedSkills);
     if (checked) {
       newSelected.add(skillId);
@@ -269,15 +281,17 @@ export default function SkillsTable({
   // Get selected skills for confirmation dialog
   const getSelectedSkillNames = () => {
     return skills
-      .filter((skill) => selectedSkills.has(skill.id))
+      .filter((skill) => !skill.deleted && selectedSkills.has(skill.id))
       .map((skill) => skill.name);
   };
 
-  // Check if all skills are selected
+  // Check if all skills are selected (excluding deleted skills)
+  const nonDeletedSkills = skills.filter((skill) => !skill.deleted);
   const isAllSelected =
-    skills.length > 0 && selectedSkills.size === skills.length;
+    nonDeletedSkills.length > 0 &&
+    selectedSkills.size === nonDeletedSkills.length;
   const isIndeterminate =
-    selectedSkills.size > 0 && selectedSkills.size < skills.length;
+    selectedSkills.size > 0 && selectedSkills.size < nonDeletedSkills.length;
 
   // Handle Excel export
   const handleExportToExcel = async () => {
@@ -683,7 +697,14 @@ export default function SkillsTable({
                 size="sm"
                 onClick={() => {
                   if (onGenerateQuestionsForSkills) {
-                    onGenerateQuestionsForSkills(Array.from(selectedSkills));
+                    // Filter out deleted skills before generating questions
+                    const nonDeletedSelectedSkills = Array.from(
+                      selectedSkills
+                    ).filter((skillId) => {
+                      const skill = skills.find((s) => s.id === skillId);
+                      return skill && !skill.deleted;
+                    });
+                    onGenerateQuestionsForSkills(nonDeletedSelectedSkills);
                   }
                 }}
                 disabled={loading}
