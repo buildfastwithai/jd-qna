@@ -222,7 +222,7 @@ export default function SkillRecordEditor({
   );
   const [deletingQuestion, setDeletingQuestion] = useState(false);
 
-  // Track deleted skills for FloCareer submission
+  // Track deleted skills for FloCareer submission (only current session)
   const [deletedSkills, setDeletedSkills] = useState<
     Array<{
       id: string;
@@ -234,7 +234,7 @@ export default function SkillRecordEditor({
     }>
   >([]);
 
-  // Track deleted questions for summary dialog
+  // Track deleted questions for summary dialog (only current session)
   const [deletedQuestions, setDeletedQuestions] = useState<
     Array<{
       id: string;
@@ -245,14 +245,30 @@ export default function SkillRecordEditor({
     }>
   >([]);
 
+  // Track skills deleted in current session (not from database)
+  const [sessionDeletedSkills, setSessionDeletedSkills] = useState<Set<string>>(new Set());
+
+  // Track questions deleted in current session (not from database)
+  const [sessionDeletedQuestions, setSessionDeletedQuestions] = useState<Set<string>>(new Set());
+
   // Helper function to get total deleted questions in current session
   const getTotalDeletedQuestionsInSession = () => {
-    const deletedQuestionsFromSkills = editedSkills
-      .filter(skill => skill.deleted)
-      .flatMap(skill => questions.filter(q => q.skillId === skill.id))
-      .length;
-    
-    return deletedQuestions.length + deletedQuestionsFromSkills;
+    // Count questions from skills deleted in current session
+    const deletedQuestionsFromSessionSkills = editedSkills
+      .filter((skill) => sessionDeletedSkills.has(skill.id))
+      .flatMap((skill) =>
+        questions.filter((q) => q.skillId === skill.id)
+      ).length;
+
+    // Count individually deleted questions in current session
+    const individuallyDeletedQuestions = sessionDeletedQuestions.size;
+
+    return deletedQuestionsFromSessionSkills + individuallyDeletedQuestions;
+  };
+
+  // Helper function to get total deleted skills in current session
+  const getTotalDeletedSkillsInSession = () => {
+    return sessionDeletedSkills.size;
   };
 
   // Parse question content from JSON string
@@ -614,6 +630,8 @@ export default function SkillRecordEditor({
   useEffect(() => {
     setDeletedSkills([]);
     setDeletedQuestions([]);
+    setSessionDeletedSkills(new Set());
+    setSessionDeletedQuestions(new Set());
   }, [record.id]);
 
   // Update the regenerate function to include global feedback
@@ -1310,6 +1328,9 @@ export default function SkillRecordEditor({
         return newCounts;
       });
 
+      // Track this skill as deleted in current session
+      setSessionDeletedSkills(prev => new Set([...prev, skillId]));
+
       // Update local state to mark the skill as deleted instead of removing it
       setEditedSkills(
         editedSkills.map((skill) =>
@@ -1393,6 +1414,9 @@ export default function SkillRecordEditor({
       }
 
       toast.success(`Successfully deleted ${skillIds.length} skill(s)`);
+
+      // Track these skills as deleted in current session
+      setSessionDeletedSkills(prev => new Set([...prev, ...skillIds]));
 
       // Update local state to mark the skills as deleted instead of removing them
       setEditedSkills(
@@ -1675,6 +1699,9 @@ export default function SkillRecordEditor({
         },
       ]);
 
+      // Track this question as deleted in current session
+      setSessionDeletedQuestions(prev => new Set([...prev, questionToDelete.id]));
+
       // Update the questions state to reflect the deletion
       setQuestions((prevQuestions) =>
         prevQuestions.map((q) =>
@@ -1809,6 +1836,10 @@ export default function SkillRecordEditor({
         ...prevDeleted,
         ...questionsToTrack,
       ]);
+
+      // Track these questions as deleted in current session
+      const questionIds = skillQuestions.map(q => q.id);
+      setSessionDeletedQuestions(prev => new Set([...prev, ...questionIds]));
 
       // Delete each question
       for (const question of skillQuestions) {
@@ -2042,8 +2073,7 @@ export default function SkillRecordEditor({
           .map((skill) => ({
             ai_skill_id: skill.id,
             skill_id: skill.floCareerId || 0,
-            // action: skill.floCareerId ? "update" : "add",
-            action: "add",
+            action: skill.floCareerId ? "edit" : "add",
             name: skill.name,
             level: mapSkillLevel(skill.level),
             requirement: mapSkillRequirement(skill.requirement),
@@ -2596,6 +2626,8 @@ export default function SkillRecordEditor({
       // Clear deleted skills and questions after successful submission
       setDeletedSkills([]);
       setDeletedQuestions([]);
+      setSessionDeletedSkills(new Set());
+      setSessionDeletedQuestions(new Set());
 
       // Send success message to parent window
       try {
@@ -2624,6 +2656,8 @@ export default function SkillRecordEditor({
       // Clear deleted tracking on error to prevent accumulation
       setDeletedSkills([]);
       setDeletedQuestions([]);
+      setSessionDeletedSkills(new Set());
+      setSessionDeletedQuestions(new Set());
 
       // Send error message to parent window
       try {
@@ -3966,23 +4000,23 @@ export default function SkillRecordEditor({
               <br />• {questions.filter((q) => !q.deleted).length} question
               {questions.filter((q) => !q.deleted).length > 1 ? "s" : ""} will
               be saved
-              <br />
-              • Interview structure will be created automatically
-              {(deletedSkills.length > 0 || deletedQuestions.length > 0) && (
+              <br />• Interview structure will be created automatically
+              {(getTotalDeletedSkillsInSession() > 0 || getTotalDeletedQuestionsInSession() > 0) && (
                 <>
                   <br />
                   <br />
                   <strong>Current Session Deletions:</strong>
-                  {deletedSkills.length > 0 && (
+                  {getTotalDeletedSkillsInSession() > 0 && (
                     <>
-                      <br />• {deletedSkills.length} skill
-                      {deletedSkills.length > 1 ? "s" : ""} will be deleted
+                      <br />• {getTotalDeletedSkillsInSession()} skill
+                      {getTotalDeletedSkillsInSession() > 1 ? "s" : ""} will be deleted
                     </>
                   )}
                   {getTotalDeletedQuestionsInSession() > 0 && (
                     <>
                       <br />• {getTotalDeletedQuestionsInSession()} question
-                      {getTotalDeletedQuestionsInSession() > 1 ? "s" : ""} will be deleted
+                      {getTotalDeletedQuestionsInSession() > 1 ? "s" : ""} will
+                      be deleted
                     </>
                   )}
                 </>
