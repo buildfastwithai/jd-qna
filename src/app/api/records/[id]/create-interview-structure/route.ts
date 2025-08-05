@@ -52,8 +52,8 @@ export async function POST(
 
       if (questionsWithFloId.length > 0) {
         // Separate active and deleted questions
-        const activeQuestions = questionsWithFloId.filter(q => !q.deleted);
-        const deletedQuestions = questionsWithFloId.filter(q => q.deleted);
+        const activeQuestions = questionsWithFloId.filter((q) => !q.deleted);
+        const deletedQuestions = questionsWithFloId.filter((q) => q.deleted);
 
         // Handle active questions
         if (activeQuestions.length > 0) {
@@ -69,21 +69,30 @@ export async function POST(
 
         // Handle deleted questions
         if (deletedQuestions.length > 0) {
-          const deletedPool = {
-            pool_id: 0,
-            action: "delete",
-            name: skill.name,
-            num_of_questions_to_ask: 0,
-            questions: deletedQuestions.map((q) => q.floCareerId),
-          };
-          questionPools.push(deletedPool);
+          const deletedQuestionIds = deletedQuestions
+            .map((q) => q.floCareerId)
+            .filter(Boolean); // Only include questions that have a floCareerId
+
+          if (deletedQuestionIds.length > 0) {
+            const deletedPool = {
+              pool_id: skill.floCareerId || 0, // Use actual pool_id for deletion
+              action: "delete",
+              name: skill.name,
+              num_of_questions_to_ask: deletedQuestionIds.length, // Use actual count of deleted questions
+              questions: deletedQuestionIds,
+            };
+            questionPools.push(deletedPool);
+          }
         }
       }
     }
 
     if (questionPools.length === 0) {
       return NextResponse.json(
-        { success: false, error: "No questions with FloCareer IDs found" },
+        {
+          success: false,
+          error: "No questions or deleted questions with FloCareer IDs found",
+        },
         { status: 400 }
       );
     }

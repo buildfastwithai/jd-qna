@@ -2132,7 +2132,7 @@ export default function SkillRecordEditor({
       }
 
       // Step 3: Create interview structure (if needed)
-      // Get all questions with FloCareer IDs (both active and deleted)
+      // Get all questions that have been saved to FloCareer (both active and deleted)
       const questionsWithFloId = questions.filter((q) => {
         const mapping = questionIdMapping.find((m) => m.originalId === q.id);
         if (!mapping) return false;
@@ -2143,14 +2143,28 @@ export default function SkillRecordEditor({
         return questionData && questionData.success;
       });
 
-      if (questionsWithFloId.length > 0) {
+      // Also include deleted questions that have existing floCareerId but weren't in the current submission
+      const deletedQuestionsWithExistingFloId = questions.filter(
+        (q) =>
+          q.deleted &&
+          q.floCareerId &&
+          !questionsWithFloId.some((qwf) => qwf.id === q.id)
+      );
+
+      // Combine all questions for the interview structure
+      const allQuestionsForStructure = [
+        ...questionsWithFloId,
+        ...deletedQuestionsWithExistingFloId,
+      ];
+
+      if (allQuestionsForStructure.length > 0) {
         const questionPoolsList = [];
 
         for (const skill of editedSkills) {
           // Skip deleted skills as they will be handled separately
           if (skill.deleted) continue;
 
-          const skillQuestions = questionsWithFloId.filter(
+          const skillQuestions = allQuestionsForStructure.filter(
             (q) => q.skillId === skill.id
           );
 
@@ -2191,15 +2205,21 @@ export default function SkillRecordEditor({
             if (deletedQuestions.length > 0) {
               const deletedQuestionIds = deletedQuestions
                 .map((q) => {
+                  // First try to get from the current submission
                   const mapping = questionIdMapping.find(
                     (m) => m.originalId === q.id
                   );
-                  if (!mapping) return null;
+                  if (mapping) {
+                    const questionData = questionResult.questions.find(
+                      (qr: any) => qr.ai_question_id === mapping.tempId
+                    );
+                    if (questionData?.question_id) {
+                      return questionData.question_id;
+                    }
+                  }
 
-                  const questionData = questionResult.questions.find(
-                    (qr: any) => qr.ai_question_id === mapping.tempId
-                  );
-                  return questionData?.question_id || null;
+                  // If not found in current submission, use existing floCareerId
+                  return q.floCareerId || null;
                 })
                 .filter(Boolean);
 
@@ -2208,7 +2228,7 @@ export default function SkillRecordEditor({
                   pool_id: skill.floCareerId || 0, // Use actual pool_id for deletion
                   action: "delete",
                   name: skill.name,
-                  num_of_questions_to_ask: 0,
+                  num_of_questions_to_ask: deletedQuestionIds.length, // Use actual count of deleted questions
                   questions: deletedQuestionIds,
                 };
                 questionPoolsList.push(deletedPool);
@@ -2219,7 +2239,7 @@ export default function SkillRecordEditor({
 
         // Handle deleted skills and their questions
         for (const skill of editedSkills.filter((s) => s.deleted)) {
-          const skillQuestions = questionsWithFloId.filter(
+          const skillQuestions = allQuestionsForStructure.filter(
             (q) => q.skillId === skill.id
           );
 
@@ -2227,15 +2247,21 @@ export default function SkillRecordEditor({
             // For deleted skills, all questions should be marked for deletion
             const deletedQuestionIds = skillQuestions
               .map((q) => {
+                // First try to get from the current submission
                 const mapping = questionIdMapping.find(
                   (m) => m.originalId === q.id
                 );
-                if (!mapping) return null;
+                if (mapping) {
+                  const questionData = questionResult.questions.find(
+                    (qr: any) => qr.ai_question_id === mapping.tempId
+                  );
+                  if (questionData?.question_id) {
+                    return questionData.question_id;
+                  }
+                }
 
-                const questionData = questionResult.questions.find(
-                  (qr: any) => qr.ai_question_id === mapping.tempId
-                );
-                return questionData?.question_id || null;
+                // If not found in current submission, use existing floCareerId
+                return q.floCareerId || null;
               })
               .filter(Boolean);
 
@@ -2244,7 +2270,7 @@ export default function SkillRecordEditor({
                 pool_id: skill.floCareerId || 0, // Use actual pool_id for deletion
                 action: "delete",
                 name: skill.name,
-                num_of_questions_to_ask: 0,
+                num_of_questions_to_ask: deletedQuestionIds.length, // Use actual count of deleted questions
                 questions: deletedQuestionIds,
               };
               questionPoolsList.push(deletedPool);
