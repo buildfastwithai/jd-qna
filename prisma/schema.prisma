@@ -46,6 +46,7 @@ model Skill {
   priority     Int?         // Priority order for sequencing questions
   category     SkillCategory? @default(TECHNICAL)
   questionFormat String?    @default("Scenario based")
+  deleted      Boolean      @default(false) // Soft delete flag
   
   @@unique([name, recordId])
 }

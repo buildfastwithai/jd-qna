@@ -174,24 +174,21 @@ export async function DELETE(
       );
     }
 
-    // First, delete all associated questions
-    await prisma.question.deleteMany({
-      where: { skillId: id },
-    });
-
-    // Then, delete all associated feedback
-    await prisma.feedback.deleteMany({
-      where: { skillId: id },
-    });
-
-    // Finally, delete the skill itself
-    const deletedSkill = await prisma.skill.delete({
+    // Soft delete the skill by setting deleted flag to true
+    const deletedSkill = await prisma.skill.update({
       where: { id },
+      data: { deleted: true },
+    });
+
+    // Also soft delete all associated questions for this skill
+    await prisma.question.updateMany({
+      where: { skillId: id },
+      data: { deleted: true },
     });
 
     return NextResponse.json({
       success: true,
-      message: "Skill and associated data deleted successfully",
+      message: "Skill and associated questions deleted successfully",
       skill: deletedSkill,
     });
   } catch (error: any) {

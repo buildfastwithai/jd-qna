@@ -20,6 +20,9 @@ export async function GET(
       where: { id },
       include: {
         skills: {
+          where: {
+            deleted: false, // Exclude deleted skills
+          },
           orderBy: [
             { requirement: "asc" }, // MANDATORY first (since it's alphabetically before OPTIONAL)
             { priority: "asc" },

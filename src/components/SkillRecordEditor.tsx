@@ -82,6 +82,7 @@ interface Skill {
   category?: "TECHNICAL" | "FUNCTIONAL" | "BEHAVIORAL" | "COGNITIVE";
   questionFormat?: string;
   floCareerId?: number;
+  deleted?: boolean;
 }
 
 interface Question {
@@ -321,11 +322,12 @@ export default function SkillRecordEditor({
 
   // Generate questions for skills without questions - modified to switch tabs and show toast
   const generateMissingQuestions = async () => {
-    // Check if there are any eligible skills (mandatory or optional with numQuestions > 0)
+    // Check if there are any eligible skills (mandatory or optional with numQuestions > 0, excluding deleted skills)
     const eligibleSkills = editedSkills.filter(
       (skill) =>
-        skill.requirement === "MANDATORY" ||
-        (skill.requirement === "OPTIONAL" && (skill.numQuestions || 0) > 0)
+        !skill.deleted &&
+        (skill.requirement === "MANDATORY" ||
+          (skill.requirement === "OPTIONAL" && (skill.numQuestions || 0) > 0))
     );
 
     if (eligibleSkills.length === 0) {
@@ -346,8 +348,10 @@ export default function SkillRecordEditor({
         progressText: "",
       });
 
-      // Find skills that need questions (mandatory skills or optional skills with numQuestions > 0)
+      // Find skills that need questions (mandatory skills or optional skills with numQuestions > 0, excluding deleted skills)
       const skillsNeedingQuestions = editedSkills.filter((skill) => {
+        if (skill.deleted) return false;
+
         const requiredQuestions = skill.numQuestions || 1;
         const existingQuestions = questions.filter(
           (q) => q.skillId === skill.id && !q.deleted
@@ -985,33 +989,7 @@ export default function SkillRecordEditor({
     }
   };
 
-  // Get requirement label
-  const getRequirementLabel = (requirement: string) => {
-    return requirement === "MANDATORY" ? "Mandatory" : "Optional";
-  };
-
-  // Get category label
-  const getCategoryLabel = (category?: string) => {
-    switch (category) {
-      case "TECHNICAL":
-        return "Technical";
-      case "FUNCTIONAL":
-        return "Functional";
-      case "BEHAVIORAL":
-        return "Behavioral";
-      case "COGNITIVE":
-        return "Cognitive";
-      default:
-        return "Not Specified";
-    }
-  };
-
-  // Get question format label
-  const getQuestionFormatLabel = (format?: string) => {
-    return format || "Scenario based";
-  };
-
-  // Count questions for each skill
+  // Count questions for each skill (excluding deleted questions)
   const getSkillQuestionCount = (skillId: string) => {
     return questions.filter((q) => q.skillId === skillId && !q.deleted).length;
   };
@@ -1037,22 +1015,6 @@ export default function SkillRecordEditor({
       return level.charAt(0).toUpperCase() + level.slice(1).toLowerCase();
     }
     return "Intermediate";
-  };
-
-  // First add a helper function to get a CSS class based on difficulty
-  const getDifficultyClass = (difficulty: string) => {
-    if (!difficulty) return "bg-orange-50 text-orange-800 border-orange-200";
-
-    switch (difficulty.toLowerCase()) {
-      case "easy":
-        return "bg-green-50 text-green-800 border-green-200";
-      case "medium":
-        return "bg-orange-50 text-orange-800 border-orange-200";
-      case "hard":
-        return "bg-red-50 text-red-800 border-red-200";
-      default:
-        return "bg-orange-50 text-orange-800 border-orange-200";
-    }
   };
 
   // Add a helper function to get a CSS class based on category
@@ -1317,7 +1279,7 @@ export default function SkillRecordEditor({
     }
   };
 
-  // Get number of liked/disliked questions for a skill
+  // Get number of liked/disliked questions for a skill (excluding deleted questions)
   const getSkillLikeStats = (skillId: string) => {
     const skillQuestions = questions.filter(
       (q) => q.skillId === skillId && !q.deleted
@@ -1352,9 +1314,9 @@ export default function SkillRecordEditor({
         // Keep existing counts for skills that haven't changed
         const existingCounts = { ...skillFeedbackCounts };
 
-        // Only fetch for skills that don't already have counts
+        // Only fetch for skills that don't already have counts and are not deleted
         const skillsToFetch = editedSkills.filter(
-          (skill) => existingCounts[skill.id] === undefined
+          (skill) => !skill.deleted && existingCounts[skill.id] === undefined
         );
 
         for (const skill of skillsToFetch) {
@@ -1376,9 +1338,9 @@ export default function SkillRecordEditor({
         const updatedCounts = { ...existingCounts, ...feedbackCounts };
         const finalCounts: Record<string, number> = {};
 
-        // Filter out counts for skills that no longer exist
+        // Filter out counts for skills that no longer exist or are deleted
         editedSkills.forEach((skill) => {
-          if (updatedCounts[skill.id] !== undefined) {
+          if (!skill.deleted && updatedCounts[skill.id] !== undefined) {
             finalCounts[skill.id] = updatedCounts[skill.id];
           }
         });
@@ -1433,12 +1395,20 @@ export default function SkillRecordEditor({
         return newCounts;
       });
 
-      // Update local state to remove the deleted skill
-      setEditedSkills(editedSkills.filter((skill) => skill.id !== skillId));
+      // Update local state to mark the skill as deleted instead of removing it
+      setEditedSkills(
+        editedSkills.map((skill) =>
+          skill.id === skillId ? { ...skill, deleted: true } : skill
+        )
+      );
 
-      // Remove related questions
+      // Mark related questions as deleted
       setQuestions(
-        questions.filter((question) => question.skillId !== skillId)
+        questions.map((question) =>
+          question.skillId === skillId
+            ? { ...question, deleted: true }
+            : question
+        )
       );
 
       // Refresh the page to get updated data
@@ -1496,14 +1466,20 @@ export default function SkillRecordEditor({
 
       toast.success(`Successfully deleted ${skillIds.length} skill(s)`);
 
-      // Update local state to remove the deleted skills
+      // Update local state to mark the skills as deleted instead of removing them
       setEditedSkills(
-        editedSkills.filter((skill) => !skillIds.includes(skill.id))
+        editedSkills.map((skill) =>
+          skillIds.includes(skill.id) ? { ...skill, deleted: true } : skill
+        )
       );
 
-      // Remove related questions
+      // Mark related questions as deleted
       setQuestions(
-        questions.filter((question) => !skillIds.includes(question.skillId))
+        questions.map((question) =>
+          skillIds.includes(question.skillId)
+            ? { ...question, deleted: true }
+            : question
+        )
       );
 
       // Refresh the page to get updated data
@@ -1534,7 +1510,11 @@ export default function SkillRecordEditor({
   const handleSelectAllInPriorityMode = (checked: boolean) => {
     if (checked) {
       setSelectedSkillsInPriorityMode(
-        new Set(editedSkills.map((skill) => skill.id))
+        new Set(
+          editedSkills
+            .filter((skill) => !skill.deleted)
+            .map((skill) => skill.id)
+        )
       );
     } else {
       setSelectedSkillsInPriorityMode(new Set());
@@ -1560,17 +1540,21 @@ export default function SkillRecordEditor({
   // Get selected skill names for confirmation dialog
   const getSelectedSkillNamesInPriorityMode = () => {
     return editedSkills
-      .filter((skill) => selectedSkillsInPriorityMode.has(skill.id))
+      .filter(
+        (skill) => !skill.deleted && selectedSkillsInPriorityMode.has(skill.id)
+      )
       .map((skill) => skill.name);
   };
 
   // Check if all skills are selected in priority mode
   const isAllSelectedInPriorityMode =
-    editedSkills.length > 0 &&
-    selectedSkillsInPriorityMode.size === editedSkills.length;
+    editedSkills.filter((skill) => !skill.deleted).length > 0 &&
+    selectedSkillsInPriorityMode.size ===
+      editedSkills.filter((skill) => !skill.deleted).length;
   const isIndeterminateInPriorityMode =
     selectedSkillsInPriorityMode.size > 0 &&
-    selectedSkillsInPriorityMode.size < editedSkills.length;
+    selectedSkillsInPriorityMode.size <
+      editedSkills.filter((skill) => !skill.deleted).length;
 
   // Add an onDragEnd function for drag and drop
   const onDragEnd = async (result: any) => {
@@ -1585,10 +1569,10 @@ export default function SkillRecordEditor({
     const droppableId = result.source.droppableId;
     const isMandatory = droppableId === "mandatory-skills";
 
-    // Get the correct list
+    // Get the correct list (excluding deleted skills)
     const skills = isMandatory
-      ? editedSkills.filter((s) => s.requirement === "MANDATORY")
-      : editedSkills.filter((s) => s.requirement === "OPTIONAL");
+      ? editedSkills.filter((s) => s.requirement === "MANDATORY" && !s.deleted)
+      : editedSkills.filter((s) => s.requirement === "OPTIONAL" && !s.deleted);
 
     // Reorder the list
     const [movedSkill] = skills.splice(startIndex, 1);
@@ -1600,9 +1584,13 @@ export default function SkillRecordEditor({
       priority: index + 1,
     }));
 
-    // Combine with the skills from the other group
-    const otherSkills = editedSkills.filter((s) =>
-      isMandatory ? s.requirement !== "MANDATORY" : s.requirement !== "OPTIONAL"
+    // Combine with the skills from the other group (excluding deleted skills)
+    const otherSkills = editedSkills.filter(
+      (s) =>
+        !s.deleted &&
+        (isMandatory
+          ? s.requirement !== "MANDATORY"
+          : s.requirement !== "OPTIONAL")
     );
 
     // Create the new combined list
@@ -1636,13 +1624,13 @@ export default function SkillRecordEditor({
     }
   };
 
-  // Create separate lists for mandatory and optional skills
+  // Create separate lists for mandatory and optional skills (excluding deleted skills)
   const mandatorySkills = editedSkills
-    .filter((skill) => skill.requirement === "MANDATORY")
+    .filter((skill) => skill.requirement === "MANDATORY" && !skill.deleted)
     .sort((a, b) => (a.priority || 999) - (b.priority || 999));
 
   const optionalSkills = editedSkills
-    .filter((skill) => skill.requirement === "OPTIONAL")
+    .filter((skill) => skill.requirement === "OPTIONAL" && !skill.deleted)
     .sort((a, b) => (a.priority || 999) - (b.priority || 999));
 
   // Add regenerate all disliked questions function
@@ -2012,208 +2000,6 @@ export default function SkillRecordEditor({
     );
   };
 
-  // Save skills to FloCareer
-  const saveToFloCareer = async () => {
-    if (!record.reqId || !record.userId) {
-      toast.error("Missing required information for FloCareer integration");
-      return;
-    }
-
-    try {
-      setSavingToFloCareer(true);
-
-      // Map our skill data to FloCareer format
-      // const skillMatrix = editedSkills.map((skill) => ({
-      //   ai_skill_id: skill.id,
-      //   skill_id: 0,
-      //   action: "add",
-      //   name: skill.name,
-      //   level: mapSkillLevel(skill.level),
-      //   requirement: mapSkillRequirement(skill.requirement),
-      // }));
-
-      // Step 1: Save skills to FloCareer
-      const skillMatrix = [
-        // Add new/existing skills
-        ...editedSkills.map((skill) => ({
-          ai_skill_id: skill.id,
-          skill_id: skill.floCareerId || 0,
-          // action: skill.floCareerId ? "update" : "add",
-          action: "add",
-          name: skill.name,
-          level: mapSkillLevel(skill.level),
-          requirement: mapSkillRequirement(skill.requirement),
-        })),
-        // Add deleted skills with delete action
-        ...deletedSkills.map((skill: any) => ({
-          ai_skill_id: skill.id,
-          skill_id: skill.floCareerId || 0,
-          action: "delete",
-          name: skill.name,
-          level: mapSkillLevel(skill.level),
-          requirement: mapSkillRequirement(skill.requirement),
-        })),
-      ];
-
-      const requestBody = {
-        round_id: record.roundId,
-        user_id: record.userId,
-        skill_matrix: skillMatrix,
-      };
-
-      const response = await fetch(
-        "https://sandbox.flocareer.com/dynamic/corporate/create-skills/",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(requestBody),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`FloCareer API error: ${response.status}`);
-      }
-
-      const result = await response.json();
-
-      if (result.success && result.skill_matrix) {
-        // Save the skill_id returned from FloCareer to our database
-        for (const skillData of result.skill_matrix) {
-          await fetch(`/api/skills/${skillData.ai_skill_id}`, {
-            method: "PATCH",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${
-                process.env.NEXT_PUBLIC_AUTH_TOKEN || ""
-              }`,
-            },
-            body: JSON.stringify({ floCareerId: skillData.skill_id }),
-          });
-        }
-
-        // Update local state with the new flocareer IDs
-        setEditedSkills((prevSkills) =>
-          prevSkills.map((skill) => {
-            const skillData = result.skill_matrix.find(
-              (s: any) => s.ai_skill_id === skill.id
-            );
-            return skillData
-              ? { ...skill, floCareerId: skillData.skill_id }
-              : skill;
-          })
-        );
-
-        toast.success("Skills saved to FloCareer successfully!");
-      } else {
-        throw new Error(
-          result.error_string || "Failed to save skills to FloCareer"
-        );
-      }
-    } catch (error: any) {
-      console.error("Error saving to FloCareer:", error);
-      toast.error(error.message || "Failed to save skills to FloCareer");
-    } finally {
-      setSavingToFloCareer(false);
-    }
-  };
-
-  // Save questions to FloCareer
-  const saveQuestionsToFloCareer = async () => {
-    if (!record.reqId || !record.userId) {
-      toast.error("Missing required information for FloCareer integration");
-      return;
-    }
-
-    const activeQuestions = questions.filter((q) => !q.deleted);
-    if (activeQuestions.length === 0) {
-      toast.error("No questions to save to FloCareer");
-      return;
-    }
-
-    try {
-      setSavingToFloCareer(true);
-
-      // Map our question data to FloCareer format
-      const flocareerQuestions = activeQuestions.map((question) => ({
-        ai_question_id: question.id,
-        question_type: "descriptive", // Default to descriptive
-        candidate_description: question.question,
-        title: question.question,
-        description: encodeURIComponent(
-          `<h1>${question.question}</h1>\n<p>${question.answer}</p>`
-        ),
-        tags: [question.category, question.questionFormat || "Scenario"],
-        ideal_answer: encodeURIComponent(`<p>${question.answer}</p>`),
-        source: "genai_gpt-4.1",
-      }));
-
-      const requestBody = {
-        user_id: record.userId,
-        questions: flocareerQuestions,
-      };
-      console.log(requestBody);
-      const response = await fetch(
-        "https://sandbox.flocareer.com/dynamic/corporate/create-question/",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(requestBody),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`FloCareer API error: ${response.status}`);
-      }
-
-      const result = await response.json();
-
-      if (result.success && result.questions) {
-        // Save the question_id returned from FloCareer to our database
-        for (const questionData of result.questions) {
-          if (questionData.success) {
-            await fetch(`/api/questions/${questionData.ai_question_id}`, {
-              method: "PATCH",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${
-                  process.env.NEXT_PUBLIC_AUTH_TOKEN || ""
-                }`,
-              },
-              body: JSON.stringify({ floCareerId: questionData.question_id }),
-            });
-          }
-        }
-
-        // Update local state with the new flocareer IDs
-        setQuestions((prevQuestions) =>
-          prevQuestions.map((question) => {
-            const questionData = result.questions.find(
-              (q: any) => q.ai_question_id === question.id
-            );
-            return questionData && questionData.success
-              ? { ...question, floCareerId: questionData.question_id }
-              : question;
-          })
-        );
-
-        toast.success("Questions saved to FloCareer successfully!");
-      } else {
-        throw new Error(
-          result.error_string || "Failed to save questions to FloCareer"
-        );
-      }
-    } catch (error: any) {
-      console.error("Error saving questions to FloCareer:", error);
-      toast.error(error.message || "Failed to save questions to FloCareer");
-    } finally {
-      setSavingToFloCareer(false);
-    }
-  };
-
   // Helper functions to map skill data to FloCareer format
   const mapSkillLevel = (level: string): string => {
     switch (level) {
@@ -2317,16 +2103,18 @@ export default function SkillRecordEditor({
 
       // Step 1: Save skills to FloCareer
       const skillMatrix = [
-        // Add new/existing skills
-        ...editedSkills.map((skill) => ({
-          ai_skill_id: skill.id,
-          skill_id: skill.floCareerId || 0,
-          // action: skill.floCareerId ? "update" : "add",
-          action: "add",
-          name: skill.name,
-          level: mapSkillLevel(skill.level),
-          requirement: mapSkillRequirement(skill.requirement),
-        })),
+        // Add new/existing skills (only non-deleted skills)
+        ...editedSkills
+          .filter((skill) => !skill.deleted)
+          .map((skill) => ({
+            ai_skill_id: skill.id,
+            skill_id: skill.floCareerId || 0,
+            // action: skill.floCareerId ? "update" : "add",
+            action: "add",
+            name: skill.name,
+            level: mapSkillLevel(skill.level),
+            requirement: mapSkillRequirement(skill.requirement),
+          })),
         // Add deleted skills with delete action
         ...deletedSkills.map((skill) => ({
           ai_skill_id: skill.id,
@@ -2600,7 +2388,7 @@ export default function SkillRecordEditor({
         if (allQuestionPools.length > 0) {
           const structureRequestBody = {
             user_id: record.userId,
-            round_id: record.roundId, 
+            round_id: record.roundId,
             question_pools: allQuestionPools,
           };
 
@@ -2773,7 +2561,7 @@ export default function SkillRecordEditor({
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="w-full justify-start">
           <TabsTrigger value="skills" className="flex-1 max-w-[200px]">
-            Skills ({editedSkills.length})
+            Skills ({editedSkills.filter((skill) => !skill.deleted).length})
           </TabsTrigger>
           <TabsTrigger
             value="questions"
@@ -3113,7 +2901,7 @@ export default function SkillRecordEditor({
               ) : (
                 // TanStack table implementation
                 <SkillsTable
-                  skills={editedSkills}
+                  skills={editedSkills.filter((skill) => !skill.deleted)}
                   recordId={record.id}
                   onUpdateSkill={updateSkill}
                   getSkillQuestionCount={getSkillQuestionCount}
@@ -3827,7 +3615,8 @@ export default function SkillRecordEditor({
                     questionsLoading ||
                     generatingQuestions ||
                     pdfLoading ||
-                    editedSkills.length === 0 ||
+                    editedSkills.filter((skill) => !skill.deleted).length ===
+                      0 ||
                     questions.filter((q) => !q.deleted).length === 0
                   }
                   variant="default"
@@ -3985,8 +3774,14 @@ export default function SkillRecordEditor({
               <br />
               <br />
               <strong>Summary:</strong>
-              <br />• {editedSkills.length} skill
-              {editedSkills.length > 1 ? "s" : ""} will be saved
+              <br />• {
+                editedSkills.filter((skill) => !skill.deleted).length
+              }{" "}
+              skill
+              {editedSkills.filter((skill) => !skill.deleted).length > 1
+                ? "s"
+                : ""}{" "}
+              will be saved
               <br />• {questions.filter((q) => !q.deleted).length} question
               {questions.filter((q) => !q.deleted).length > 1 ? "s" : ""} will
               be saved

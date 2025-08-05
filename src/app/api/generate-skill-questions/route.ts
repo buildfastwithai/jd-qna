@@ -35,8 +35,14 @@ const generatePrompt = (
           )}\n\nPlease ensure that the generated questions take this feedback into account.`
       : "";
 
-  return `Generate exactly ${batchSize} interview questions must not exceed 400 characters for the skill "${skillName}" at a ${level} level (${effectiveDifficulty} difficulty).
+  return `Generate exactly unique ${batchSize} interview questions must not exceed 400 characters for the skill "${skillName}" at a ${level} level (${effectiveDifficulty} difficulty).
 The questions should be challenging but fair, testing both theoretical knowledge and practical application.${feedbackSection}
+
+  Expectations based on experience level:
+- BEGINNER: Focus on foundational concepts, simple application, definitions, and basic logic.
+- INTERMEDIATE: Mix of conceptual and applied questions, moderate coding tasks, and situational judgment.
+- PROFESSIONAL: Emphasize real-world problem solving, architecture/design, optimization, decision-making, and advanced coding or domain-specific knowledge.
+
 
 For each question, randomly choose one of these question formats and design the question accordingly:
 1. "Open-ended" - Requires a descriptive or narrative answer. Useful for assessing communication, reasoning, or opinion-based responses.
@@ -57,9 +63,21 @@ Format your response as a JSON object with a 'questions' key containing an array
 6. A "questionFormat" field with one of: "Open-ended", "Coding", "Scenario", "Case Study", "Design", or "Live Assessment"
 7. A "coding" field with a boolean value: true if the questionFormat is "Coding" OR if the question involves writing/debugging code, false otherwise
 
+
+ Example Question:
+      "question": "You're working on a Java service that suddenly starts throwing 'OutOfMemoryError'. How would you debug and resolve the issue?",
+      "answer": "Check JVM heap size configuration, analyze heap dumps using tools like VisualVM or Eclipse MAT. Look for memory leaks, large object retention, or improper caching. Use profiling tools to monitor object creation and garbage collection behavior.",
+      "category": "Experience",
+      "difficulty": "Medium",
+      "skillName": "Java",
+      "questionFormat": "Scenario",
+      "coding": false
+
+
 IMPORTANT: The "coding" field must be set to true when questionFormat is "Coding" or when the question requires the candidate to write, debug, or analyze code. This includes code reviews, algorithm problems, debugging exercises, or any hands-on programming tasks.
 
 Make sure the questions match the specified difficulty level, are appropriate for the skill, and follow the chosen question format.
+         
 IMPORTANT: You must generate exactly ${batchSize} unique questions, no more and no less.`;
 };
 
