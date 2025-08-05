@@ -129,21 +129,29 @@ export async function POST(
             }
           }
 
-          // Create edit pools for deleted questions (excluding them from questions array)
+          // Create edit/delete pools for deleted questions (excluding them from questions array)
           for (const [poolId, questionIds] of deletedQuestionsByPool) {
             // Get remaining active questions for this pool
             const remainingActiveQuestions = activeQuestions
               .filter((q) => q.floCareerPoolId === poolId && q.floCareerId)
               .map((q) => q.floCareerId!);
 
-            const editPool = {
+            // If no active questions remain, use delete action
+            const action =
+              remainingActiveQuestions.length === 0 ? "delete" : "edit";
+
+            // For delete action, include deleted question IDs; for edit action, include active question IDs
+            const questionsForPool =
+              action === "delete" ? questionIds : remainingActiveQuestions;
+
+            const pool = {
               pool_id: poolId,
-              action: "edit",
+              action: action,
               name: skill.name,
-              num_of_questions_to_ask: remainingActiveQuestions.length,
-              questions: remainingActiveQuestions, // Only include active questions
+              num_of_questions_to_ask: questionsForPool.length,
+              questions: questionsForPool,
             };
-            questionPools.push(editPool);
+            questionPools.push(pool);
           }
         }
       }
