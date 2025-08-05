@@ -9,7 +9,7 @@ export async function PATCH(
     const { id } = await params;
     const body = await request.json();
 
-    const { feedback, floCareerId, floCareerPoolId } = body;
+    const { feedback, floCareerId, floCareerPoolId, deleted } = body;
 
     // Validate inputs
     if (!id) {
@@ -19,7 +19,12 @@ export async function PATCH(
       );
     }
 
-    if (feedback === undefined && floCareerId === undefined && floCareerPoolId === undefined) {
+    if (
+      feedback === undefined &&
+      floCareerId === undefined &&
+      floCareerPoolId === undefined &&
+      deleted === undefined
+    ) {
       return NextResponse.json(
         {
           success: false,
@@ -34,6 +39,7 @@ export async function PATCH(
       feedback?: string;
       floCareerId?: number;
       floCareerPoolId?: number;
+      deleted?: boolean;
     } = {};
 
     if (feedback !== undefined) {
@@ -55,13 +61,20 @@ export async function PATCH(
     if (floCareerPoolId !== undefined) {
       // Validate floCareerPoolId
       const floCareerPoolIdValue = Number(floCareerPoolId);
-      if (isNaN(floCareerPoolIdValue) || floCareerPoolIdValue < 1) {
+      if (isNaN(floCareerPoolIdValue) || floCareerPoolIdValue < 0) {
         return NextResponse.json(
-          { success: false, error: "floCareerPoolId must be a positive number" },
+          {
+            success: false,
+            error: "floCareerPoolId must be a non-negative number",
+          },
           { status: 400 }
         );
       }
       updateData.floCareerPoolId = floCareerPoolIdValue;
+    }
+
+    if (deleted !== undefined) {
+      updateData.deleted = Boolean(deleted);
     }
 
     // Update question

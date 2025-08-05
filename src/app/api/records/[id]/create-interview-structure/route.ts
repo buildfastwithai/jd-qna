@@ -147,10 +147,9 @@ export async function POST(
           if (pool.questions && Array.isArray(pool.questions)) {
             for (const questionData of pool.questions) {
               if (questionData.ai_question_id && questionData.question_id) {
-                // Find the question by floCareerId (which corresponds to ai_question_id)
+                // Find the question by floCareerId
                 const question = await prisma.question.findFirst({
                   where: {
-                    id: questionData.ai_question_id,
                     floCareerId: questionData.question_id,
                     recordId: recordId,
                   },
@@ -160,7 +159,10 @@ export async function POST(
                   // Update the question with the pool_id as floCareerPoolId
                   await prisma.question.update({
                     where: { id: question.id },
-                    data: { floCareerPoolId: pool.pool_id },
+                    data: {
+                      floCareerPoolId: pool.pool_id,
+                      floCareerId: questionData.question_id,
+                    },
                   });
                 }
               }

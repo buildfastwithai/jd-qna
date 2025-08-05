@@ -1290,7 +1290,7 @@ export default function SkillRecordEditor({
         )
       );
 
-      // Mark related questions as deleted
+      // Mark related questions as deleted in local state
       setQuestions(
         questions.map((question) =>
           question.skillId === skillId
@@ -1298,6 +1298,19 @@ export default function SkillRecordEditor({
             : question
         )
       );
+
+      // Mark related questions as deleted in database
+      const questionsToDelete = questions.filter((q) => q.skillId === skillId);
+      for (const question of questionsToDelete) {
+        await fetch(`/api/questions/${question.id}`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
+          },
+          body: JSON.stringify({ deleted: true }),
+        });
+      }
 
       // Refresh the page to get updated data
       router.refresh();
@@ -1361,7 +1374,7 @@ export default function SkillRecordEditor({
         )
       );
 
-      // Mark related questions as deleted
+      // Mark related questions as deleted in local state
       setQuestions(
         questions.map((question) =>
           skillIds.includes(question.skillId)
@@ -1369,6 +1382,21 @@ export default function SkillRecordEditor({
             : question
         )
       );
+
+      // Mark related questions as deleted in database
+      const questionsToDelete = questions.filter((q) =>
+        skillIds.includes(q.skillId)
+      );
+      for (const question of questionsToDelete) {
+        await fetch(`/api/questions/${question.id}`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
+          },
+          body: JSON.stringify({ deleted: true }),
+        });
+      }
 
       // Refresh the page to get updated data
       router.refresh();
@@ -2135,8 +2163,10 @@ export default function SkillRecordEditor({
       }
 
       // Step 3: Create interview structure (if needed)
-      // Get all questions that have been saved to FloCareer (both active and deleted)
+      // Get all questions that have been saved to FloCareer (only active questions for add/edit actions)
       const questionsWithFloId = questions.filter((q) => {
+        if (q.deleted) return false; // Exclude deleted questions from add/edit actions
+
         const mapping = questionIdMapping.find((m) => m.originalId === q.id);
         if (!mapping) return false;
 
@@ -2146,12 +2176,9 @@ export default function SkillRecordEditor({
         return questionData && questionData.success;
       });
 
-      // Also include deleted questions that have existing floCareerId but weren't in the current submission
+      // Include deleted questions that have existing floCareerId for delete actions
       const deletedQuestionsWithExistingFloId = questions.filter(
-        (q) =>
-          q.deleted &&
-          q.floCareerId &&
-          !questionsWithFloId.some((qwf) => qwf.id === q.id)
+        (q) => q.deleted && q.floCareerId && q.floCareerPoolId // Only include deleted questions that have a pool ID
       );
 
       // Combine all questions for the interview structure
@@ -2178,38 +2205,10 @@ export default function SkillRecordEditor({
 
             // Handle active questions
             if (activeQuestions.length > 0) {
-              const activeQuestionIds = activeQuestions
-                .map((q) => {
-                  const mapping = questionIdMapping.find(
-                    (m) => m.originalId === q.id
-                  );
-                  if (!mapping) return null;
-
-                  const questionData = questionResult.questions.find(
-                    (qr: any) => qr.ai_question_id === mapping.tempId
-                  );
-                  return questionData?.question_id || null;
-                })
-                .filter(Boolean);
-
-              if (activeQuestionIds.length > 0) {
-                const pool = {
-                  pool_id: skill.floCareerId || 0, // Use actual pool_id if exists, otherwise 0 for new
-                  action: "add",
-                  name: skill.name,
-                  num_of_questions_to_ask: activeQuestionIds.length,
-                  questions: activeQuestionIds,
-                };
-                questionPoolsList.push(pool);
-              }
-            }
-
-            // Handle deleted questions for non-deleted skills
-            if (deletedQuestions.length > 0) {
-              // Group deleted questions by their floCareerPoolId
+              // Group active questions by their floCareerPoolId
               const questionsByPool = new Map<number, number[]>();
 
-              for (const question of deletedQuestions) {
+              for (const question of activeQuestions) {
                 let questionId = null;
 
                 // First try to get from the current submission
@@ -2230,12 +2229,43 @@ export default function SkillRecordEditor({
                   questionId = question.floCareerId || null;
                 }
 
-                if (questionId && question.floCareerPoolId) {
-                  const poolId = question.floCareerPoolId;
+                if (questionId) {
+                  // Use floCareerPoolId from question if it exists, otherwise use 0 for new questions
+                  const poolId = question.floCareerPoolId || 0;
                   if (!questionsByPool.has(poolId)) {
                     questionsByPool.set(poolId, []);
                   }
                   questionsByPool.get(poolId)!.push(questionId);
+                }
+              }
+
+              // Create pools for each unique pool_id
+              for (const [poolId, questionIds] of questionsByPool) {
+                const action = poolId === 0 ? "add" : "edit";
+                const pool = {
+                  pool_id: poolId,
+                  action: action,
+                  name: skill.name,
+                  num_of_questions_to_ask: questionIds.length,
+                  questions: questionIds,
+                };
+                questionPoolsList.push(pool);
+              }
+            }
+
+            // Handle deleted questions for non-deleted skills
+            if (deletedQuestions.length > 0) {
+              // Group deleted questions by their floCareerPoolId
+              const questionsByPool = new Map<number, number[]>();
+
+              for (const question of deletedQuestions) {
+                // Only process deleted questions that have both floCareerId and floCareerPoolId
+                if (question.floCareerId && question.floCareerPoolId) {
+                  const poolId = question.floCareerPoolId;
+                  if (!questionsByPool.has(poolId)) {
+                    questionsByPool.set(poolId, []);
+                  }
+                  questionsByPool.get(poolId)!.push(question.floCareerId);
                 }
               }
 
@@ -2265,32 +2295,13 @@ export default function SkillRecordEditor({
             const questionsByPool = new Map<number, number[]>();
 
             for (const question of skillQuestions) {
-              let questionId = null;
-
-              // First try to get from the current submission
-              const mapping = questionIdMapping.find(
-                (m) => m.originalId === question.id
-              );
-              if (mapping) {
-                const questionData = questionResult.questions.find(
-                  (qr: any) => qr.ai_question_id === mapping.tempId
-                );
-                if (questionData?.question_id) {
-                  questionId = questionData.question_id;
-                }
-              }
-
-              // If not found in current submission, use existing floCareerId
-              if (!questionId) {
-                questionId = question.floCareerId || null;
-              }
-
-              if (questionId && question.floCareerPoolId) {
+              // Only process deleted questions that have both floCareerId and floCareerPoolId
+              if (question.floCareerId && question.floCareerPoolId) {
                 const poolId = question.floCareerPoolId;
                 if (!questionsByPool.has(poolId)) {
                   questionsByPool.set(poolId, []);
                 }
-                questionsByPool.get(poolId)!.push(questionId);
+                questionsByPool.get(poolId)!.push(question.floCareerId);
               }
             }
 
@@ -2348,7 +2359,59 @@ export default function SkillRecordEditor({
           if (structureResponse.ok) {
             const structureResult = await structureResponse.json();
             if (structureResult.success) {
-              console.log("Interview structure created:", structureResult.data);
+              console.log("Interview structure created:", structureResult);
+
+              // Process the response to update floCareerPoolId for questions
+              if (
+                structureResult.question_pools &&
+                Array.isArray(structureResult.question_pools)
+              ) {
+                for (const pool of structureResult.question_pools) {
+                  if (pool.questions && Array.isArray(pool.questions)) {
+                    for (const questionData of pool.questions) {
+                      if (
+                        questionData.ai_question_id &&
+                        questionData.question_id
+                      ) {
+                        // Find the question by ai_question_id and update its floCareerPoolId
+                        const mapping = questionIdMapping.find(
+                          (m) => m.tempId === questionData.ai_question_id
+                        );
+
+                        if (mapping) {
+                          // Update the question in the database with the pool_id as floCareerPoolId
+                          await fetch(`/api/questions/${mapping.originalId}`, {
+                            method: "PATCH",
+                            headers: {
+                              "Content-Type": "application/json",
+                              Authorization: `Bearer ${
+                                process.env.NEXT_PUBLIC_AUTH_TOKEN || ""
+                              }`,
+                            },
+                            body: JSON.stringify({
+                              floCareerPoolId: pool.pool_id,
+                              floCareerId: questionData.question_id,
+                            }),
+                          });
+
+                          // Update local state
+                          setQuestions((prevQuestions) =>
+                            prevQuestions.map((question) =>
+                              question.id === mapping.originalId
+                                ? {
+                                    ...question,
+                                    floCareerPoolId: pool.pool_id,
+                                    floCareerId: questionData.question_id,
+                                  }
+                                : question
+                            )
+                          );
+                        }
+                      }
+                    }
+                  }
+                }
+              }
             }
           }
         }
