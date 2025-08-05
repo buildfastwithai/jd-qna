@@ -71,7 +71,7 @@ export async function POST(
             pool_id: poolId,
             action: "delete",
             name: skill.name,
-            num_of_questions_to_ask: 0,
+            num_of_questions_to_ask: questionIds.length || 0,
             questions: questionIds,
           };
           questionPools.push(deletedSkillPool);
