@@ -176,6 +176,7 @@ export async function POST(
     );
 
     if (!response.ok) {
+      console.log("FloCareer API error:", response);
       throw new Error(`FloCareer API error: ${response.status}`);
     }
 
