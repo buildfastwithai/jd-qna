@@ -245,6 +245,16 @@ export default function SkillRecordEditor({
     }>
   >([]);
 
+  // Helper function to get total deleted questions in current session
+  const getTotalDeletedQuestionsInSession = () => {
+    const deletedQuestionsFromSkills = editedSkills
+      .filter(skill => skill.deleted)
+      .flatMap(skill => questions.filter(q => q.skillId === skill.id))
+      .length;
+    
+    return deletedQuestions.length + deletedQuestionsFromSkills;
+  };
+
   // Parse question content from JSON string
   function formatQuestions(questions: Question[]): QuestionData[] {
     return questions
@@ -3956,20 +3966,27 @@ export default function SkillRecordEditor({
               <br />• {questions.filter((q) => !q.deleted).length} question
               {questions.filter((q) => !q.deleted).length > 1 ? "s" : ""} will
               be saved
-              {deletedSkills.length > 0 && (
-                <>
-                  <br />• {deletedSkills.length} skill
-                  {deletedSkills.length > 1 ? "s" : ""} will be deleted
-                </>
-              )}
-              {deletedQuestions.length > 0 && (
-                <>
-                  <br />• {deletedQuestions.length} question
-                  {deletedQuestions.length > 1 ? "s" : ""} will be deleted
-                </>
-              )}
               <br />
               • Interview structure will be created automatically
+              {(deletedSkills.length > 0 || deletedQuestions.length > 0) && (
+                <>
+                  <br />
+                  <br />
+                  <strong>Current Session Deletions:</strong>
+                  {deletedSkills.length > 0 && (
+                    <>
+                      <br />• {deletedSkills.length} skill
+                      {deletedSkills.length > 1 ? "s" : ""} will be deleted
+                    </>
+                  )}
+                  {getTotalDeletedQuestionsInSession() > 0 && (
+                    <>
+                      <br />• {getTotalDeletedQuestionsInSession()} question
+                      {getTotalDeletedQuestionsInSession() > 1 ? "s" : ""} will be deleted
+                    </>
+                  )}
+                </>
+              )}
               <br />
               <br />
               Are you sure you want to proceed?
