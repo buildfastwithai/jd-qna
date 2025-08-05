@@ -2626,6 +2626,12 @@ export default function SkillRecordEditor({
             `/api/records/${record.id}/create-interview-structure`,
             {
               method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${
+                  process.env.NEXT_PUBLIC_AUTH_TOKEN || ""
+                }`,
+              },
               // body: JSON.stringify(structureRequestBody),
             }
           );
