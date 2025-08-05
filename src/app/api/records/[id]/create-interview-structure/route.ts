@@ -33,11 +33,11 @@ export async function POST(
       );
     }
 
-    if (!record.reqId || !record.userId) {
+    if (!record.roundId || !record.userId) {
       return NextResponse.json(
         {
           success: false,
-          error: "Missing reqId or userId for FloCareer integration",
+          error: "Missing roundId or userId for FloCareer integration",
         },
         { status: 400 }
       );
@@ -157,7 +157,7 @@ export async function POST(
     // Prepare request body for FloCareer API
     const requestBody = {
       user_id: record.userId,
-      round_id: record.reqId,
+      round_id: record.roundId,
       question_pools: questionPools,
     };
 
