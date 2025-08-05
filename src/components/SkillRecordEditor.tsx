@@ -246,10 +246,14 @@ export default function SkillRecordEditor({
   >([]);
 
   // Track skills deleted in current session (not from database)
-  const [sessionDeletedSkills, setSessionDeletedSkills] = useState<Set<string>>(new Set());
+  const [sessionDeletedSkills, setSessionDeletedSkills] = useState<Set<string>>(
+    new Set()
+  );
 
   // Track questions deleted in current session (not from database)
-  const [sessionDeletedQuestions, setSessionDeletedQuestions] = useState<Set<string>>(new Set());
+  const [sessionDeletedQuestions, setSessionDeletedQuestions] = useState<
+    Set<string>
+  >(new Set());
 
   // Helper function to get total deleted questions in current session
   const getTotalDeletedQuestionsInSession = () => {
@@ -1329,7 +1333,7 @@ export default function SkillRecordEditor({
       });
 
       // Track this skill as deleted in current session
-      setSessionDeletedSkills(prev => new Set([...prev, skillId]));
+      setSessionDeletedSkills((prev) => new Set([...prev, skillId]));
 
       // Update local state to mark the skill as deleted instead of removing it
       setEditedSkills(
@@ -1416,7 +1420,7 @@ export default function SkillRecordEditor({
       toast.success(`Successfully deleted ${skillIds.length} skill(s)`);
 
       // Track these skills as deleted in current session
-      setSessionDeletedSkills(prev => new Set([...prev, ...skillIds]));
+      setSessionDeletedSkills((prev) => new Set([...prev, ...skillIds]));
 
       // Update local state to mark the skills as deleted instead of removing them
       setEditedSkills(
@@ -1700,7 +1704,9 @@ export default function SkillRecordEditor({
       ]);
 
       // Track this question as deleted in current session
-      setSessionDeletedQuestions(prev => new Set([...prev, questionToDelete.id]));
+      setSessionDeletedQuestions(
+        (prev) => new Set([...prev, questionToDelete.id])
+      );
 
       // Update the questions state to reflect the deletion
       setQuestions((prevQuestions) =>
@@ -1838,8 +1844,8 @@ export default function SkillRecordEditor({
       ]);
 
       // Track these questions as deleted in current session
-      const questionIds = skillQuestions.map(q => q.id);
-      setSessionDeletedQuestions(prev => new Set([...prev, ...questionIds]));
+      const questionIds = skillQuestions.map((q) => q.id);
+      setSessionDeletedQuestions((prev) => new Set([...prev, ...questionIds]));
 
       // Delete each question
       for (const question of skillQuestions) {
@@ -2491,35 +2497,35 @@ export default function SkillRecordEditor({
 
         // Add delete actions for deleted skills' pools (from deletedSkills array)
         // This handles skills that were deleted in previous sessions and need their pools deleted
-        const deletedSkillPools = deletedSkills
-          .filter((skill) => skill.floCareerId) // Only include skills that have been saved to FloCareer
-          .map((skill) => {
-            // Check if we already have a delete pool for this skill from the questions
-            const existingDeletePool = questionPoolsList.find(
-              (pool) =>
-                pool.pool_id === skill.floCareerId && pool.action === "delete"
-            );
+        // const deletedSkillPools = deletedSkills
+        //   .filter((skill) => skill.floCareerId) // Only include skills that have been saved to FloCareer
+        //   .map((skill) => {
+        //     // Check if we already have a delete pool for this skill from the questions
+        //     const existingDeletePool = questionPoolsList.find(
+        //       (pool) => pool.name === skill.name && pool.action === "delete"
+        //     );
 
-            // If we already have a delete pool for this skill, skip adding another one
-            if (existingDeletePool) {
-              console.log(
-                `Skipping duplicate delete pool for skill ${skill.name} (pool_id: ${skill.floCareerId})`
-              );
-              return null;
-            }
+        //     // If we already have a delete pool for this skill, skip adding another one
+        //     if (existingDeletePool) {
+        //       console.log(
+        //         `Skipping duplicate delete pool for skill ${skill.name} (pool_id: ${skill.floCareerId})`
+        //       );
+        //       return null;
+        //     }
 
-            return {
-              pool_id: skill.floCareerId!, // Use the actual FloCareer pool ID
-              action: "delete",
-              name: skill.name,
-              num_of_questions_to_ask: 0,
-              questions: [],
-            };
-          })
-          .filter((pool): pool is NonNullable<typeof pool> => pool !== null); // Remove null entries with proper typing
+        //     return {
+        //       pool_id: pool_id, // Use the actual FloCareer pool ID
+        //       action: "delete",
+        //       name: skill.name,
+        //       num_of_questions_to_ask: 0,
+        //       questions: [],
+        //     };
+        //   })
+        //   .filter((pool): pool is NonNullable<typeof pool> => pool !== null); // Remove null entries with proper typing
 
         // Combine all pools (new/updated and deleted)
-        const allQuestionPools = [...questionPoolsList, ...deletedSkillPools];
+        // const allQuestionPools = [...questionPoolsList, ...deletedSkillPools];
+        const allQuestionPools = [...questionPoolsList];
 
         if (allQuestionPools.length > 0) {
           // Log summary of what's being sent
@@ -4001,7 +4007,8 @@ export default function SkillRecordEditor({
               {questions.filter((q) => !q.deleted).length > 1 ? "s" : ""} will
               be saved
               <br />• Interview structure will be created automatically
-              {(getTotalDeletedSkillsInSession() > 0 || getTotalDeletedQuestionsInSession() > 0) && (
+              {(getTotalDeletedSkillsInSession() > 0 ||
+                getTotalDeletedQuestionsInSession() > 0) && (
                 <>
                   <br />
                   <br />
@@ -4009,7 +4016,8 @@ export default function SkillRecordEditor({
                   {getTotalDeletedSkillsInSession() > 0 && (
                     <>
                       <br />• {getTotalDeletedSkillsInSession()} skill
-                      {getTotalDeletedSkillsInSession() > 1 ? "s" : ""} will be deleted
+                      {getTotalDeletedSkillsInSession() > 1 ? "s" : ""} will be
+                      deleted
                     </>
                   )}
                   {getTotalDeletedQuestionsInSession() > 0 && (
