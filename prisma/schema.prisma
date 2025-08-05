@@ -54,6 +54,7 @@ model Skill {
 model Question {
   id           String       @id @default(uuid())
   floCareerId  Int?
+  floCareerPoolId Int?
   content      String
   skillId      String
   skill        Skill        @relation(fields: [skillId], references: [id], onDelete: Cascade)

@@ -94,6 +94,7 @@ interface Question {
   skill?: Skill;
   feedback?: string;
   floCareerId?: number;
+  floCareerPoolId?: number;
   deleted?: boolean;
   deletedFeedback?: string;
 }
@@ -128,6 +129,7 @@ interface QuestionData {
   feedback?: string;
   coding?: boolean;
   floCareerId?: number;
+  floCareerPoolId?: number;
   deleted?: boolean;
   deletedFeedback?: string;
 }
@@ -250,6 +252,7 @@ export default function SkillRecordEditor({
             feedback: q.feedback || "",
             coding: content.coding || false,
             floCareerId: q.floCareerId,
+            floCareerPoolId: q.floCareerPoolId,
             deleted: q.deleted || false,
             deletedFeedback: q.deletedFeedback || "",
           };
@@ -2203,33 +2206,47 @@ export default function SkillRecordEditor({
 
             // Handle deleted questions for non-deleted skills
             if (deletedQuestions.length > 0) {
-              const deletedQuestionIds = deletedQuestions
-                .map((q) => {
-                  // First try to get from the current submission
-                  const mapping = questionIdMapping.find(
-                    (m) => m.originalId === q.id
+              // Group deleted questions by their floCareerPoolId
+              const questionsByPool = new Map<number, number[]>();
+
+              for (const question of deletedQuestions) {
+                let questionId = null;
+
+                // First try to get from the current submission
+                const mapping = questionIdMapping.find(
+                  (m) => m.originalId === question.id
+                );
+                if (mapping) {
+                  const questionData = questionResult.questions.find(
+                    (qr: any) => qr.ai_question_id === mapping.tempId
                   );
-                  if (mapping) {
-                    const questionData = questionResult.questions.find(
-                      (qr: any) => qr.ai_question_id === mapping.tempId
-                    );
-                    if (questionData?.question_id) {
-                      return questionData.question_id;
-                    }
+                  if (questionData?.question_id) {
+                    questionId = questionData.question_id;
                   }
+                }
 
-                  // If not found in current submission, use existing floCareerId
-                  return q.floCareerId || null;
-                })
-                .filter(Boolean);
+                // If not found in current submission, use existing floCareerId
+                if (!questionId) {
+                  questionId = question.floCareerId || null;
+                }
 
-              if (deletedQuestionIds.length > 0) {
+                if (questionId && question.floCareerPoolId) {
+                  const poolId = question.floCareerPoolId;
+                  if (!questionsByPool.has(poolId)) {
+                    questionsByPool.set(poolId, []);
+                  }
+                  questionsByPool.get(poolId)!.push(questionId);
+                }
+              }
+
+              // Create separate delete pools for each unique pool_id
+              for (const [poolId, questionIds] of questionsByPool) {
                 const deletedPool = {
-                  pool_id: skill.floCareerId || 0, // Use actual pool_id for deletion
+                  pool_id: poolId, // Use floCareerPoolId for deletion
                   action: "delete",
                   name: skill.name,
-                  num_of_questions_to_ask: deletedQuestionIds.length, // Use actual count of deleted questions
-                  questions: deletedQuestionIds,
+                  num_of_questions_to_ask: questionIds.length,
+                  questions: questionIds,
                 };
                 questionPoolsList.push(deletedPool);
               }
@@ -2244,34 +2261,47 @@ export default function SkillRecordEditor({
           );
 
           if (skillQuestions.length > 0) {
-            // For deleted skills, all questions should be marked for deletion
-            const deletedQuestionIds = skillQuestions
-              .map((q) => {
-                // First try to get from the current submission
-                const mapping = questionIdMapping.find(
-                  (m) => m.originalId === q.id
+            // Group deleted questions by their floCareerPoolId
+            const questionsByPool = new Map<number, number[]>();
+
+            for (const question of skillQuestions) {
+              let questionId = null;
+
+              // First try to get from the current submission
+              const mapping = questionIdMapping.find(
+                (m) => m.originalId === question.id
+              );
+              if (mapping) {
+                const questionData = questionResult.questions.find(
+                  (qr: any) => qr.ai_question_id === mapping.tempId
                 );
-                if (mapping) {
-                  const questionData = questionResult.questions.find(
-                    (qr: any) => qr.ai_question_id === mapping.tempId
-                  );
-                  if (questionData?.question_id) {
-                    return questionData.question_id;
-                  }
+                if (questionData?.question_id) {
+                  questionId = questionData.question_id;
                 }
+              }
 
-                // If not found in current submission, use existing floCareerId
-                return q.floCareerId || null;
-              })
-              .filter(Boolean);
+              // If not found in current submission, use existing floCareerId
+              if (!questionId) {
+                questionId = question.floCareerId || null;
+              }
 
-            if (deletedQuestionIds.length > 0) {
+              if (questionId && question.floCareerPoolId) {
+                const poolId = question.floCareerPoolId;
+                if (!questionsByPool.has(poolId)) {
+                  questionsByPool.set(poolId, []);
+                }
+                questionsByPool.get(poolId)!.push(questionId);
+              }
+            }
+
+            // Create separate delete pools for each unique pool_id
+            for (const [poolId, questionIds] of questionsByPool) {
               const deletedPool = {
-                pool_id: skill.floCareerId || 0, // Use actual pool_id for deletion
+                pool_id: poolId, // Use floCareerPoolId for deletion
                 action: "delete",
                 name: skill.name,
-                num_of_questions_to_ask: deletedQuestionIds.length, // Use actual count of deleted questions
-                questions: deletedQuestionIds,
+                num_of_questions_to_ask: questionIds.length,
+                questions: questionIds,
               };
               questionPoolsList.push(deletedPool);
             }

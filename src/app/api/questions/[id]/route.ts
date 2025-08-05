@@ -9,7 +9,7 @@ export async function PATCH(
     const { id } = await params;
     const body = await request.json();
 
-    const { feedback, floCareerId } = body;
+    const { feedback, floCareerId, floCareerPoolId } = body;
 
     // Validate inputs
     if (!id) {
@@ -19,7 +19,7 @@ export async function PATCH(
       );
     }
 
-    if (feedback === undefined && floCareerId === undefined) {
+    if (feedback === undefined && floCareerId === undefined && floCareerPoolId === undefined) {
       return NextResponse.json(
         {
           success: false,
@@ -33,6 +33,7 @@ export async function PATCH(
     const updateData: {
       feedback?: string;
       floCareerId?: number;
+      floCareerPoolId?: number;
     } = {};
 
     if (feedback !== undefined) {
@@ -49,6 +50,18 @@ export async function PATCH(
         );
       }
       updateData.floCareerId = floCareerIdValue;
+    }
+
+    if (floCareerPoolId !== undefined) {
+      // Validate floCareerPoolId
+      const floCareerPoolIdValue = Number(floCareerPoolId);
+      if (isNaN(floCareerPoolIdValue) || floCareerPoolIdValue < 1) {
+        return NextResponse.json(
+          { success: false, error: "floCareerPoolId must be a positive number" },
+          { status: 400 }
+        );
+      }
+      updateData.floCareerPoolId = floCareerPoolIdValue;
     }
 
     // Update question

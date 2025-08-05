@@ -74,14 +74,30 @@ export async function POST(
             .filter(Boolean); // Only include questions that have a floCareerId
 
           if (deletedQuestionIds.length > 0) {
-            const deletedPool = {
-              pool_id: skill.floCareerId || 0, // Use actual pool_id for deletion
-              action: "delete",
-              name: skill.name,
-              num_of_questions_to_ask: deletedQuestionIds.length, // Use actual count of deleted questions
-              questions: deletedQuestionIds,
-            };
-            questionPools.push(deletedPool);
+            // Group deleted questions by their floCareerPoolId
+            const questionsByPool = new Map<number, number[]>();
+
+            for (const question of deletedQuestions) {
+              if (question.floCareerId && question.floCareerPoolId) {
+                const poolId = question.floCareerPoolId;
+                if (!questionsByPool.has(poolId)) {
+                  questionsByPool.set(poolId, []);
+                }
+                questionsByPool.get(poolId)!.push(question.floCareerId);
+              }
+            }
+
+            // Create separate delete pools for each unique pool_id
+            for (const [poolId, questionIds] of questionsByPool) {
+              const deletedPool = {
+                pool_id: poolId, // Use floCareerPoolId for deletion
+                action: "delete",
+                name: skill.name,
+                num_of_questions_to_ask: questionIds.length,
+                questions: questionIds,
+              };
+              questionPools.push(deletedPool);
+            }
           }
         }
       }
@@ -125,6 +141,34 @@ export async function POST(
     const result = await response.json();
 
     if (result.success) {
+      // Process the response to store floCareerPoolId for each question
+      if (result.question_pools && Array.isArray(result.question_pools)) {
+        for (const pool of result.question_pools) {
+          if (pool.questions && Array.isArray(pool.questions)) {
+            for (const questionData of pool.questions) {
+              if (questionData.ai_question_id && questionData.question_id) {
+                // Find the question by floCareerId (which corresponds to ai_question_id)
+                const question = await prisma.question.findFirst({
+                  where: {
+                    id: questionData.ai_question_id,
+                    floCareerId: questionData.question_id,
+                    recordId: recordId,
+                  },
+                });
+
+                if (question) {
+                  // Update the question with the pool_id as floCareerPoolId
+                  await prisma.question.update({
+                    where: { id: question.id },
+                    data: { floCareerPoolId: pool.pool_id },
+                  });
+                }
+              }
+            }
+          }
+        }
+      }
+
       return NextResponse.json({
         success: true,
         message: "Interview structure created successfully in FloCareer",
