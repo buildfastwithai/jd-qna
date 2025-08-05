@@ -48,22 +48,22 @@ export async function POST(
     }
 
     // Check if the skill already exists in this record
-    const existingSkill = await prisma.skill.findFirst({
-      where: {
-        name: name.trim(),
-        recordId,
-      },
-    });
+    // const existingSkill = await prisma.skill.findFirst({
+    //   where: {
+    //     name: name.trim(),
+    //     recordId,
+    //   },
+    // });
 
-    if (existingSkill) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "A skill with this name already exists for this record",
-        },
-        { status: 400 }
-      );
-    }
+    // if (existingSkill) {
+    //   return NextResponse.json(
+    //     {
+    //       success: false,
+    //       error: "A skill with this name already exists for this record",
+    //     },
+    //     { status: 400 }
+    //   );
+    // }
 
     // Get the highest existing priority to set new skill's priority
     const highestPrioritySkill = await prisma.skill.findFirst({
