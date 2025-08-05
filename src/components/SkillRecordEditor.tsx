@@ -2321,13 +2321,11 @@ export default function SkillRecordEditor({
 
               // Create pools for each unique pool_id
               for (const [poolId, questionIds] of questionsByPool) {
-                // Determine action: if poolId is 0, it's a new pool (add action), otherwise it's an existing pool (edit action)
-                const action = poolId === 0 ? "add" : "edit";
-
                 // For edit actions, exclude deleted question IDs from the questions array
                 const finalQuestionIds =
-                  action === "edit"
-                    ? questionIds.filter((id) => {
+                  poolId === 0
+                    ? questionIds // For new pools (add action), include all questions
+                    : questionIds.filter((id) => {
                         // Find the question by ID and ensure it's not deleted
                         const question = activeQuestions.find((q) => {
                           const mapping = questionIdMapping.find(
@@ -2352,8 +2350,17 @@ export default function SkillRecordEditor({
                         }
 
                         return isValidQuestion;
-                      })
-                    : questionIds;
+                      });
+
+                // Determine action based on poolId and number of active questions
+                let action: string;
+                if (poolId === 0) {
+                  action = "add"; // New pool
+                } else if (finalQuestionIds.length === 0) {
+                  action = "delete"; // Existing pool with no active questions
+                } else {
+                  action = "edit"; // Existing pool with active questions
+                }
 
                 const pool = {
                   pool_id: poolId,
@@ -2370,6 +2377,7 @@ export default function SkillRecordEditor({
                   questionCount: finalQuestionIds.length,
                   questions: finalQuestionIds,
                   isEditAction: action === "edit",
+                  isDeleteAction: action === "delete",
                   excludedQuestions:
                     action === "edit"
                       ? questionIds.filter(
@@ -2377,6 +2385,12 @@ export default function SkillRecordEditor({
                         )
                       : [],
                   totalQuestionsInPool: questionIds.length,
+                  actionReason:
+                    poolId === 0
+                      ? "New pool (add)"
+                      : finalQuestionIds.length === 0
+                      ? "No active questions (delete)"
+                      : "Has active questions (edit)",
                 });
 
                 questionPoolsList.push(pool);
