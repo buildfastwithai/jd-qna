@@ -142,8 +142,17 @@ export async function POST(
       coding: isCoding,
     };
 
-    // Use a transaction to create the new question and regeneration record
+    // Use a transaction to mark the old question as deleted, create the new question, and regeneration record
     const result = await prisma.$transaction(async (tx) => {
+      // Mark the existing question as deleted
+      await tx.question.update({
+        where: { id: questionId },
+        data: {
+          deleted: true,
+          deletedFeedback: reason || "Regenerated question",
+        },
+      });
+
       // Create the new question
       const newQuestion = await tx.question.create({
         data: {
@@ -152,6 +161,7 @@ export async function POST(
           recordId: question.recordId,
           liked: "NONE",
           coding: isCoding,
+          floCareerId: null, // Reset floCareerId for new question
         },
       });
 

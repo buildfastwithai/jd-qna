@@ -30,15 +30,12 @@ export async function POST(
     });
 
     if (!skill) {
-      return NextResponse.json(
-        { error: "Skill not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Skill not found" }, { status: 404 });
     }
 
     // Get all questions for this skill (excluding deleted ones)
     const questions = await prisma.question.findMany({
-      where: { 
+      where: {
         skillId: skillId,
         recordId: recordId,
         deleted: {
@@ -55,11 +52,13 @@ export async function POST(
     }
 
     const logger = getLogger("regenerate-questions-from-skill");
-    logger.info(`Regenerating ${questions.length} questions for skill ${skill.name}`);
+    logger.info(
+      `Regenerating ${questions.length} questions for skill ${skill.name}`
+    );
 
     // Prepare the regeneration prompt
     let prompt = `Generate ${questions.length} new interview questions for the skill "${skill.name}" at ${skill.level} level.`;
-    
+
     // Add feedback if provided
     if (feedback) {
       prompt += `\n\nUser feedback: "${feedback}"`;
@@ -72,18 +71,22 @@ export async function POST(
     }
 
     // Add question format instructions
-    prompt += `\n\nFor the question format, use "${skill.questionFormat || 'Scenario'}" and design all questions accordingly.
+    prompt += `\n\nFor the question format, use "${
+      skill.questionFormat || "Scenario"
+    }" and design all questions accordingly.
     
 If the format is "Coding", all questions should involve writing or debugging code. Otherwise, design non-coding questions that match the specified format.
 
 IMPORTANT: The "coding" field must be set to true when questionFormat is "Coding", and false otherwise.
 
-Return exactly ${questions.length} questions as a JSON array. Each question should have these fields:
+Return exactly ${
+      questions.length
+    } questions as a JSON array. Each question should have these fields:
 - question: The interview question text
 - answer: A comprehensive model answer or evaluation criteria
 - category: One of "Technical", "Experience", "Problem Solving", or "Soft Skills"
 - difficulty: "Easy", "Medium", or "Hard"
-- questionFormat: "${skill.questionFormat || 'Scenario'}"
+- questionFormat: "${skill.questionFormat || "Scenario"}"
 - coding: ${skill.questionFormat === "Coding" ? "true" : "false"}`;
 
     logger.info(prompt);
@@ -131,59 +134,74 @@ Return exactly ${questions.length} questions as a JSON array. Each question shou
       // Make sure we have the right number of questions
       newQuestions = newQuestions.slice(0, questions.length);
 
-      // Update each question in the database
-      const updatedQuestions = [];
-      for (let i = 0; i < Math.min(questions.length, newQuestions.length); i++) {
-        const originalQuestion = questions[i];
-        const newQuestion = newQuestions[i];
+      // Use a transaction to mark old questions as deleted and create new ones
+      const result = await prisma.$transaction(async (tx) => {
+        const updatedQuestions = [];
 
-        const updatedQuestion = await prisma.question.update({
-          where: { id: originalQuestion.id },
-          data: {
-            content: JSON.stringify({
-              question: newQuestion.question,
-              answer: newQuestion.answer,
-              category: newQuestion.category,
-              difficulty: newQuestion.difficulty,
-              questionFormat: newQuestion.questionFormat || skill.questionFormat || "Scenario",
+        // First, mark all existing questions as deleted
+        for (const question of questions) {
+          await tx.question.update({
+            where: { id: question.id },
+            data: {
+              deleted: true,
+              deletedFeedback: feedback || "Skill questions regeneration",
+            },
+          });
+        }
+
+        // Then create new questions
+        for (
+          let i = 0;
+          i < Math.min(questions.length, newQuestions.length);
+          i++
+        ) {
+          const originalQuestion = questions[i];
+          const newQuestion = newQuestions[i];
+
+          const newQuestionRecord = await tx.question.create({
+            data: {
+              content: JSON.stringify({
+                question: newQuestion.question,
+                answer: newQuestion.answer,
+                category: newQuestion.category,
+                difficulty: newQuestion.difficulty,
+                questionFormat:
+                  newQuestion.questionFormat ||
+                  skill.questionFormat ||
+                  "Scenario",
+                coding: newQuestion.coding || skill.questionFormat === "Coding",
+                floCareerId: null, // Reset floCareerId for new question
+              }),
+              skillId: skillId,
+              recordId: recordId,
+              liked: "NONE",
               coding: newQuestion.coding || skill.questionFormat === "Coding",
-              floCareerId: originalQuestion.floCareerId || null,
-            }),
-            liked: "NONE",
-            feedback: null, // Clear feedback after regeneration
-          },
-        });
+              floCareerId: null, // Reset floCareerId for new question
+            },
+          });
 
-        // Create or update a regeneration record
-        await prisma.regeneration.upsert({
-          where: {
-            originalQuestionId_newQuestionId: {
+          // Create a regeneration record
+          await tx.regeneration.create({
+            data: {
               originalQuestionId: originalQuestion.id,
-              newQuestionId: originalQuestion.id,
-            }
-          },
-          update: {
-            reason: "Skill questions regeneration",
-            userFeedback: feedback,
-            updatedAt: new Date(),
-          },
-          create: {
-            originalQuestionId: originalQuestion.id,
-            newQuestionId: originalQuestion.id, // Same as original since we're updating in place
-            reason: "Skill questions regeneration",
-            userFeedback: feedback,
-            skillId: skillId,
-            recordId: recordId,
-          },
-        });
+              newQuestionId: newQuestionRecord.id,
+              reason: "Skill questions regeneration",
+              userFeedback: feedback,
+              skillId: skillId,
+              recordId: recordId,
+            },
+          });
 
-        updatedQuestions.push(updatedQuestion);
-      }
+          updatedQuestions.push(newQuestionRecord);
+        }
+
+        return updatedQuestions;
+      });
 
       return NextResponse.json({
         success: true,
-        message: `Successfully regenerated ${updatedQuestions.length} questions for skill ${skill.name}`,
-        questions: updatedQuestions,
+        message: `Successfully regenerated ${result.length} questions for skill ${skill.name}`,
+        questions: result,
       });
     } catch (e) {
       console.error(`Error processing regenerated questions:`, e);

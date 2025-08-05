@@ -149,52 +149,57 @@ Example:
         throw new Error("Invalid response format from OpenAI");
       }
 
-      // Update the question in the database
-      await prisma.question.update({
-        where: { id: questionId },
-        data: {
-          content: JSON.stringify({
-            question: newQuestion.question,
-            answer: newQuestion.answer,
-            category: newQuestion.category,
-            difficulty: newQuestion.difficulty,
-            questionFormat: newQuestion.questionFormat || "Scenario",
-            coding: newQuestion.coding || false,
-            floCareerId: questionContent.floCareerId || null,
-          }),
-          liked: "NONE",
-          feedback: null, // Clear feedback after regeneration
-        },
-      });
+      // Use a transaction to mark the old question as deleted and create the new question
+      const result = await prisma.$transaction(async (tx) => {
+        // Mark the existing question as deleted
+        await tx.question.update({
+          where: { id: questionId },
+          data: {
+            deleted: true,
+            deletedFeedback: reason || "Disliked question",
+          },
+        });
 
-      // Create or update a regeneration record
-      await prisma.regeneration.upsert({
-        where: {
-          originalQuestionId_newQuestionId: {
+        // Create the new question
+        const newQuestionRecord = await tx.question.create({
+          data: {
+            content: JSON.stringify({
+              question: newQuestion.question,
+              answer: newQuestion.answer,
+              category: newQuestion.category,
+              difficulty: newQuestion.difficulty,
+              questionFormat: newQuestion.questionFormat || "Scenario",
+              coding: newQuestion.coding || false,
+              floCareerId: null, // Reset floCareerId for new question
+            }),
+            skillId: question.skillId,
+            recordId: question.recordId,
+            liked: "NONE",
+            coding: newQuestion.coding || false,
+            floCareerId: null, // Reset floCareerId for new question
+          },
+        });
+
+        // Create or update a regeneration record
+        const regeneration = await tx.regeneration.create({
+          data: {
             originalQuestionId: questionId,
-            newQuestionId: questionId,
-          }
-        },
-        update: {
-          reason: reason || "Disliked question",
-          userFeedback: userFeedback,
-          updatedAt: new Date(),
-        },
-        create: {
-          originalQuestionId: questionId,
-          newQuestionId: questionId, // Same as original since we're updating in place
-          reason: reason || "Disliked question",
-          userFeedback: userFeedback,
-          skillId: question.skill.id,
-          recordId: question.recordId,
-        },
+            newQuestionId: newQuestionRecord.id,
+            reason: reason || "Disliked question",
+            userFeedback: userFeedback,
+            skillId: question.skill.id,
+            recordId: question.recordId,
+          },
+        });
+
+        return { newQuestionRecord, regeneration };
       });
 
       return NextResponse.json({
         success: true,
         message: "Successfully regenerated question",
         question: {
-          id: questionId,
+          id: result.newQuestionRecord.id,
           content: {
             question: newQuestion.question,
             answer: newQuestion.answer,
@@ -202,7 +207,7 @@ Example:
             difficulty: newQuestion.difficulty,
             questionFormat: newQuestion.questionFormat || "Scenario",
             coding: newQuestion.coding || false,
-            floCareerId: questionContent.floCareerId || null,
+            floCareerId: null, // Reset floCareerId for new question
           },
         },
       });

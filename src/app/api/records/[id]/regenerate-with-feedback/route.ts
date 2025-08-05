@@ -172,9 +172,9 @@ Example:
   }
 ]}
 `;
-const logger = getLogger("regenerate-with-feedback");
-logger.info(prompt);
-console.log(prompt);
+      const logger = getLogger("regenerate-with-feedback");
+      logger.info(prompt);
+      console.log(prompt);
       // Call OpenAI
       const chatCompletion = await openai.chat.completions.create({
         model: "gpt-4.1",
@@ -223,35 +223,65 @@ You must generate exactly the requested number of questions.`,
           );
         }
 
-        // Update each question in the database
-        for (
-          let i = 0;
-          i < Math.min(newQuestions.length, questionsWithFeedback.length);
-          i++
-        ) {
-          const newQuestion = newQuestions[i];
-          const oldQuestion = questionsWithFeedback[i];
+        // Use a transaction to mark old questions as deleted and create new ones
+        await prisma.$transaction(async (tx) => {
+          // First, mark all existing questions as deleted
+          for (const oldQuestion of questionsWithFeedback) {
+            await tx.question.update({
+              where: { id: oldQuestion!.id },
+              data: {
+                deleted: true,
+                deletedFeedback:
+                  feedbackMap.get(oldQuestion!.id) ||
+                  "Regenerated with feedback",
+              },
+            });
+          }
 
-          // Update the question
-          await prisma.question.update({
-            where: { id: oldQuestion!.id },
-            data: {
-              content: JSON.stringify({
-                question: newQuestion.question,
-                answer: newQuestion.answer,
-                category: newQuestion.category,
-                difficulty: newQuestion.difficulty,
-                questionFormat: newQuestion.questionFormat || "Scenario",
+          // Then create new questions
+          for (
+            let i = 0;
+            i < Math.min(newQuestions.length, questionsWithFeedback.length);
+            i++
+          ) {
+            const newQuestion = newQuestions[i];
+            const oldQuestion = questionsWithFeedback[i];
+
+            // Create the new question
+            const newQuestionRecord = await tx.question.create({
+              data: {
+                content: JSON.stringify({
+                  question: newQuestion.question,
+                  answer: newQuestion.answer,
+                  category: newQuestion.category,
+                  difficulty: newQuestion.difficulty,
+                  questionFormat: newQuestion.questionFormat || "Scenario",
+                  coding: newQuestion.coding || false,
+                  floCareerId: null, // Reset floCareerId for new question
+                }),
+                skillId: skill.id,
+                recordId: record.id,
+                liked: "NONE",
                 coding: newQuestion.coding || false,
-                floCareerId: oldQuestion?.floCareerId || null,
-              }),
-              liked: "NONE",
-              feedback: null, // Clear feedback after regeneration
-            },
-          });
+                floCareerId: null, // Reset floCareerId for new question
+              },
+            });
 
-          totalRegeneratedQuestions++;
-        }
+            // Create a regeneration record
+            await tx.regeneration.create({
+              data: {
+                originalQuestionId: oldQuestion!.id,
+                newQuestionId: newQuestionRecord.id,
+                reason: "Regenerated with feedback",
+                userFeedback: feedbackMap.get(oldQuestion!.id) || null,
+                skillId: skill.id,
+                recordId: record.id,
+              },
+            });
+
+            totalRegeneratedQuestions++;
+          }
+        });
       } catch (e) {
         console.error(
           `Error processing regenerated questions for skill ${skill.name}:`,

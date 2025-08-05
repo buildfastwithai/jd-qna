@@ -283,17 +283,22 @@ export async function POST(
         `Generating ${neededCount} questions for skill ${skill.name}`
       );
 
-      // If forceRegenerate is true and we already have questions, delete the existing ones
+      // If forceRegenerate is true and we already have questions, mark the existing ones as deleted
       if (forceRegenerate && existingCount > 0) {
         console.log(
-          `Deleting ${existingCount} existing questions for skill ${skill.name}`
+          `Marking ${existingCount} existing questions as deleted for skill ${skill.name}`
         );
 
-        // Delete existing questions for this skill
-        await prisma.question.deleteMany({
+        // Mark existing questions for this skill as deleted (soft delete)
+        await prisma.question.updateMany({
           where: {
             skillId: skill.id,
             recordId: id,
+            deleted: false, // Only update non-deleted questions
+          },
+          data: {
+            deleted: true,
+            deletedFeedback: "Force regenerated questions",
           },
         });
 
