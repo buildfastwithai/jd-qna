@@ -2304,6 +2304,9 @@ export default function SkillRecordEditor({
         const questionPoolsList = [];
 
         for (const skill of editedSkills) {
+          // Skip deleted skills as they will be handled separately
+          if (skill.deleted) continue;
+
           const skillQuestions = questionsWithFloId.filter(
             (q) => q.skillId === skill.id
           );
@@ -2331,7 +2334,7 @@ export default function SkillRecordEditor({
 
               if (activeQuestionIds.length > 0) {
                 const pool = {
-                  pool_id: 0,
+                  pool_id: skill.floCareerId || 0, // Use actual pool_id if exists, otherwise 0 for new
                   action: "add",
                   name: skill.name,
                   num_of_questions_to_ask: activeQuestionIds.length,
@@ -2341,7 +2344,7 @@ export default function SkillRecordEditor({
               }
             }
 
-            // Handle deleted questions
+            // Handle deleted questions for non-deleted skills
             if (deletedQuestions.length > 0) {
               const deletedQuestionIds = deletedQuestions
                 .map((q) => {
@@ -2359,7 +2362,7 @@ export default function SkillRecordEditor({
 
               if (deletedQuestionIds.length > 0) {
                 const deletedPool = {
-                  pool_id: 0,
+                  pool_id: skill.floCareerId || 0, // Use actual pool_id for deletion
                   action: "delete",
                   name: skill.name,
                   num_of_questions_to_ask: 0,
@@ -2371,11 +2374,46 @@ export default function SkillRecordEditor({
           }
         }
 
-        // Add delete actions for deleted skills' pools
+        // Handle deleted skills and their questions
+        for (const skill of editedSkills.filter((s) => s.deleted)) {
+          const skillQuestions = questionsWithFloId.filter(
+            (q) => q.skillId === skill.id
+          );
+
+          if (skillQuestions.length > 0) {
+            // For deleted skills, all questions should be marked for deletion
+            const deletedQuestionIds = skillQuestions
+              .map((q) => {
+                const mapping = questionIdMapping.find(
+                  (m) => m.originalId === q.id
+                );
+                if (!mapping) return null;
+
+                const questionData = questionResult.questions.find(
+                  (qr: any) => qr.ai_question_id === mapping.tempId
+                );
+                return questionData?.question_id || null;
+              })
+              .filter(Boolean);
+
+            if (deletedQuestionIds.length > 0) {
+              const deletedPool = {
+                pool_id: skill.floCareerId || 0, // Use actual pool_id for deletion
+                action: "delete",
+                name: skill.name,
+                num_of_questions_to_ask: 0,
+                questions: deletedQuestionIds,
+              };
+              questionPoolsList.push(deletedPool);
+            }
+          }
+        }
+
+        // Add delete actions for deleted skills' pools (from deletedSkills array)
         const deletedSkillPools = deletedSkills
-          .filter((skill) => skill.poolId)
+          .filter((skill) => skill.floCareerId) // Only include skills that have been saved to FloCareer
           .map((skill) => ({
-            pool_id: skill.poolId!,
+            pool_id: skill.floCareerId!, // Use the actual FloCareer pool ID
             action: "delete",
             name: skill.name,
             num_of_questions_to_ask: 0,
@@ -2391,6 +2429,11 @@ export default function SkillRecordEditor({
             round_id: record.roundId,
             question_pools: allQuestionPools,
           };
+
+          console.log(
+            "Interview structure request body:",
+            structureRequestBody
+          );
 
           const structureResponse = await fetch(
             "https://sandbox.flocareer.com/dynamic/corporate/create-interview-structure/",
