@@ -62,12 +62,17 @@ export async function POST(
 
         // Create delete action for each pool
         for (const poolId of poolIds) {
+          // Get all question IDs for this pool that belong to this skill
+          const questionIds = questionsWithFloId
+            .filter((q) => q.floCareerPoolId === poolId && q.floCareerId)
+            .map((q) => q.floCareerId!);
+
           const deletedSkillPool = {
             pool_id: poolId,
             action: "delete",
             name: skill.name,
             num_of_questions_to_ask: 0,
-            questions: [],
+            questions: questionIds,
           };
           questionPools.push(deletedSkillPool);
         }
