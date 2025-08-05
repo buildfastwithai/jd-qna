@@ -42,7 +42,7 @@ export async function POST(
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
+          Authorization: `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
         },
         body: JSON.stringify({
           jobDescription: `Job Title: ${jobTitle}`,
@@ -72,24 +72,9 @@ export async function POST(
         const level = skill.level || "INTERMEDIATE";
         const category = skill.category || "TECHNICAL";
 
-        // Create or update the skill
-        return await prisma.skill.upsert({
-          where: {
-            name_recordId: {
-              recordId: id,
-              name: skill.name,
-            },
-          },
-          update: {
-            level: level,
-            requirement: isOptional ? "OPTIONAL" : "MANDATORY",
-            numQuestions: numQuestions,
-            difficulty: skill.difficulty || "Medium",
-            priority: index + 1,
-            category: category,
-            questionFormat: "Scenario",
-          },
-          create: {
+        // Create the skill
+        return await prisma.skill.create({
+          data: {
             name: skill.name,
             level: level,
             requirement: isOptional ? "OPTIONAL" : "MANDATORY",
