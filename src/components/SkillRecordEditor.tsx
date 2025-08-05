@@ -234,6 +234,17 @@ export default function SkillRecordEditor({
     }>
   >([]);
 
+  // Track deleted questions for summary dialog
+  const [deletedQuestions, setDeletedQuestions] = useState<
+    Array<{
+      id: string;
+      question: string;
+      skillName: string;
+      floCareerId?: number;
+      floCareerPoolId?: number;
+    }>
+  >([]);
+
   // Parse question content from JSON string
   function formatQuestions(questions: Question[]): QuestionData[] {
     return questions
@@ -587,6 +598,12 @@ export default function SkillRecordEditor({
   // Call fetchGlobalFeedback when component mounts
   useEffect(() => {
     fetchGlobalFeedback();
+  }, [record.id]);
+
+  // Clear deleted tracking when record changes
+  useEffect(() => {
+    setDeletedSkills([]);
+    setDeletedQuestions([]);
   }, [record.id]);
 
   // Update the regenerate function to include global feedback
@@ -1632,6 +1649,22 @@ export default function SkillRecordEditor({
         throw new Error("Failed to delete question");
       }
 
+      // Parse the question content to get the question text
+      const questionContent = JSON.parse(questionToDelete.content);
+      const skillName = getSkillName(questionToDelete.skillId);
+
+      // Track the deleted question for summary
+      setDeletedQuestions((prevDeleted) => [
+        ...prevDeleted,
+        {
+          id: questionToDelete.id,
+          question: questionContent.question,
+          skillName: skillName,
+          floCareerId: questionToDelete.floCareerId,
+          floCareerPoolId: questionToDelete.floCareerPoolId,
+        },
+      ]);
+
       // Update the questions state to reflect the deletion
       setQuestions((prevQuestions) =>
         prevQuestions.map((q) =>
@@ -1750,6 +1783,22 @@ export default function SkillRecordEditor({
         (q) => q.skillId === skillId && !q.deleted
       );
       if (skillQuestions.length === 0) return;
+
+      const skillName = getSkillName(skillId);
+
+      // Track deleted questions for summary
+      const questionsToTrack = skillQuestions.map((question) => ({
+        id: question.id,
+        question: question.question,
+        skillName: skillName,
+        floCareerId: question.floCareerId,
+        floCareerPoolId: question.floCareerPoolId,
+      }));
+
+      setDeletedQuestions((prevDeleted) => [
+        ...prevDeleted,
+        ...questionsToTrack,
+      ]);
 
       // Delete each question
       for (const question of skillQuestions) {
@@ -2422,8 +2471,9 @@ export default function SkillRecordEditor({
       );
       setFinalSubmitDialogOpen(false);
 
-      // Clear deleted skills after successful submission
+      // Clear deleted skills and questions after successful submission
       setDeletedSkills([]);
+      setDeletedQuestions([]);
 
       // Send success message to parent window
       try {
@@ -2448,6 +2498,10 @@ export default function SkillRecordEditor({
     } catch (error: any) {
       console.error("Error submitting to FloCareer:", error);
       toast.error(error.message || "Failed to submit to FloCareer");
+
+      // Clear deleted tracking on error to prevent accumulation
+      setDeletedSkills([]);
+      setDeletedQuestions([]);
 
       // Send error message to parent window
       try {
@@ -3790,6 +3844,18 @@ export default function SkillRecordEditor({
               <br />• {questions.filter((q) => !q.deleted).length} question
               {questions.filter((q) => !q.deleted).length > 1 ? "s" : ""} will
               be saved
+              {deletedSkills.length > 0 && (
+                <>
+                  <br />• {deletedSkills.length} skill
+                  {deletedSkills.length > 1 ? "s" : ""} will be deleted
+                </>
+              )}
+              {deletedQuestions.length > 0 && (
+                <>
+                  <br />• {deletedQuestions.length} question
+                  {deletedQuestions.length > 1 ? "s" : ""} will be deleted
+                </>
+              )}
               <br />
               • Interview structure will be created automatically
               <br />
