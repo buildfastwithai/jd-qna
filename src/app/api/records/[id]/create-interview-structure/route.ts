@@ -50,6 +50,31 @@ export async function POST(
       // Get all questions with floCareerId for this skill
       const questionsWithFloId = skill.questions.filter((q) => q.floCareerId);
 
+      // Handle deleted skills
+      if (skill.deleted) {
+        // Get unique pool IDs from questions of this skill
+        const poolIds = new Set<number>();
+        for (const question of questionsWithFloId) {
+          if (question.floCareerPoolId) {
+            poolIds.add(question.floCareerPoolId);
+          }
+        }
+
+        // Create delete action for each pool
+        for (const poolId of poolIds) {
+          const deletedSkillPool = {
+            pool_id: poolId,
+            action: "delete",
+            name: skill.name,
+            num_of_questions_to_ask: 0,
+            questions: [],
+          };
+          questionPools.push(deletedSkillPool);
+        }
+        continue; // Skip processing questions for deleted skills
+      }
+
+      // Handle active skills
       if (questionsWithFloId.length > 0) {
         // Separate active and deleted questions
         const activeQuestions = questionsWithFloId.filter((q) => !q.deleted);
@@ -57,47 +82,63 @@ export async function POST(
 
         // Handle active questions
         if (activeQuestions.length > 0) {
-          const pool = {
-            pool_id: 0,
-            action: "add",
-            name: skill.name,
-            num_of_questions_to_ask: activeQuestions.length,
-            questions: activeQuestions.map((q) => q.floCareerId),
-          };
-          questionPools.push(pool);
+          // Group active questions by their floCareerPoolId
+          const questionsByPool = new Map<number, number[]>();
+
+          for (const question of activeQuestions) {
+            if (question.floCareerId) {
+              const poolId = question.floCareerPoolId || 0;
+              if (!questionsByPool.has(poolId)) {
+                questionsByPool.set(poolId, []);
+              }
+              questionsByPool.get(poolId)!.push(question.floCareerId);
+            }
+          }
+
+          // Create pools for active questions
+          for (const [poolId, questionIds] of questionsByPool) {
+            const action = poolId === 0 ? "add" : "edit";
+            const pool = {
+              pool_id: poolId,
+              action: action,
+              name: skill.name,
+              num_of_questions_to_ask: questionIds.length,
+              questions: questionIds,
+            };
+            questionPools.push(pool);
+          }
         }
 
-        // Handle deleted questions
+        // Handle deleted questions (exclude from questions array, action: edit if floCareerPoolId exists)
         if (deletedQuestions.length > 0) {
-          const deletedQuestionIds = deletedQuestions
-            .map((q) => q.floCareerId)
-            .filter(Boolean); // Only include questions that have a floCareerId
+          // Group deleted questions by their floCareerPoolId
+          const deletedQuestionsByPool = new Map<number, number[]>();
 
-          if (deletedQuestionIds.length > 0) {
-            // Group deleted questions by their floCareerPoolId
-            const questionsByPool = new Map<number, number[]>();
-
-            for (const question of deletedQuestions) {
-              if (question.floCareerId && question.floCareerPoolId) {
-                const poolId = question.floCareerPoolId;
-                if (!questionsByPool.has(poolId)) {
-                  questionsByPool.set(poolId, []);
-                }
-                questionsByPool.get(poolId)!.push(question.floCareerId);
+          for (const question of deletedQuestions) {
+            if (question.floCareerId && question.floCareerPoolId) {
+              const poolId = question.floCareerPoolId;
+              if (!deletedQuestionsByPool.has(poolId)) {
+                deletedQuestionsByPool.set(poolId, []);
               }
+              deletedQuestionsByPool.get(poolId)!.push(question.floCareerId);
             }
+          }
 
-            // Create separate delete pools for each unique pool_id
-            for (const [poolId, questionIds] of questionsByPool) {
-              const deletedPool = {
-                pool_id: poolId, // Use floCareerPoolId for deletion
-                action: "delete",
-                name: skill.name,
-                num_of_questions_to_ask: questionIds.length,
-                questions: questionIds,
-              };
-              questionPools.push(deletedPool);
-            }
+          // Create edit pools for deleted questions (excluding them from questions array)
+          for (const [poolId, questionIds] of deletedQuestionsByPool) {
+            // Get remaining active questions for this pool
+            const remainingActiveQuestions = activeQuestions
+              .filter((q) => q.floCareerPoolId === poolId && q.floCareerId)
+              .map((q) => q.floCareerId!);
+
+            const editPool = {
+              pool_id: poolId,
+              action: "edit",
+              name: skill.name,
+              num_of_questions_to_ask: remainingActiveQuestions.length,
+              questions: remainingActiveQuestions, // Only include active questions
+            };
+            questionPools.push(editPool);
           }
         }
       }

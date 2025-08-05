@@ -2552,75 +2552,83 @@ export default function SkillRecordEditor({
             structureRequestBody
           );
 
-          const structureResponse = await fetch(
-            "https://sandbox.flocareer.com/dynamic/corporate/create-interview-structure/",
+          // const structureResponse = await fetch(
+          //   "https://sandbox.flocareer.com/dynamic/corporate/create-interview-structure/",
+          //   {
+          //     method: "POST",
+          //     headers: {
+          //       "Content-Type": "application/json",
+          //     },
+          //     body: JSON.stringify(structureRequestBody),
+          //   }
+          // );
+
+          // if (structureResponse.ok) {
+          //   const structureResult = await structureResponse.json();
+          //   if (structureResult.success) {
+          //     console.log("Interview structure created:", structureResult);
+
+          //     // Process the response to update floCareerPoolId for questions
+          //     if (
+          //       structureResult.question_pools &&
+          //       Array.isArray(structureResult.question_pools)
+          //     ) {
+          //       for (const pool of structureResult.question_pools) {
+          //         if (pool.questions && Array.isArray(pool.questions)) {
+          //           for (const questionData of pool.questions) {
+          //             if (
+          //               questionData.ai_question_id &&
+          //               questionData.question_id
+          //             ) {
+          //               // Find the question by ai_question_id and update its floCareerPoolId
+          //               const mapping = questionIdMapping.find(
+          //                 (m) => m.tempId === questionData.ai_question_id
+          //               );
+
+          //               if (mapping) {
+          //                 // Update the question in the database with the pool_id as floCareerPoolId
+          //                 await fetch(`/api/questions/${mapping.originalId}`, {
+          //                   method: "PATCH",
+          //                   headers: {
+          //                     "Content-Type": "application/json",
+          //                     Authorization: `Bearer ${
+          //                       process.env.NEXT_PUBLIC_AUTH_TOKEN || ""
+          //                     }`,
+          //                   },
+          //                   body: JSON.stringify({
+          //                     floCareerPoolId: pool.pool_id,
+          //                     floCareerId: questionData.question_id,
+          //                   }),
+          //                 });
+
+          //                 // Update local state
+          //                 setQuestions((prevQuestions) =>
+          //                   prevQuestions.map((question) =>
+          //                     question.id === mapping.originalId
+          //                       ? {
+          //                           ...question,
+          //                           floCareerPoolId: pool.pool_id,
+          //                           floCareerId: questionData.question_id,
+          //                         }
+          //                       : question
+          //                   )
+          //                 );
+          //               }
+          //             }
+          //           }
+          //         }
+          //       }
+          //     }
+          //   }
+          // }
+
+          const response = await fetch(
+            `/api/records/${record.id}/create-interview-structure`,
             {
               method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify(structureRequestBody),
+              // body: JSON.stringify(structureRequestBody),
             }
           );
-
-          if (structureResponse.ok) {
-            const structureResult = await structureResponse.json();
-            if (structureResult.success) {
-              console.log("Interview structure created:", structureResult);
-
-              // Process the response to update floCareerPoolId for questions
-              if (
-                structureResult.question_pools &&
-                Array.isArray(structureResult.question_pools)
-              ) {
-                for (const pool of structureResult.question_pools) {
-                  if (pool.questions && Array.isArray(pool.questions)) {
-                    for (const questionData of pool.questions) {
-                      if (
-                        questionData.ai_question_id &&
-                        questionData.question_id
-                      ) {
-                        // Find the question by ai_question_id and update its floCareerPoolId
-                        const mapping = questionIdMapping.find(
-                          (m) => m.tempId === questionData.ai_question_id
-                        );
-
-                        if (mapping) {
-                          // Update the question in the database with the pool_id as floCareerPoolId
-                          await fetch(`/api/questions/${mapping.originalId}`, {
-                            method: "PATCH",
-                            headers: {
-                              "Content-Type": "application/json",
-                              Authorization: `Bearer ${
-                                process.env.NEXT_PUBLIC_AUTH_TOKEN || ""
-                              }`,
-                            },
-                            body: JSON.stringify({
-                              floCareerPoolId: pool.pool_id,
-                              floCareerId: questionData.question_id,
-                            }),
-                          });
-
-                          // Update local state
-                          setQuestions((prevQuestions) =>
-                            prevQuestions.map((question) =>
-                              question.id === mapping.originalId
-                                ? {
-                                    ...question,
-                                    floCareerPoolId: pool.pool_id,
-                                    floCareerId: questionData.question_id,
-                                  }
-                                : question
-                            )
-                          );
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
         }
       }
 
