@@ -91,7 +91,7 @@ export async function POST(
         skills: {
           where: specificSkillIds
             ? // If specific skill IDs are provided, filter by those
-              { id: { in: specificSkillIds } }
+              { id: { in: specificSkillIds }, deleted: { not: true } }
             : // Otherwise, use the original logic
               {
                 OR: [
@@ -103,6 +103,7 @@ export async function POST(
                     ],
                   },
                 ],
+                deleted: { not: true },
               },
         },
       },

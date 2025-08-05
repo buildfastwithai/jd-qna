@@ -2027,48 +2027,6 @@ export default function SkillRecordEditor({
     }
   };
 
-  // Create interview structure in FloCareer
-  const createInterviewStructure = async () => {
-    if (!record.reqId || !record.userId) {
-      toast.error("Missing required information for FloCareer integration");
-      return;
-    }
-
-    try {
-      setCreatingInterviewStructure(true);
-
-      const response = await fetch(
-        `/api/records/${record.id}/create-interview-structure`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
-      }
-
-      const result = await response.json();
-
-      if (result.success) {
-        toast.success("Interview structure created successfully in FloCareer!");
-        console.log("Interview structure created:", result.data);
-        console.log("Question pools:", result.questionPools);
-      } else {
-        throw new Error(result.error || "Failed to create interview structure");
-      }
-    } catch (error: any) {
-      console.error("Error creating interview structure:", error);
-      toast.error(error.message || "Failed to create interview structure");
-    } finally {
-      setCreatingInterviewStructure(false);
-    }
-  };
-
   // Add function to get query parameters
   const getQueryParam = (name: string) => {
     console.log("....", window.location.search);
