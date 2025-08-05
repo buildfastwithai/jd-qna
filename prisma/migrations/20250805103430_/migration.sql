@@ -20,6 +20,7 @@ CREATE TABLE "SkillRecord" (
     "userId" INTEGER,
     "interviewLength" INTEGER,
     "rawJobDescription" TEXT,
+    "roundId" INTEGER,
 
     CONSTRAINT "SkillRecord_pkey" PRIMARY KEY ("id")
 );
@@ -37,6 +38,7 @@ CREATE TABLE "Skill" (
     "priority" INTEGER,
     "category" "SkillCategory" DEFAULT 'TECHNICAL',
     "questionFormat" TEXT DEFAULT 'Scenario based',
+    "deleted" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "Skill_pkey" PRIMARY KEY ("id")
 );
@@ -51,6 +53,9 @@ CREATE TABLE "Question" (
     "liked" "LikeStatus" DEFAULT 'NONE',
     "feedback" TEXT,
     "coding" BOOLEAN NOT NULL DEFAULT false,
+    "deleted" BOOLEAN NOT NULL DEFAULT false,
+    "deletedFeedback" TEXT,
+    "floCareerPoolId" INTEGER,
 
     CONSTRAINT "Question_pkey" PRIMARY KEY ("id")
 );
@@ -125,9 +130,6 @@ CREATE TABLE "ExcelQuestion" (
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Skill_name_recordId_key" ON "Skill"("name", "recordId");
-
--- CreateIndex
 CREATE UNIQUE INDEX "GlobalFeedback_recordId_key" ON "GlobalFeedback"("recordId");
 
 -- CreateIndex
@@ -137,10 +139,10 @@ CREATE UNIQUE INDEX "Regeneration_originalQuestionId_newQuestionId_key" ON "Rege
 ALTER TABLE "Skill" ADD CONSTRAINT "Skill_recordId_fkey" FOREIGN KEY ("recordId") REFERENCES "SkillRecord"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Question" ADD CONSTRAINT "Question_skillId_fkey" FOREIGN KEY ("skillId") REFERENCES "Skill"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "Question" ADD CONSTRAINT "Question_recordId_fkey" FOREIGN KEY ("recordId") REFERENCES "SkillRecord"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Question" ADD CONSTRAINT "Question_recordId_fkey" FOREIGN KEY ("recordId") REFERENCES "SkillRecord"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "Question" ADD CONSTRAINT "Question_skillId_fkey" FOREIGN KEY ("skillId") REFERENCES "Skill"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Feedback" ADD CONSTRAINT "Feedback_skillId_fkey" FOREIGN KEY ("skillId") REFERENCES "Skill"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -149,16 +151,16 @@ ALTER TABLE "Feedback" ADD CONSTRAINT "Feedback_skillId_fkey" FOREIGN KEY ("skil
 ALTER TABLE "GlobalFeedback" ADD CONSTRAINT "GlobalFeedback_recordId_fkey" FOREIGN KEY ("recordId") REFERENCES "SkillRecord"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Regeneration" ADD CONSTRAINT "Regeneration_originalQuestionId_fkey" FOREIGN KEY ("originalQuestionId") REFERENCES "Question"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "Regeneration" ADD CONSTRAINT "Regeneration_newQuestionId_fkey" FOREIGN KEY ("newQuestionId") REFERENCES "Question"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Regeneration" ADD CONSTRAINT "Regeneration_skillId_fkey" FOREIGN KEY ("skillId") REFERENCES "Skill"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "Regeneration" ADD CONSTRAINT "Regeneration_originalQuestionId_fkey" FOREIGN KEY ("originalQuestionId") REFERENCES "Question"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Regeneration" ADD CONSTRAINT "Regeneration_recordId_fkey" FOREIGN KEY ("recordId") REFERENCES "SkillRecord"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Regeneration" ADD CONSTRAINT "Regeneration_skillId_fkey" FOREIGN KEY ("skillId") REFERENCES "Skill"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "ExcelQuestionSet" ADD CONSTRAINT "ExcelQuestionSet_recordId_fkey" FOREIGN KEY ("recordId") REFERENCES "SkillRecord"("id") ON DELETE CASCADE ON UPDATE CASCADE;
