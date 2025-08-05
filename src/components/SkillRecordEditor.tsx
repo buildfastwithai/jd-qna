@@ -2237,7 +2237,13 @@ export default function SkillRecordEditor({
       ];
 
       if (allQuestionsForStructure.length > 0) {
-        const questionPoolsList = [];
+        const questionPoolsList: Array<{
+          pool_id: number;
+          action: string;
+          name: string;
+          num_of_questions_to_ask: number;
+          questions: number[];
+        }> = [];
 
         for (const skill of editedSkills) {
           // Skip deleted skills as they will be handled separately
@@ -2249,13 +2255,38 @@ export default function SkillRecordEditor({
 
           if (skillQuestions.length > 0) {
             // Separate active and deleted questions for this skill
+            // For edit actions, we only include active questions (excluding deleted ones)
             const activeQuestions = skillQuestions.filter((q) => !q.deleted);
             const deletedQuestions = skillQuestions.filter((q) => q.deleted);
 
-            // Handle active questions
+            // Handle active questions (non-deleted questions for add/edit actions)
             if (activeQuestions.length > 0) {
               // Group active questions by their floCareerPoolId
               const questionsByPool = new Map<number, number[]>();
+
+              // Debug: Log active questions for this skill
+              console.log(
+                `Active questions for skill ${skill.name}:`,
+                activeQuestions.map((q) => ({
+                  id: q.id,
+                  floCareerId: q.floCareerId,
+                  floCareerPoolId: q.floCareerPoolId,
+                  deleted: q.deleted,
+                }))
+              );
+
+              // Debug: Log deleted questions that will be excluded from edit actions
+              if (deletedQuestions.length > 0) {
+                console.log(
+                  `Deleted questions for skill ${skill.name} (will be excluded from edit actions):`,
+                  deletedQuestions.map((q) => ({
+                    id: q.id,
+                    floCareerId: q.floCareerId,
+                    floCareerPoolId: q.floCareerPoolId,
+                    deleted: q.deleted,
+                  }))
+                );
+              }
 
               for (const question of activeQuestions) {
                 let questionId = null;
@@ -2290,61 +2321,87 @@ export default function SkillRecordEditor({
 
               // Create pools for each unique pool_id
               for (const [poolId, questionIds] of questionsByPool) {
+                // Determine action: if poolId is 0, it's a new pool (add action), otherwise it's an existing pool (edit action)
                 const action = poolId === 0 ? "add" : "edit";
+
+                // For edit actions, exclude deleted question IDs from the questions array
+                const finalQuestionIds =
+                  action === "edit"
+                    ? questionIds.filter((id) => {
+                        // Find the question by ID and ensure it's not deleted
+                        const question = activeQuestions.find((q) => {
+                          const mapping = questionIdMapping.find(
+                            (m) => m.originalId === q.id
+                          );
+                          if (mapping) {
+                            const questionData = questionResult.questions.find(
+                              (qr: any) => qr.ai_question_id === mapping.tempId
+                            );
+                            return questionData?.question_id === id;
+                          }
+                          return q.floCareerId === id;
+                        });
+
+                        // Ensure the question exists and is not deleted
+                        const isValidQuestion = question && !question.deleted;
+
+                        if (!isValidQuestion) {
+                          console.log(
+                            `Excluding deleted question ID ${id} from edit action for skill ${skill.name}`
+                          );
+                        }
+
+                        return isValidQuestion;
+                      })
+                    : questionIds;
+
                 const pool = {
                   pool_id: poolId,
                   action: action,
                   name: skill.name,
-                  num_of_questions_to_ask: questionIds.length,
-                  questions: questionIds,
+                  num_of_questions_to_ask: finalQuestionIds.length,
+                  questions: finalQuestionIds,
                 };
+
+                // Debug log to show what's being sent for each action
+                console.log(`Pool for ${skill.name}:`, {
+                  action,
+                  poolId,
+                  questionCount: finalQuestionIds.length,
+                  questions: finalQuestionIds,
+                  isEditAction: action === "edit",
+                  excludedQuestions:
+                    action === "edit"
+                      ? questionIds.filter(
+                          (id) => !finalQuestionIds.includes(id)
+                        )
+                      : [],
+                  totalQuestionsInPool: questionIds.length,
+                });
+
                 questionPoolsList.push(pool);
               }
             }
 
-            // Handle deleted questions for non-deleted skills
-            if (deletedQuestions.length > 0) {
-              // Group deleted questions by their floCareerPoolId
-              const questionsByPool = new Map<number, number[]>();
-
-              for (const question of deletedQuestions) {
-                // Only process deleted questions that have both floCareerId and floCareerPoolId
-                if (question.floCareerId && question.floCareerPoolId) {
-                  const poolId = question.floCareerPoolId;
-                  if (!questionsByPool.has(poolId)) {
-                    questionsByPool.set(poolId, []);
-                  }
-                  questionsByPool.get(poolId)!.push(question.floCareerId);
-                }
-              }
-
-              // Create separate delete pools for each unique pool_id
-              for (const [poolId, questionIds] of questionsByPool) {
-                const deletedPool = {
-                  pool_id: poolId, // Use floCareerPoolId for deletion
-                  action: "delete",
-                  name: skill.name,
-                  num_of_questions_to_ask: questionIds.length,
-                  questions: questionIds,
-                };
-                questionPoolsList.push(deletedPool);
-              }
-            }
+            // Note: Deleted questions are now handled within the edit action by excluding their IDs from the questions array
+            // No separate delete pools are created for individual deleted questions
           }
         }
 
         // Handle deleted skills and their questions
+        // When a skill is deleted, ALL questions related to that skill should be marked for deletion
         for (const skill of editedSkills.filter((s) => s.deleted)) {
-          const skillQuestions = allQuestionsForStructure.filter(
+          // Get ALL questions for this deleted skill (both active and deleted)
+          const allSkillQuestions = questions.filter(
             (q) => q.skillId === skill.id
           );
 
-          if (skillQuestions.length > 0) {
-            // Group deleted questions by their floCareerPoolId
+          if (allSkillQuestions.length > 0) {
+            // Group ALL questions by their floCareerPoolId (both active and deleted)
             const questionsByPool = new Map<number, number[]>();
 
-            for (const question of skillQuestions) {
-              // Only process deleted questions that have both floCareerId and floCareerPoolId
+            for (const question of allSkillQuestions) {
+              // For deleted skills, we want to delete ALL questions regardless of their deleted status
               if (question.floCareerId && question.floCareerPoolId) {
                 const poolId = question.floCareerPoolId;
                 if (!questionsByPool.has(poolId)) {
@@ -2354,7 +2411,7 @@ export default function SkillRecordEditor({
               }
             }
 
-            // Create separate delete pools for each unique pool_id
+            // Create delete pools for each unique pool_id containing ALL questions for this skill
             for (const [poolId, questionIds] of questionsByPool) {
               const deletedPool = {
                 pool_id: poolId, // Use floCareerPoolId for deletion
@@ -2363,26 +2420,67 @@ export default function SkillRecordEditor({
                 num_of_questions_to_ask: questionIds.length,
                 questions: questionIds,
               };
+
+              // Debug log for deleted skill pools
+              console.log(`Deleted skill pool for ${skill.name}:`, {
+                action: "delete",
+                poolId,
+                questionCount: questionIds.length,
+                questions: questionIds,
+                skillDeleted: true,
+              });
+
               questionPoolsList.push(deletedPool);
             }
           }
         }
 
         // Add delete actions for deleted skills' pools (from deletedSkills array)
+        // This handles skills that were deleted in previous sessions and need their pools deleted
         const deletedSkillPools = deletedSkills
           .filter((skill) => skill.floCareerId) // Only include skills that have been saved to FloCareer
-          .map((skill) => ({
-            pool_id: skill.floCareerId!, // Use the actual FloCareer pool ID
-            action: "delete",
-            name: skill.name,
-            num_of_questions_to_ask: 0,
-            questions: [],
-          }));
+          .map((skill) => {
+            // Check if we already have a delete pool for this skill from the questions
+            const existingDeletePool = questionPoolsList.find(
+              (pool) =>
+                pool.pool_id === skill.floCareerId && pool.action === "delete"
+            );
+
+            // If we already have a delete pool for this skill, skip adding another one
+            if (existingDeletePool) {
+              console.log(
+                `Skipping duplicate delete pool for skill ${skill.name} (pool_id: ${skill.floCareerId})`
+              );
+              return null;
+            }
+
+            return {
+              pool_id: skill.floCareerId!, // Use the actual FloCareer pool ID
+              action: "delete",
+              name: skill.name,
+              num_of_questions_to_ask: 0,
+              questions: [],
+            };
+          })
+          .filter((pool): pool is NonNullable<typeof pool> => pool !== null); // Remove null entries with proper typing
 
         // Combine all pools (new/updated and deleted)
         const allQuestionPools = [...questionPoolsList, ...deletedSkillPools];
 
         if (allQuestionPools.length > 0) {
+          // Log summary of what's being sent
+          console.log("Interview structure summary:", {
+            totalPools: allQuestionPools.length,
+            pools: allQuestionPools.map((pool) => ({
+              name: pool.name,
+              action: pool.action,
+              poolId: pool.pool_id,
+              questionCount: pool.questions.length,
+            })),
+            deletedSkillsCount: editedSkills.filter((s) => s.deleted).length,
+            deletedQuestionsCount: questions.filter((q) => q.deleted).length,
+          });
+
           const structureRequestBody = {
             user_id: record.userId,
             round_id: record.roundId,
