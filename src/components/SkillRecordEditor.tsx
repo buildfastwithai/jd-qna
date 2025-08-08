@@ -3787,7 +3787,7 @@ export default function SkillRecordEditor({
               {questions.filter((q) => !q.deleted).length > 1 ? "s" : ""} will
               be saved
               <br />• Interview structure will be created automatically
-              {(getTotalDeletedSkillsInSession() > 0 ||
+              {/* {(getTotalDeletedSkillsInSession() > 0 ||
                 getTotalDeletedQuestionsInSession() > 0) && (
                 <>
                   <br />
@@ -3808,7 +3808,7 @@ export default function SkillRecordEditor({
                     </>
                   )}
                 </>
-              )}
+              )} */}
               <br />
               <br />
               Are you sure you want to proceed?
