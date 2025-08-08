@@ -193,7 +193,8 @@ export default function SkillRecordEditor({
     useState(false);
   const [activeSkillForRegeneration, setActiveSkillForRegeneration] = useState<
     string | null
-  >(null);
+    >(null);
+  const [canGenerateQuestions, setCanGenerateQuestions] = useState(false);
 
   // Add state for saving to FloCareer
   const [savingToFloCareer, setSavingToFloCareer] = useState(false);
@@ -1777,6 +1778,9 @@ export default function SkillRecordEditor({
 
         // Fetch the latest questions directly
         await fetchLatestQuestions();
+
+        // Refresh the skill table
+        // router.refresh();
       } else {
         throw new Error(data.error || "Failed to regenerate questions");
       }
@@ -3001,6 +3005,7 @@ export default function SkillRecordEditor({
                   onGenerateQuestionsForSkills={
                     generateQuestionsForSelectedSkills
                   }
+                  onSkillsChanged={setCanGenerateQuestions}
                 />
               )}
             </CardContent>
@@ -3044,7 +3049,8 @@ export default function SkillRecordEditor({
                     generatingQuestions ||
                     regeneratingQuestions ||
                     questionsLoading ||
-                    pdfLoading
+                    pdfLoading ||
+                    (!canGenerateQuestions && questions.filter((q) => !q.deleted).length > 0)
                   }
                   variant="outline"
                 >

@@ -58,7 +58,16 @@ Format your response as a JSON object with a 'questions' array where each object
 - idealAnswer: CKEditor-compatible HTML formatted answer
 - coding: Boolean value (true if the question involves writing/debugging code, false otherwise)
 
-IMPORTANT: Generate exactly 3 questions per skill. Each question should be unique and scenario-based. Set "coding" to true for any question that requires the candidate to write, debug, analyze code, solve algorithms, or perform any hands-on programming tasks.`;
+IMPORTANT: Generate exactly 3 questions per skill. Each question should be unique and scenario-based. Set "coding" to true for any question that requires the candidate to write, debug, analyze code, solve algorithms, or perform any hands-on programming tasks.
+
+IMPORTANT: FOR EACH SKILL, GENERATE EITHER ALL CODING QUESTIONS OR ALL NON-CODING QUESTIONS, NOT A MIX. ALWAYS DOUBLE CHECK THIS.
+
+A Coding question means the candidate will write or debug code which will require code editor, so the "coding" field must be true.
+A non-Coding question (Open-ended, Scenario, Case Study, Design, Live Assessment), means the candidate will explain the concept or process. NO CODING REQUIRED. So coding field must be false.
+
+A "questionFormat" field that must be the same for all questions generated for a given skill: either "Coding" (for coding questions) or one of: "Open-ended", "Scenario", "Case Study", "Design", or "Live Assessment" (for non-coding questions).
+
+`;
 };
 
 export async function POST(request: Request) {

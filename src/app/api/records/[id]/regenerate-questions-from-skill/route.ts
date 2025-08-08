@@ -326,6 +326,8 @@ export async function POST(
       }
 
       return allRegeneratedQuestions;
+    }, {
+      timeout: 30000, // 30 seconds timeout
     });
 
     return NextResponse.json({

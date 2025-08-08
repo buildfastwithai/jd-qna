@@ -23,7 +23,7 @@ import {
   SelectValue,
 } from "./ui/select";
 import { Button } from "./ui/button";
-import { Trash2, MessageSquarePlus, FileSpreadsheet } from "lucide-react";
+import { Trash2, MessageSquarePlus, FileSpreadsheet} from "lucide-react";
 import { toast } from "sonner";
 import { SkillFeedbackDialog } from "./ui/skill-feedback-dialog";
 import { SkillFeedbackViewDialog } from "./ui/skill-feedback-view-dialog";
@@ -38,6 +38,7 @@ import {
   DialogTitle,
 } from "./ui/dialog";
 import { Spinner } from "./ui/spinner";
+import { useRouter } from "next/navigation";
 
 // Define interfaces for the types from Prisma
 interface Skill {
@@ -76,6 +77,7 @@ interface SkillsTableProps {
   onSkillAdded: () => void;
   loading: boolean;
   onGenerateQuestionsForSkills?: (skillIds: string[]) => void;
+  onSkillsChanged?: (changed: boolean) => void;
 }
 
 export default function SkillsTable({
@@ -88,12 +90,40 @@ export default function SkillsTable({
   onSkillAdded,
   loading,
   onGenerateQuestionsForSkills,
+  onSkillsChanged,
 }: SkillsTableProps) {
   // State to track feedback counts and refresh trigger
-  const [feedbackCounts, setFeedbackCounts] = useState<Record<string, number>>(
-    {}
-  );
+  const [feedbackCounts, setFeedbackCounts] = useState<Record<string, number>>({});
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  // Track if any skill's numQuestions or feedback has changed
+  const [initialSkills, setInitialSkills] = useState<Skill[]>([]);
+  const [skillsChanged, setSkillsChanged] = useState(false);
+  useEffect(() => {
+    setInitialSkills(skills.map(s => ({ ...s })));
+    setSkillsChanged(false);
+    if (onSkillsChanged) onSkillsChanged(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    let changed = false;
+    if (initialSkills.length !== skills.length) changed = true;
+    else {
+      for (let i = 0; i < skills.length; i++) {
+        if (skills[i].numQuestions !== initialSkills[i]?.numQuestions) {
+          changed = true;
+          break;
+        }
+        // Feedback count change
+        if ((feedbackCounts[skills[i].id] || 0) !== (initialSkills[i]?.feedbacks?.length || 0)) {
+          changed = true;
+          break;
+        }
+      }
+    }
+    setSkillsChanged(changed);
+    if (onSkillsChanged) onSkillsChanged(changed);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [skills, feedbackCounts]);
 
   // Multi-select state
   const [selectedSkills, setSelectedSkills] = useState<Set<string>>(new Set());
@@ -101,6 +131,7 @@ export default function SkillsTable({
 
   // Excel export state
   const [excelExporting, setExcelExporting] = useState(false);
+  const router = useRouter();
 
   // Fetch feedback counts for each skill - optimized to avoid unnecessary fetches
   useEffect(() => {
@@ -170,7 +201,10 @@ export default function SkillsTable({
 
   // Handle feedback submission
   const handleFeedbackSubmitted = () => {
+    window.location.reload(); // Reload to reflect feedback changes
     setRefreshTrigger((prev) => prev + 1);
+    setSkillsChanged(true);
+    if (onSkillsChanged) onSkillsChanged(true);
   };
   // Column helper
   const columnHelper = createColumnHelper<Skill>();
@@ -521,17 +555,18 @@ export default function SkillsTable({
         cell: (info) => {
           const skill = info.row.original;
           const value = String(skill.numQuestions || 0);
-
           return (
             <Select
               value={value}
-              onValueChange={(value) =>
+              onValueChange={(value) => {
                 onUpdateSkill(
                   info.row.original.id,
                   "numQuestions",
                   parseInt(value)
-                )
-              }
+                );
+                setSkillsChanged(true);
+                if (onSkillsChanged) onSkillsChanged(true);
+              }}
               disabled={loading}
             >
               <SelectTrigger
@@ -704,6 +739,7 @@ export default function SkillsTable({
                       const skill = skills.find((s) => s.id === skillId);
                       return skill && !skill.deleted;
                     });
+                    
                     onGenerateQuestionsForSkills(nonDeletedSelectedSkills);
                   }
                 }}

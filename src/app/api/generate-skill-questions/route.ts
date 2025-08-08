@@ -46,7 +46,7 @@ The questions should be challenging but fair, testing both theoretical knowledge
 
 For each question, randomly choose one of these question formats and design the question accordingly:
 1. "Open-ended" - Requires a descriptive or narrative answer. Useful for assessing communication, reasoning, or opinion-based responses.
-2. "Coding" - Candidate writes or debugs code. Used for evaluating problem-solving skills, algorithms, and programming language proficiency.
+2. "Coding" - Candidate writes or debugs code.
 3. "Scenario" - Presents a short, realistic situation and asks how the candidate would respond or act. Tests decision-making, ethics, soft skills, or role-specific judgment.
 4. "Case Study" - In-depth problem based on a real or simulated business/technical challenge. Requires analysis, synthesis of information, and a structured response. Often multi-step.
 5. "Design" - Asks the candidate to architect a system, process, or solution. Often used in software/system design, business process optimization, or operational planning.
@@ -74,10 +74,18 @@ Format your response as a JSON object with a 'questions' key containing an array
       "coding": false
 
 
-IMPORTANT: The "coding" field must be set to true when questionFormat is "Coding" or when the question requires the candidate to write, debug, or analyze code. This includes code reviews, algorithm problems, debugging exercises, or any hands-on programming tasks.
+IMPORTANT: The "coding" field must be set to true when questionFormat is "Coding" or when the question requires the candidate to write, or debug code. 
 
 Make sure the questions match the specified difficulty level, are appropriate for the skill, and follow the chosen question format.
          
+IMPORTANT: FOR EACH SKILL, GENERATE EITHER ALL CODING QUESTIONS OR ALL NON-CODING QUESTIONS, NOT A MIX. ALWAYS DOUBLE CHECK THIS.
+
+A Coding question means the candidate will write or debug code which will require code editor, so the "coding" field must be true.
+A non-Coding question (Open-ended, Scenario, Case Study, Design, Live Assessment), means the candidate will explain the concept or process. NO CODING REQUIRED. So coding field must be false.
+
+A "questionFormat" field that must be the same for all questions generated for a given skill: either "Coding" (for coding questions) or one of: "Open-ended", "Scenario", "Case Study", "Design", or "Live Assessment" (for non-coding questions).
+
+
 IMPORTANT: You must generate exactly ${batchSize} unique questions, no more and no less.`;
 };
 

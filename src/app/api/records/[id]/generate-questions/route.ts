@@ -23,36 +23,44 @@ const generateSingleQuestionPrompt = (
     (level === "PROFESSIONAL"
       ? "Hard"
       : level === "INTERMEDIATE"
-      ? "Medium"
-      : "Easy");
+        ? "Medium"
+        : "Easy");
 
   // Format feedback if available
   const feedbackSection =
     feedback.length > 0
       ? `\nIMPORTANT FEEDBACK TO CONSIDER:\n${feedback
-          .map((fb, i) => `${i + 1}. ${fb}`)
-          .join(
-            "\n"
-          )}\n\nPlease ensure that the generated question takes this feedback into account.`
+        .map((fb, i) => `${i + 1}. ${fb}`)
+        .join(
+          "\n"
+        )}\n\nPlease ensure that the generated question takes this feedback into account.`
       : "";
 
   // Format existing questions to avoid duplicates
   const existingQuestionsSection =
     existingQuestions.length > 0
       ? `\nEXISTING QUESTIONS (avoid generating similar questions):\n${existingQuestions
-          .map((q, i) => `${i + 1}. ${q}`)
-          .join("\n")}\n\nGenerate a completely different and unique question.`
+        .map((q, i) => `${i + 1}. ${q}`)
+        .join("\n")}\n\nGenerate a completely different and unique question.`
       : "";
 
   const formatSection = forceCoding
-    ? 'IMPORTANT: You MUST choose the "Coding" question format for this question. The candidate must write or debug code to answer this question.\n\n2. "Coding" - Candidate writes or debugs code. Used for evaluating problem-solving skills, algorithms, and programming language proficiency.'
-    : `Randomly choose one of these question formats and design the question accordingly:
-1. "Open-ended" - Requires a descriptive or narrative answer. Useful for assessing communication, reasoning, or opinion-based responses.
-2. "Coding" - Candidate writes or debugs code. Used for evaluating problem-solving skills, algorithms, and programming language proficiency.
-3. "Scenario" - Presents a short, realistic situation and asks how the candidate would respond or act. Tests decision-making, ethics, soft skills, or role-specific judgment.
-4. "Case Study" - In-depth problem based on a real or simulated business/technical challenge. Requires analysis, synthesis of information, and a structured response. Often multi-step.
-5. "Design" - Asks the candidate to architect a system, process, or solution. Often used in software/system design, business process optimization, or operational planning.
-6. "Live Assessment" - Real-time tasks like pair programming, whiteboarding, or collaborative exercises. Tests real-world working ability and communication under pressure.`;
+    ? 'CRITICAL: You MUST choose ONLY the "Coding" question format for this question. The candidate must write or debug code to answer this question. Set coding field to true.\n\n2. "Coding" - Candidate writes or debugs code. The question MUST require hands-on programming, code writing, debugging, or algorithm implementation.'
+    : `Choose one of these question formats and design the question accordingly:
+    
+1. "Open-ended" - Requires a descriptive or narrative answer. Useful for assessing communication, reasoning, or opinion-based responses. This type of question should not require coding. It comes under non-coding questions.
+
+2. "Coding" - Candidate writes or debugs code. The question MUST require hands-on programming, code writing, debugging, or algorithm implementation. This type of question should require coding. It comes under coding questions.
+
+3. "Scenario" - Presents a short, realistic situation and asks how the candidate would respond or act. Tests decision-making, ethics, soft skills, or role-specific judgment. This type of question should not require coding. It comes under non-coding questions.
+
+4. "Case Study" - In-depth problem based on a real or simulated business/technical challenge. Requires analysis, synthesis of information, and a structured response. Often multi-step. This type of question should not require coding. It comes under non-coding questions.
+
+5. "Design" - Asks the candidate to architect a system, process, or solution. Often used in software/system design, business process optimization, or operational planning. This type of question should not require coding. It comes under non-coding questions.
+
+6. "Live Assessment" - Real-time tasks like pair programming, whiteboarding, or collaborative exercises. Tests real-world working ability and communication under pressure. This type of question should not require coding. It comes under non-coding questions.
+
+CRITICAL CONSISTENCY RULE: If this is part of a batch of questions for the same skill, ALL questions must be either ALL coding questions (coding: true) OR ALL non-coding questions (coding: false). NO MIXING ALLOWED.`;
 
   return `Generate exactly 1 unique interview question for the skill "${skillName}" at a ${level} level (${effectiveDifficulty} difficulty).
 The question should be challenging but fair, testing both theoretical knowledge and practical application.${feedbackSection}${existingQuestionsSection}
@@ -86,7 +94,19 @@ Example Response:
   }
 }
 
-IMPORTANT: The "coding" field must be set to true when questionFormat is "Coding" or when the question requires the candidate to write, debug, or analyze code. This includes code reviews, algorithm problems, debugging exercises, or any hands-on programming tasks.
+CRITICAL: The "coding" field must be set to true when questionFormat is "Coding" or when the question requires the candidate to write, or debug code. 
+
+STRICT CONSISTENCY REQUIREMENT: ALL questions for the SAME skill must be EITHER all coding questions (coding: true) OR all non-coding questions (coding: false). NEVER mix coding and non-coding questions for the same skill.
+
+IMPORTANT: FOR EACH SKILL, GENERATE EITHER ALL CODING QUESTIONS OR ALL NON-CODING QUESTIONS, NOT A MIX. ALWAYS DOUBLE CHECK THIS.
+
+A Coding question means the candidate will write or debug code which will require code editor, so the "coding" field must be true.
+
+A non-Coding question (Open-ended, Scenario, Case Study, Design, Live Assessment), means the candidate will explain the concept or process. NO CODING REQUIRED. So coding field must be false.
+
+The "questionFormat" field must be consistent for all questions generated for a given skill: either "Coding" (for coding questions) or one of: "Open-ended", "Scenario", "Case Study", "Design", or "Live Assessment" (for non-coding questions).
+
+${forceCoding ? 'FORCED CODING: This question MUST be a coding question with coding: true and questionFormat: "Coding".' : ''}
 
 Make sure the question matches the specified difficulty level, is appropriate for the skill, follows the chosen question format, and is completely unique from any existing questions.`;
 };
@@ -114,15 +134,13 @@ const generateSingleQuestion = async (
       messages: [
         {
           role: "system",
-          content: `You are an expert interviewer who creates relevant interview questions for specific technical skills. Generate exactly 1 unique question that must not exceed 400 characters. Include a detailed suggested answer. ${
-            feedback.length > 0
+          content: `You are an expert interviewer who creates relevant interview questions for specific technical skills. Generate exactly 1 unique question that must not exceed 400 characters. Include a detailed suggested answer. ${feedback.length > 0
               ? "Incorporate the provided feedback into your question generation."
               : ""
-          }${
-            forceCoding
-              ? " IMPORTANT: This question MUST be a coding question requiring the candidate to write or debug code."
-              : ""
-          }`,
+            }${forceCoding
+              ? " CRITICAL: This question MUST be a coding question requiring the candidate to write or debug code. Set coding: true and questionFormat: 'Coding'."
+              : " CRITICAL: Maintain consistency - if generating multiple questions for the same skill, they must ALL be either coding or non-coding questions, never mixed."
+            } STRICT RULE: For any given skill, ALL questions must be consistently either coding questions (coding: true) or non-coding questions (coding: false).`,
         },
         {
           role: "user",
@@ -174,20 +192,20 @@ export async function POST(
         skills: {
           where: specificSkillIds
             ? // If specific skill IDs are provided, filter by those
-              { id: { in: specificSkillIds }, deleted: { not: true } }
+            { id: { in: specificSkillIds }, deleted: { not: true } }
             : // Otherwise, use the original logic
-              {
-                OR: [
-                  { requirement: "MANDATORY" }, // Generate for mandatory skills
-                  {
-                    AND: [
-                      { requirement: "OPTIONAL" },
-                      { numQuestions: { gt: 0 } }, // Also generate for optional skills with question count > 0
-                    ],
-                  },
-                ],
-                deleted: { not: true },
-              },
+            {
+              OR: [
+                { requirement: "MANDATORY" }, // Generate for mandatory skills
+                {
+                  AND: [
+                    { requirement: "OPTIONAL" },
+                    { numQuestions: { gt: 0 } }, // Also generate for optional skills with question count > 0
+                  ],
+                },
+              ],
+              deleted: { not: true },
+            },
         },
       },
     });
@@ -337,39 +355,129 @@ export async function POST(
       // Get existing question texts for this skill (to avoid duplicates)
       const existingTexts = existingQuestionTexts.get(skill.id) || [];
 
-      // Generate questions one by one
-      for (let i = 0; i < neededCount; i++) {
+      // Check if this skill requires coding questions
+      const requiresCoding = skillCodingStatus.get(skill.id) || false;
+
+      // Generate all questions for this skill with consistency validation
+      const skillQuestions = [];
+      let maxRetries = 10; // Prevent infinite loops
+      let retryCount = 0;
+
+      while (skillQuestions.length < neededCount && retryCount < maxRetries) {
+        const questionsToGenerate = neededCount - skillQuestions.length;
+        console.log(
+          `Generating ${questionsToGenerate} questions for skill ${skill.name} (attempt ${retryCount + 1})`
+        );
+
+        // Generate questions for this batch
+        const batchQuestions = [];
+        for (let i = 0; i < questionsToGenerate; i++) {
+          try {
+            console.log(
+              `Generating question ${i + 1}/${questionsToGenerate} for skill ${skill.name}`
+            );
+
+            // Generate a single question
+            const question = await generateSingleQuestion(
+              skill,
+              id,
+              existingTexts, // Pass existing questions to avoid duplicates
+              skillFeedback,
+              requiresCoding // Force coding questions if existing questions are coding
+            );
+
+            // Ensure coding flag is properly set
+            const isCoding =
+              question.coding === true ||
+              question.questionFormat?.toLowerCase() === "coding" ||
+              (question.question &&
+                question.question.toLowerCase().includes("code")) ||
+              (question.question &&
+                question.question.toLowerCase().includes("algorithm")) ||
+              (question.question &&
+                question.question.toLowerCase().includes("programming"));
+
+            batchQuestions.push({
+              ...question,
+              coding: isCoding,
+            });
+
+            // Add the new question text to existing texts to avoid duplicates
+            existingTexts.push(question.question);
+
+            // Add a small delay between API calls to avoid rate limiting
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+          } catch (error) {
+            console.error(
+              `Error generating question ${i + 1} for skill ${skill.name}:`,
+              error
+            );
+            // Continue with the next question
+          }
+        }
+
+        // Validate consistency: all questions should be either coding or non-coding
+        if (batchQuestions.length > 0) {
+          const codingCount = batchQuestions.filter(q => q.coding).length;
+          const nonCodingCount = batchQuestions.filter(q => !q.coding).length;
+
+          const allCoding = codingCount === batchQuestions.length;
+          const allNonCoding = nonCodingCount === batchQuestions.length;
+
+          if (allCoding || allNonCoding) {
+            // All questions are consistent, add them to skill questions
+            skillQuestions.push(...batchQuestions);
+            console.log(
+              `Generated ${batchQuestions.length} consistent ${allCoding ? 'coding' : 'non-coding'} questions for skill ${skill.name}`
+            );
+          } else {
+            // Mixed questions detected - determine which type to keep based on majority or existing questions
+            let targetCoding = requiresCoding;
+
+            if (!requiresCoding) {
+              // If no existing preference, choose based on majority of generated questions
+              targetCoding = codingCount > nonCodingCount;
+            }
+
+            console.log(
+              `Mixed questions detected for skill ${skill.name} (${codingCount} coding, ${nonCodingCount} non-coding). Targeting ${targetCoding ? 'coding' : 'non-coding'} questions.`
+            );
+
+            // Update the skill coding status for future generations
+            skillCodingStatus.set(skill.id, targetCoding);
+
+            // Keep questions that match the target type and regenerate only the minority
+            const correctTypeQuestions = batchQuestions.filter(q => q.coding === targetCoding);
+            const wrongTypeQuestions = batchQuestions.filter(q => q.coding !== targetCoding);
+
+            // Add the correct type questions to skill questions
+            skillQuestions.push(...correctTypeQuestions);
+
+            // Remove the wrong type question texts from existing texts to avoid duplicates
+            const wrongTypeTexts = wrongTypeQuestions.map(q => q.question);
+            const filteredTexts = existingTexts.filter(text => !wrongTypeTexts.includes(text));
+            existingTexts.length = 0;
+            existingTexts.push(...filteredTexts);
+
+            console.log(
+              `Kept ${correctTypeQuestions.length} correct ${targetCoding ? 'coding' : 'non-coding'} questions, will regenerate ${wrongTypeQuestions.length} questions.`
+            );
+          }
+        }
+
+        retryCount++;
+      }
+
+      // If we couldn't generate consistent questions after max retries, log warning
+      if (skillQuestions.length < neededCount) {
+        console.warn(
+          `Could not generate all ${neededCount} consistent questions for skill ${skill.name}. Generated ${skillQuestions.length} questions.`
+        );
+      }
+
+      // Store the consistent questions in database
+      for (const question of skillQuestions) {
         try {
-          console.log(
-            `Generating question ${i + 1}/${neededCount} for skill ${
-              skill.name
-            }`
-          );
-
-          // Check if this skill requires coding questions
-          const requiresCoding = skillCodingStatus.get(skill.id) || false;
-
-          // Generate a single question
-          const question = await generateSingleQuestion(
-            skill,
-            id,
-            existingTexts, // Pass existing questions to avoid duplicates
-            skillFeedback,
-            requiresCoding // Force coding questions if existing questions are coding
-          );
-
-          // Ensure coding flag is properly set
-          const isCoding =
-            question.coding === true ||
-            question.questionFormat?.toLowerCase() === "coding" ||
-            (question.question &&
-              question.question.toLowerCase().includes("code")) ||
-            (question.question &&
-              question.question.toLowerCase().includes("algorithm")) ||
-            (question.question &&
-              question.question.toLowerCase().includes("programming"));
-
-          // Create the question in database
           const createdQuestion = await prisma.question.create({
             data: {
               content: JSON.stringify({
@@ -378,11 +486,11 @@ export async function POST(
                 category: question.category,
                 difficulty: question.difficulty || skill.difficulty || "Medium",
                 questionFormat: question.questionFormat || "Scenario",
-                coding: isCoding,
+                coding: question.coding,
               }),
               skillId: skill.id,
               recordId: id,
-              coding: isCoding,
+              coding: question.coding,
             },
           });
 
@@ -394,10 +502,6 @@ export async function POST(
             skillName: skill.name,
           });
 
-          // Add the new question text to existing texts to avoid duplicates in future generations
-          existingTexts.push(question.question);
-          existingQuestionTexts.set(skill.id, existingTexts);
-
           // Update count of total questions generated
           totalQuestionsGenerated++;
 
@@ -406,15 +510,11 @@ export async function POST(
             skill.id,
             (existingQuestionCounts.get(skill.id) || 0) + 1
           );
-
-          // Add a small delay between API calls to avoid rate limiting
-          await new Promise((resolve) => setTimeout(resolve, 1000));
         } catch (error) {
           console.error(
-            `Error generating question ${i + 1} for skill ${skill.name}:`,
+            `Error storing question for skill ${skill.name}:`,
             error
           );
-          // Continue with the next question
         }
       }
     }
