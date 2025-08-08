@@ -23,7 +23,7 @@ import {
   SelectValue,
 } from "./ui/select";
 import { Button } from "./ui/button";
-import { Trash2, MessageSquarePlus, FileSpreadsheet} from "lucide-react";
+import { Trash2, MessageSquarePlus, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
 import { SkillFeedbackDialog } from "./ui/skill-feedback-dialog";
 import { SkillFeedbackViewDialog } from "./ui/skill-feedback-view-dialog";
@@ -93,13 +93,15 @@ export default function SkillsTable({
   onSkillsChanged,
 }: SkillsTableProps) {
   // State to track feedback counts and refresh trigger
-  const [feedbackCounts, setFeedbackCounts] = useState<Record<string, number>>({});
+  const [feedbackCounts, setFeedbackCounts] = useState<Record<string, number>>(
+    {}
+  );
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   // Track if any skill's numQuestions or feedback has changed
   const [initialSkills, setInitialSkills] = useState<Skill[]>([]);
   const [skillsChanged, setSkillsChanged] = useState(false);
   useEffect(() => {
-    setInitialSkills(skills.map(s => ({ ...s })));
+    setInitialSkills(skills.map((s) => ({ ...s })));
     setSkillsChanged(false);
     if (onSkillsChanged) onSkillsChanged(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -114,7 +116,10 @@ export default function SkillsTable({
           break;
         }
         // Feedback count change
-        if ((feedbackCounts[skills[i].id] || 0) !== (initialSkills[i]?.feedbacks?.length || 0)) {
+        if (
+          (feedbackCounts[skills[i].id] || 0) !==
+          (initialSkills[i]?.feedbacks?.length || 0)
+        ) {
           changed = true;
           break;
         }
@@ -554,7 +559,19 @@ export default function SkillsTable({
         header: "Num. of Qs",
         cell: (info) => {
           const skill = info.row.original;
-          const value = String(skill.numQuestions || 0);
+          const questionCount = getSkillQuestionCount(skill.id);
+          const numQuestions = skill.numQuestions || 0;
+
+          // If numQuestions is less than questionCount, display questionCount
+          const displayValue =
+            numQuestions < questionCount ? questionCount : numQuestions;
+          const value = String(displayValue);
+
+          // Create options array that includes questionCount if it's higher than current options
+          const baseOptions = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+          const options =
+            questionCount > 10 ? [...baseOptions, questionCount] : baseOptions;
+
           return (
             <Select
               value={value}
@@ -581,7 +598,7 @@ export default function SkillsTable({
                 sideOffset={5}
                 align="start"
               >
-                {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+                {options.map((num) => (
                   <SelectItem key={num} value={String(num)}>
                     {num}
                   </SelectItem>
@@ -739,7 +756,7 @@ export default function SkillsTable({
                       const skill = skills.find((s) => s.id === skillId);
                       return skill && !skill.deleted;
                     });
-                    
+
                     onGenerateQuestionsForSkills(nonDeletedSelectedSkills);
                   }
                 }}
