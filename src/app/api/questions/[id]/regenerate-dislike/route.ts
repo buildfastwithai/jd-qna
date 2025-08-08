@@ -237,6 +237,8 @@ Example:
         });
 
         return { newQuestionRecord, regeneration };
+      }, {
+        timeout: 60000, // 60 seconds timeout
       });
 
       return NextResponse.json({

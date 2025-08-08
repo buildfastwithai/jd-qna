@@ -223,6 +223,8 @@ export async function POST(
       });
 
       return { newQuestion, regeneration };
+    }, {
+      timeout: 60000, // 60 seconds timeout
     });
 
     return NextResponse.json({

@@ -390,6 +390,8 @@ export async function POST(
             // Continue with the next question
           }
         }
+      }, {
+        timeout: 60000, // 60 seconds timeout
       });
     }
 
