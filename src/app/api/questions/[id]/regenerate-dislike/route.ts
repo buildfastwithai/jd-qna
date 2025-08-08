@@ -52,6 +52,40 @@ export async function POST(
     // Parse the question content
     const questionContent = JSON.parse(question.content);
 
+    // Check if existing questions for this skill are coding questions
+    const existingQuestions = await prisma.question.findMany({
+      where: {
+        skillId: question.skillId,
+        recordId: question.recordId,
+        deleted: false,
+      },
+      select: {
+        content: true,
+        coding: true,
+      },
+    });
+
+    // Determine if this skill requires coding questions
+    let requiresCoding = false;
+    if (existingQuestions.length > 0) {
+      // Check if any existing question is a coding question
+      for (const existingQuestion of existingQuestions) {
+        try {
+          const parsedContent = JSON.parse(existingQuestion.content);
+          const isCodingQuestion = existingQuestion.coding === true || 
+            parsedContent.coding === true || 
+            parsedContent.questionFormat?.toLowerCase() === "coding";
+          
+          if (isCodingQuestion) {
+            requiresCoding = true;
+            break;
+          }
+        } catch (error) {
+          console.error("Error parsing existing question content:", error);
+        }
+      }
+    }
+
     // Prepare the prompt for OpenAI
     let prompt = `Generate a new interview question for the skill "${question.skill.name}" at ${question.skill.level} level.`;
 
@@ -78,7 +112,14 @@ export async function POST(
     }
 
     // Add question format instructions
-    prompt += `\n\nFor the question format, randomly choose one of these and design the question accordingly:
+    if (requiresCoding) {
+      prompt += `\n\nIMPORTANT: You MUST choose the "Coding" question format for this question. The candidate must write or debug code to answer this question.
+
+2. "Coding" - Candidate writes or debugs code. Used for evaluating problem-solving skills, algorithms, and programming language proficiency.
+
+IMPORTANT: The "coding" field must be set to true when questionFormat is "Coding"`;
+    } else {
+      prompt += `\n\nFor the question format, randomly choose one of these and design the question accordingly:
 1. "Open-ended" - Requires a descriptive or narrative answer. Useful for assessing communication, reasoning, or opinion-based responses.
 2. "Coding" - Candidate writes or debugs code. Used for evaluating problem-solving skills, algorithms, and programming language proficiency.
 3. "Scenario" - Presents a short, realistic situation and asks how the candidate would respond or act. Tests decision-making, ethics, soft skills, or role-specific judgment.
@@ -90,7 +131,10 @@ IMPORTANT: For each skill, generate either all coding questions or all non-codin
 
 A "questionFormat" field that must be the same for all questions generated for a given skill: either "Coding" (for coding questions) or one of: "Open-ended", "Scenario", "Case Study", "Design", or "Live Assessment" (for non-coding questions).
 
-IMPORTANT: The "coding" field must be set to true when questionFormat is "Coding"
+IMPORTANT: The "coding" field must be set to true when questionFormat is "Coding"`;
+    }
+
+    prompt += `
 
 Example:
 {
@@ -114,7 +158,7 @@ Example:
         {
           role: "system",
           content:
-            "You are an expert interviewer creating high-quality interview questions. Format your response as a JSON object with fields: question, answer, category (Technical/Experience/Problem Solving/Soft Skills), difficulty (Easy/Medium/Hard), questionFormat (Open-ended/Coding/Scenario/Case Study/Design/Live Assessment), and coding (boolean: true if questionFormat is 'Coding' or question involves writing/debugging code, false otherwise). The question must not exceed 400 characters.",
+            `You are an expert interviewer creating high-quality interview questions. Format your response as a JSON object with fields: question, answer, category (Technical/Experience/Problem Solving/Soft Skills), difficulty (Easy/Medium/Hard), questionFormat (Open-ended/Coding/Scenario/Case Study/Design/Live Assessment), and coding (boolean: true if questionFormat is 'Coding' or question involves writing/debugging code, false otherwise). The question must not exceed 400 characters.${requiresCoding ? " IMPORTANT: This question MUST be a coding question requiring the candidate to write or debug code." : ""}`,
         },
         { role: "user", content: prompt },
       ],

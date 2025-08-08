@@ -42,6 +42,11 @@ export async function POST(
           not: true,
         },
       },
+      select: {
+        id: true,
+        content: true,
+        coding: true,
+      },
     });
 
     if (questions.length === 0) {
@@ -49,6 +54,25 @@ export async function POST(
         { error: "No questions found for this skill" },
         { status: 404 }
       );
+    }
+
+    // Check if existing questions for this skill are coding questions
+    let requiresCoding = false;
+    for (const question of questions) {
+      try {
+        const parsedContent = JSON.parse(question.content);
+        const isCodingQuestion =
+          question.coding === true ||
+          parsedContent.coding === true ||
+          parsedContent.questionFormat?.toLowerCase() === "coding";
+
+        if (isCodingQuestion) {
+          requiresCoding = true;
+          break;
+        }
+      } catch (error) {
+        console.error("Error parsing question content:", error);
+      }
     }
 
     const logger = getLogger("regenerate-questions-from-skill");
@@ -71,13 +95,21 @@ export async function POST(
     }
 
     // Add question format instructions
-    prompt += `\n\nFor the question format, use "${
-      skill.questionFormat || "Scenario"
-    }" and design all questions accordingly.
-    
+    if (requiresCoding) {
+      prompt += `\n\nIMPORTANT: You MUST use "Coding" as the question format for all questions. All questions should involve writing or debugging code.
+
+IMPORTANT: The "coding" field must be set to true for all questions.`;
+    } else {
+      prompt += `\n\nFor the question format, use "${
+        skill.questionFormat || "Scenario"
+      }" and design all questions accordingly.
+      
 If the format is "Coding", all questions should involve writing or debugging code. Otherwise, design non-coding questions that match the specified format.
 
-IMPORTANT: The "coding" field must be set to true when questionFormat is "Coding", and false otherwise.
+IMPORTANT: The "coding" field must be set to true when questionFormat is "Coding", and false otherwise.`;
+    }
+
+    prompt += `
 
 Return exactly ${
       questions.length
@@ -86,8 +118,8 @@ Return exactly ${
 - answer: A comprehensive model answer or evaluation criteria
 - category: One of "Technical", "Experience", "Problem Solving", or "Soft Skills"
 - difficulty: "Easy", "Medium", or "Hard"
-- questionFormat: "${skill.questionFormat || "Scenario"}"
-- coding: ${skill.questionFormat === "Coding" ? "true" : "false"}`;
+- questionFormat: "${requiresCoding ? "Coding" : skill.questionFormat || "Scenario"}"
+- coding: ${requiresCoding ? "true" : skill.questionFormat === "Coding" ? "true" : "false"}`;
 
     logger.info(prompt);
 
@@ -98,7 +130,7 @@ Return exactly ${
         {
           role: "system",
           content:
-            "You are an expert interviewer creating high-quality interview questions. Format your response as a JSON array of question objects, each with fields: question, answer, category (Technical/Experience/Problem Solving/Soft Skills), difficulty (Easy/Medium/Hard), questionFormat, and coding (boolean).",
+            `You are an expert interviewer creating high-quality interview questions. Format your response as a JSON array of question objects, each with fields: question, answer, category (Technical/Experience/Problem Solving/Soft Skills), difficulty (Easy/Medium/Hard), questionFormat, and coding (boolean).${requiresCoding ? " IMPORTANT: All questions MUST be coding questions requiring the candidate to write or debug code." : ""}`,
         },
         { role: "user", content: prompt },
       ],

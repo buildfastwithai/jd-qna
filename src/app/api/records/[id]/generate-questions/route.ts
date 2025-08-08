@@ -14,7 +14,8 @@ const generateSingleQuestionPrompt = (
   level: string,
   difficulty: string,
   existingQuestions: string[] = [],
-  feedback: string[] = []
+  feedback: string[] = [],
+  forceCoding: boolean = false
 ) => {
   // Map skill level to difficulty if not provided
   const effectiveDifficulty =
@@ -43,6 +44,16 @@ const generateSingleQuestionPrompt = (
           .join("\n")}\n\nGenerate a completely different and unique question.`
       : "";
 
+  const formatSection = forceCoding
+    ? 'IMPORTANT: You MUST choose the "Coding" question format for this question. The candidate must write or debug code to answer this question.\n\n2. "Coding" - Candidate writes or debugs code. Used for evaluating problem-solving skills, algorithms, and programming language proficiency.'
+    : `Randomly choose one of these question formats and design the question accordingly:
+1. "Open-ended" - Requires a descriptive or narrative answer. Useful for assessing communication, reasoning, or opinion-based responses.
+2. "Coding" - Candidate writes or debugs code. Used for evaluating problem-solving skills, algorithms, and programming language proficiency.
+3. "Scenario" - Presents a short, realistic situation and asks how the candidate would respond or act. Tests decision-making, ethics, soft skills, or role-specific judgment.
+4. "Case Study" - In-depth problem based on a real or simulated business/technical challenge. Requires analysis, synthesis of information, and a structured response. Often multi-step.
+5. "Design" - Asks the candidate to architect a system, process, or solution. Often used in software/system design, business process optimization, or operational planning.
+6. "Live Assessment" - Real-time tasks like pair programming, whiteboarding, or collaborative exercises. Tests real-world working ability and communication under pressure.`;
+
   return `Generate exactly 1 unique interview question for the skill "${skillName}" at a ${level} level (${effectiveDifficulty} difficulty).
 The question should be challenging but fair, testing both theoretical knowledge and practical application.${feedbackSection}${existingQuestionsSection}
 
@@ -51,13 +62,7 @@ Expectations based on experience level:
 - INTERMEDIATE: Mix of conceptual and applied questions, moderate coding tasks, and situational judgment.
 - PROFESSIONAL: Emphasize real-world problem solving, architecture/design, optimization, decision-making, and advanced coding or domain-specific knowledge.
 
-Randomly choose one of these question formats and design the question accordingly:
-1. "Open-ended" - Requires a descriptive or narrative answer. Useful for assessing communication, reasoning, or opinion-based responses.
-2. "Coding" - Candidate writes or debugs code. Used for evaluating problem-solving skills, algorithms, and programming language proficiency.
-3. "Scenario" - Presents a short, realistic situation and asks how the candidate would respond or act. Tests decision-making, ethics, soft skills, or role-specific judgment.
-4. "Case Study" - In-depth problem based on a real or simulated business/technical challenge. Requires analysis, synthesis of information, and a structured response. Often multi-step.
-5. "Design" - Asks the candidate to architect a system, process, or solution. Often used in software/system design, business process optimization, or operational planning.
-6. "Live Assessment" - Real-time tasks like pair programming, whiteboarding, or collaborative exercises. Tests real-world working ability and communication under pressure.
+${formatSection}
 
 Format your response as a JSON object with a 'question' key containing a single question object, where the object has:
 1. A "question" field with the interview question (must not exceed 400 characters)
@@ -91,7 +96,8 @@ const generateSingleQuestion = async (
   skill: any,
   recordId: string,
   existingQuestions: string[] = [],
-  feedback: string[] = []
+  feedback: string[] = [],
+  forceCoding: boolean = false
 ) => {
   try {
     const prompt = generateSingleQuestionPrompt(
@@ -99,7 +105,8 @@ const generateSingleQuestion = async (
       skill.level,
       skill.difficulty || "Medium",
       existingQuestions,
-      feedback
+      feedback,
+      forceCoding
     );
 
     const chatCompletion = await openai.chat.completions.create({
@@ -110,6 +117,10 @@ const generateSingleQuestion = async (
           content: `You are an expert interviewer who creates relevant interview questions for specific technical skills. Generate exactly 1 unique question that must not exceed 400 characters. Include a detailed suggested answer. ${
             feedback.length > 0
               ? "Incorporate the provided feedback into your question generation."
+              : ""
+          }${
+            forceCoding
+              ? " IMPORTANT: This question MUST be a coding question requiring the candidate to write or debug code."
               : ""
           }`,
         },
@@ -233,24 +244,37 @@ export async function POST(
       select: {
         skillId: true,
         content: true,
+        coding: true,
       },
     });
 
     // Count existing questions per skill and store question texts
     const existingQuestionCounts = new Map<string, number>();
     const existingQuestionTexts = new Map<string, string[]>();
+    const skillCodingStatus = new Map<string, boolean>();
 
     existingQuestions.forEach((question) => {
       const currentCount = existingQuestionCounts.get(question.skillId) || 0;
       existingQuestionCounts.set(question.skillId, currentCount + 1);
 
-      // Parse the content to get the question text
+      // Parse the content to get the question text and check coding status
       try {
         const parsedContent = JSON.parse(question.content);
         const questionText = parsedContent.question;
         const currentTexts = existingQuestionTexts.get(question.skillId) || [];
         currentTexts.push(questionText);
         existingQuestionTexts.set(question.skillId, currentTexts);
+
+        // Check if this question is a coding question
+        const isCodingQuestion =
+          question.coding === true ||
+          parsedContent.coding === true ||
+          parsedContent.questionFormat?.toLowerCase() === "coding";
+
+        // If any existing question is coding, mark the skill as requiring coding questions
+        if (isCodingQuestion) {
+          skillCodingStatus.set(question.skillId, true);
+        }
       } catch (error) {
         console.error("Error parsing question content:", error);
       }
@@ -322,12 +346,16 @@ export async function POST(
             }`
           );
 
+          // Check if this skill requires coding questions
+          const requiresCoding = skillCodingStatus.get(skill.id) || false;
+
           // Generate a single question
           const question = await generateSingleQuestion(
             skill,
             id,
             existingTexts, // Pass existing questions to avoid duplicates
-            skillFeedback
+            skillFeedback,
+            requiresCoding // Force coding questions if existing questions are coding
           );
 
           // Ensure coding flag is properly set

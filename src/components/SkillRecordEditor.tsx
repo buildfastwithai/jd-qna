@@ -195,14 +195,7 @@ export default function SkillRecordEditor({
     string | null
   >(null);
 
-  // Add state for the confirmation dialog
-  const [confirmRequirementChangeOpen, setConfirmRequirementChangeOpen] =
-    useState(false);
-  const [pendingRequirementChange, setPendingRequirementChange] = useState<{
-    skillId: string;
-    skillName: string;
-    questionCount: number;
-  } | null>(null);
+
 
   // Add state for saving to FloCareer
   const [savingToFloCareer, setSavingToFloCareer] = useState(false);
@@ -318,23 +311,6 @@ export default function SkillRecordEditor({
       | "questionFormat",
     value: string | number
   ) => {
-    // Special handling for changing requirement from MANDATORY to OPTIONAL
-    if (field === "requirement" && value === "OPTIONAL") {
-      const skill = editedSkills.find((s) => s.id === skillId);
-      const questionCount = getSkillQuestionCount(skillId);
-
-      if (skill?.requirement === "MANDATORY" && questionCount > 0) {
-        // Store the pending change and show confirmation dialog
-        setPendingRequirementChange({
-          skillId,
-          skillName: skill.name,
-          questionCount,
-        });
-        setConfirmRequirementChangeOpen(true);
-        return; // Don't proceed with update yet
-      }
-    }
-
     try {
       setLoading(true);
 
@@ -1869,53 +1845,7 @@ export default function SkillRecordEditor({
     }
   };
 
-  // Add a function to confirm the requirement change
-  const confirmRequirementChange = async (deleteQuestions: boolean) => {
-    if (!pendingRequirementChange) return;
 
-    try {
-      setLoading(true);
-      const { skillId } = pendingRequirementChange;
-
-      if (deleteQuestions) {
-        // First delete associated questions
-        await deleteQuestionsForSkill(skillId);
-      }
-
-      // Update skill requirement to OPTIONAL but don't reset numQuestions to 0
-      // This allows optional skills to still have questions generated if numQuestions > 0
-      const updatedSkills = editedSkills.map((skill) =>
-        skill.id === skillId
-          ? { ...skill, requirement: "OPTIONAL" as const }
-          : skill
-      );
-      setEditedSkills(updatedSkills);
-
-      // Update in database - only change the requirement
-      await fetch(`/api/skills/${skillId}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN || ""}`,
-        },
-        body: JSON.stringify({ requirement: "OPTIONAL" }),
-      });
-
-      toast.success(
-        `Skill updated to Optional${
-          deleteQuestions ? " and questions deleted" : ""
-        }`
-      );
-      router.refresh();
-    } catch (error) {
-      console.error("Error updating skill:", error);
-      toast.error("Failed to update skill");
-    } finally {
-      setLoading(false);
-      setConfirmRequirementChangeOpen(false);
-      setPendingRequirementChange(null);
-    }
-  };
 
   // Add a component for the feedback dialog
   const FeedbackDialog = () => {
@@ -2495,36 +2425,6 @@ export default function SkillRecordEditor({
           }
         }
 
-        // Add delete actions for deleted skills' pools (from deletedSkills array)
-        // This handles skills that were deleted in previous sessions and need their pools deleted
-        // const deletedSkillPools = deletedSkills
-        //   .filter((skill) => skill.floCareerId) // Only include skills that have been saved to FloCareer
-        //   .map((skill) => {
-        //     // Check if we already have a delete pool for this skill from the questions
-        //     const existingDeletePool = questionPoolsList.find(
-        //       (pool) => pool.name === skill.name && pool.action === "delete"
-        //     );
-
-        //     // If we already have a delete pool for this skill, skip adding another one
-        //     if (existingDeletePool) {
-        //       console.log(
-        //         `Skipping duplicate delete pool for skill ${skill.name} (pool_id: ${skill.floCareerId})`
-        //       );
-        //       return null;
-        //     }
-
-        //     return {
-        //       pool_id: pool_id, // Use the actual FloCareer pool ID
-        //       action: "delete",
-        //       name: skill.name,
-        //       num_of_questions_to_ask: 0,
-        //       questions: [],
-        //     };
-        //   })
-        //   .filter((pool): pool is NonNullable<typeof pool> => pool !== null); // Remove null entries with proper typing
-
-        // Combine all pools (new/updated and deleted)
-        // const allQuestionPools = [...questionPoolsList, ...deletedSkillPools];
         const allQuestionPools = [...questionPoolsList];
 
         if (allQuestionPools.length > 0) {
@@ -2540,87 +2440,6 @@ export default function SkillRecordEditor({
             deletedSkillsCount: editedSkills.filter((s) => s.deleted).length,
             deletedQuestionsCount: questions.filter((q) => q.deleted).length,
           });
-
-          const structureRequestBody = {
-            user_id: record.userId,
-            round_id: record.roundId,
-            question_pools: allQuestionPools,
-          };
-
-          console.log(
-            "Interview structure request body:",
-            structureRequestBody
-          );
-
-          // const structureResponse = await fetch(
-          //   "https://sandbox.flocareer.com/dynamic/corporate/create-interview-structure/",
-          //   {
-          //     method: "POST",
-          //     headers: {
-          //       "Content-Type": "application/json",
-          //     },
-          //     body: JSON.stringify(structureRequestBody),
-          //   }
-          // );
-
-          // if (structureResponse.ok) {
-          //   const structureResult = await structureResponse.json();
-          //   if (structureResult.success) {
-          //     console.log("Interview structure created:", structureResult);
-
-          //     // Process the response to update floCareerPoolId for questions
-          //     if (
-          //       structureResult.question_pools &&
-          //       Array.isArray(structureResult.question_pools)
-          //     ) {
-          //       for (const pool of structureResult.question_pools) {
-          //         if (pool.questions && Array.isArray(pool.questions)) {
-          //           for (const questionData of pool.questions) {
-          //             if (
-          //               questionData.ai_question_id &&
-          //               questionData.question_id
-          //             ) {
-          //               // Find the question by ai_question_id and update its floCareerPoolId
-          //               const mapping = questionIdMapping.find(
-          //                 (m) => m.tempId === questionData.ai_question_id
-          //               );
-
-          //               if (mapping) {
-          //                 // Update the question in the database with the pool_id as floCareerPoolId
-          //                 await fetch(`/api/questions/${mapping.originalId}`, {
-          //                   method: "PATCH",
-          //                   headers: {
-          //                     "Content-Type": "application/json",
-          //                     Authorization: `Bearer ${
-          //                       process.env.NEXT_PUBLIC_AUTH_TOKEN || ""
-          //                     }`,
-          //                   },
-          //                   body: JSON.stringify({
-          //                     floCareerPoolId: pool.pool_id,
-          //                     floCareerId: questionData.question_id,
-          //                   }),
-          //                 });
-
-          //                 // Update local state
-          //                 setQuestions((prevQuestions) =>
-          //                   prevQuestions.map((question) =>
-          //                     question.id === mapping.originalId
-          //                       ? {
-          //                           ...question,
-          //                           floCareerPoolId: pool.pool_id,
-          //                           floCareerId: questionData.question_id,
-          //                         }
-          //                       : question
-          //                   )
-          //                 );
-          //               }
-          //             }
-          //           }
-          //         }
-          //       }
-          //     }
-          //   }
-          // }
 
           const response = await fetch(
             `/api/records/${record.id}/create-interview-structure`,
@@ -3946,54 +3765,7 @@ export default function SkillRecordEditor({
       {/* Add the new dialog components */}
       <SkillRegenerationDialog />
 
-      {/* Add the requirement change confirmation dialog */}
-      <Dialog
-        open={confirmRequirementChangeOpen}
-        onOpenChange={setConfirmRequirementChangeOpen}
-      >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Change Skill Requirement</DialogTitle>
-            <DialogDescription>
-              {pendingRequirementChange && (
-                <>
-                  The skill "{pendingRequirementChange.skillName}" has{" "}
-                  {pendingRequirementChange.questionCount} question
-                  {pendingRequirementChange.questionCount > 1 ? "s" : ""}{" "}
-                  generated.
-                  <br />
-                  <br />
-                  Do you want to delete these questions when changing from
-                  Mandatory to Optional?
-                </>
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setConfirmRequirementChangeOpen(false)}
-              disabled={loading}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={() => confirmRequirementChange(false)}
-              disabled={loading}
-            >
-              Keep Questions
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => confirmRequirementChange(true)}
-              disabled={loading}
-            >
-              Delete Questions
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+
 
       {/* Final Submit Confirmation Dialog */}
       <Dialog
