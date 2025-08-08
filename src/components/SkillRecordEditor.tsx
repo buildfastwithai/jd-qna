@@ -195,8 +195,6 @@ export default function SkillRecordEditor({
     string | null
   >(null);
 
-
-
   // Add state for saving to FloCareer
   const [savingToFloCareer, setSavingToFloCareer] = useState(false);
 
@@ -1844,8 +1842,6 @@ export default function SkillRecordEditor({
       setLoading(false);
     }
   };
-
-
 
   // Add a component for the feedback dialog
   const FeedbackDialog = () => {
@@ -3764,8 +3760,6 @@ export default function SkillRecordEditor({
 
       {/* Add the new dialog components */}
       <SkillRegenerationDialog />
-
-
 
       {/* Final Submit Confirmation Dialog */}
       <Dialog
