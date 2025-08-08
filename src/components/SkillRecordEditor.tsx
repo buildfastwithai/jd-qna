@@ -193,7 +193,7 @@ export default function SkillRecordEditor({
     useState(false);
   const [activeSkillForRegeneration, setActiveSkillForRegeneration] = useState<
     string | null
-    >(null);
+  >(null);
   const [canGenerateQuestions, setCanGenerateQuestions] = useState(false);
 
   // Add state for saving to FloCareer
@@ -1954,7 +1954,7 @@ export default function SkillRecordEditor({
       case "EXPERT":
         return "Expert";
       default:
-        return "Intermediate";
+        return level;
     }
   };
 
@@ -1965,7 +1965,7 @@ export default function SkillRecordEditor({
       case "OPTIONAL":
         return "Should-have";
       default:
-        return "Should-have";
+        return requirement;
     }
   };
 
@@ -3050,7 +3050,8 @@ export default function SkillRecordEditor({
                     regeneratingQuestions ||
                     questionsLoading ||
                     pdfLoading ||
-                    (!canGenerateQuestions && questions.filter((q) => !q.deleted).length > 0)
+                    (!canGenerateQuestions &&
+                      questions.filter((q) => !q.deleted).length > 0)
                   }
                   variant="outline"
                 >
