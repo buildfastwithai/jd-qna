@@ -16,6 +16,8 @@ model SkillRecord {
   userId            Int?
   interviewLength   Int?
   rawJobDescription String?
+  minExperience     Int?
+  maxExperience     Int?
   roundId           Int?
   excelQuestionSets ExcelQuestionSet[]
   globalFeedback    GlobalFeedback?

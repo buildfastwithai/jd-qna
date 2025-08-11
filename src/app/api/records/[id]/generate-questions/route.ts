@@ -23,25 +23,25 @@ const generateSingleQuestionPrompt = (
     (level === "PROFESSIONAL"
       ? "Hard"
       : level === "INTERMEDIATE"
-        ? "Medium"
-        : "Easy");
+      ? "Medium"
+      : "Easy");
 
   // Format feedback if available
   const feedbackSection =
     feedback.length > 0
       ? `\nIMPORTANT FEEDBACK TO CONSIDER:\n${feedback
-        .map((fb, i) => `${i + 1}. ${fb}`)
-        .join(
-          "\n"
-        )}\n\nPlease ensure that the generated question takes this feedback into account.`
+          .map((fb, i) => `${i + 1}. ${fb}`)
+          .join(
+            "\n"
+          )}\n\nPlease ensure that the generated question takes this feedback into account.`
       : "";
 
   // Format existing questions to avoid duplicates
   const existingQuestionsSection =
     existingQuestions.length > 0
       ? `\nEXISTING QUESTIONS (avoid generating similar questions):\n${existingQuestions
-        .map((q, i) => `${i + 1}. ${q}`)
-        .join("\n")}\n\nGenerate a completely different and unique question.`
+          .map((q, i) => `${i + 1}. ${q}`)
+          .join("\n")}\n\nGenerate a completely different and unique question.`
       : "";
 
   const formatSection = forceCoding
@@ -106,7 +106,11 @@ A non-Coding question (Open-ended, Scenario, Case Study, Design, Live Assessment
 
 The "questionFormat" field must be consistent for all questions generated for a given skill: either "Coding" (for coding questions) or one of: "Open-ended", "Scenario", "Case Study", "Design", or "Live Assessment" (for non-coding questions).
 
-${forceCoding ? 'FORCED CODING: This question MUST be a coding question with coding: true and questionFormat: "Coding".' : ''}
+${
+  forceCoding
+    ? 'FORCED CODING: This question MUST be a coding question with coding: true and questionFormat: "Coding".'
+    : ""
+}
 
 Make sure the question matches the specified difficulty level, is appropriate for the skill, follows the chosen question format, and is completely unique from any existing questions.`;
 };
@@ -117,7 +121,8 @@ const generateSingleQuestion = async (
   recordId: string,
   existingQuestions: string[] = [],
   feedback: string[] = [],
-  forceCoding: boolean = false
+  forceCoding: boolean = false,
+  record: any
 ) => {
   try {
     const prompt = generateSingleQuestionPrompt(
@@ -134,13 +139,26 @@ const generateSingleQuestion = async (
       messages: [
         {
           role: "system",
-          content: `You are an expert interviewer who creates relevant interview questions for specific technical skills. Generate exactly 1 unique question that must not exceed 400 characters. Include a detailed suggested answer. ${feedback.length > 0
+          content: `You are an expert interviewer who creates relevant interview questions for specific technical skills. Generate exactly 1 unique question that must not exceed 400 characters. Include a detailed suggested answer. 
+          ${
+            record.minExperience
+              ? `The candidate should have at least ${record.minExperience} years of experience.`
+              : ""
+          }
+          ${
+            record.maxExperience
+              ? `The candidate should have at most ${record.maxExperience} years of experience.`
+              : ""
+          }
+          ${
+            feedback.length > 0
               ? "Incorporate the provided feedback into your question generation."
               : ""
-            }${forceCoding
+          }${
+            forceCoding
               ? " CRITICAL: This question MUST be a coding question requiring the candidate to write or debug code. Set coding: true and questionFormat: 'Coding'."
               : " CRITICAL: Maintain consistency - if generating multiple questions for the same skill, they must ALL be either coding or non-coding questions, never mixed."
-            } STRICT RULE: For any given skill, ALL questions must be consistently either coding questions (coding: true) or non-coding questions (coding: false).`,
+          } STRICT RULE: For any given skill, ALL questions must be consistently either coding questions (coding: true) or non-coding questions (coding: false).`,
         },
         {
           role: "user",
@@ -192,20 +210,20 @@ export async function POST(
         skills: {
           where: specificSkillIds
             ? // If specific skill IDs are provided, filter by those
-            { id: { in: specificSkillIds }, deleted: { not: true } }
+              { id: { in: specificSkillIds }, deleted: { not: true } }
             : // Otherwise, use the original logic
-            {
-              OR: [
-                { requirement: "MANDATORY" }, // Generate for mandatory skills
-                {
-                  AND: [
-                    { requirement: "OPTIONAL" },
-                    { numQuestions: { gt: 0 } }, // Also generate for optional skills with question count > 0
-                  ],
-                },
-              ],
-              deleted: { not: true },
-            },
+              {
+                OR: [
+                  { requirement: "MANDATORY" }, // Generate for mandatory skills
+                  {
+                    AND: [
+                      { requirement: "OPTIONAL" },
+                      { numQuestions: { gt: 0 } }, // Also generate for optional skills with question count > 0
+                    ],
+                  },
+                ],
+                deleted: { not: true },
+              },
         },
       },
     });
@@ -366,7 +384,9 @@ export async function POST(
       while (skillQuestions.length < neededCount && retryCount < maxRetries) {
         const questionsToGenerate = neededCount - skillQuestions.length;
         console.log(
-          `Generating ${questionsToGenerate} questions for skill ${skill.name} (attempt ${retryCount + 1})`
+          `Generating ${questionsToGenerate} questions for skill ${
+            skill.name
+          } (attempt ${retryCount + 1})`
         );
 
         // Generate questions for this batch
@@ -374,7 +394,9 @@ export async function POST(
         for (let i = 0; i < questionsToGenerate; i++) {
           try {
             console.log(
-              `Generating question ${i + 1}/${questionsToGenerate} for skill ${skill.name}`
+              `Generating question ${i + 1}/${questionsToGenerate} for skill ${
+                skill.name
+              }`
             );
 
             // Generate a single question
@@ -383,7 +405,8 @@ export async function POST(
               id,
               existingTexts, // Pass existing questions to avoid duplicates
               skillFeedback,
-              requiresCoding // Force coding questions if existing questions are coding
+              requiresCoding, // Force coding questions if existing questions are coding
+              record
             );
 
             // Ensure coding flag is properly set
@@ -418,8 +441,8 @@ export async function POST(
 
         // Validate consistency: all questions should be either coding or non-coding
         if (batchQuestions.length > 0) {
-          const codingCount = batchQuestions.filter(q => q.coding).length;
-          const nonCodingCount = batchQuestions.filter(q => !q.coding).length;
+          const codingCount = batchQuestions.filter((q) => q.coding).length;
+          const nonCodingCount = batchQuestions.filter((q) => !q.coding).length;
 
           const allCoding = codingCount === batchQuestions.length;
           const allNonCoding = nonCodingCount === batchQuestions.length;
@@ -428,7 +451,9 @@ export async function POST(
             // All questions are consistent, add them to skill questions
             skillQuestions.push(...batchQuestions);
             console.log(
-              `Generated ${batchQuestions.length} consistent ${allCoding ? 'coding' : 'non-coding'} questions for skill ${skill.name}`
+              `Generated ${batchQuestions.length} consistent ${
+                allCoding ? "coding" : "non-coding"
+              } questions for skill ${skill.name}`
             );
           } else {
             // Mixed questions detected - determine which type to keep based on majority or existing questions
@@ -440,27 +465,41 @@ export async function POST(
             }
 
             console.log(
-              `Mixed questions detected for skill ${skill.name} (${codingCount} coding, ${nonCodingCount} non-coding). Targeting ${targetCoding ? 'coding' : 'non-coding'} questions.`
+              `Mixed questions detected for skill ${
+                skill.name
+              } (${codingCount} coding, ${nonCodingCount} non-coding). Targeting ${
+                targetCoding ? "coding" : "non-coding"
+              } questions.`
             );
 
             // Update the skill coding status for future generations
             skillCodingStatus.set(skill.id, targetCoding);
 
             // Keep questions that match the target type and regenerate only the minority
-            const correctTypeQuestions = batchQuestions.filter(q => q.coding === targetCoding);
-            const wrongTypeQuestions = batchQuestions.filter(q => q.coding !== targetCoding);
+            const correctTypeQuestions = batchQuestions.filter(
+              (q) => q.coding === targetCoding
+            );
+            const wrongTypeQuestions = batchQuestions.filter(
+              (q) => q.coding !== targetCoding
+            );
 
             // Add the correct type questions to skill questions
             skillQuestions.push(...correctTypeQuestions);
 
             // Remove the wrong type question texts from existing texts to avoid duplicates
-            const wrongTypeTexts = wrongTypeQuestions.map(q => q.question);
-            const filteredTexts = existingTexts.filter(text => !wrongTypeTexts.includes(text));
+            const wrongTypeTexts = wrongTypeQuestions.map((q) => q.question);
+            const filteredTexts = existingTexts.filter(
+              (text) => !wrongTypeTexts.includes(text)
+            );
             existingTexts.length = 0;
             existingTexts.push(...filteredTexts);
 
             console.log(
-              `Kept ${correctTypeQuestions.length} correct ${targetCoding ? 'coding' : 'non-coding'} questions, will regenerate ${wrongTypeQuestions.length} questions.`
+              `Kept ${correctTypeQuestions.length} correct ${
+                targetCoding ? "coding" : "non-coding"
+              } questions, will regenerate ${
+                wrongTypeQuestions.length
+              } questions.`
             );
           }
         }

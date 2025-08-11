@@ -193,6 +193,8 @@ export async function POST(request: Request) {
               reqId: reqId ? parseInt(reqId) : null, // Convert to int if provided
               userId: userId ? parseInt(userId) : null, // Convert to int if provided
               roundId: roundId ? parseInt(roundId) : null, // Convert to int if provided
+              minExperience: minExperience ? parseInt(minExperience) : null,
+              maxExperience: maxExperience ? parseInt(maxExperience) : null,
             },
           });
 
