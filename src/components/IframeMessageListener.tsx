@@ -4,6 +4,7 @@ import { useEffect } from "react";
 
 export default function IframeMessageListener() {
   useEffect(() => {
+    console.log("IframeMessageListener");
     const handleMessage = (event: MessageEvent<unknown>) => {
       const data = (event && (event as MessageEvent).data) as unknown;
       console.log("data", data);
@@ -31,10 +32,10 @@ export default function IframeMessageListener() {
     };
 
     window.addEventListener("message", handleMessage);
-    return () => {
-      window.removeEventListener("message", handleMessage);
-    };
+    // return () => {
+    //   window.removeEventListener("message", handleMessage);
+    // };
   }, []);
-
-  return null;
+  console.log("IframeMessageListener rendered");
+  return <></>;
 }
