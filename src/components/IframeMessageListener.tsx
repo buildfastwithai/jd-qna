@@ -6,6 +6,7 @@ export default function IframeMessageListener() {
   useEffect(() => {
     const handleMessage = (event: MessageEvent<unknown>) => {
       const data = (event && (event as MessageEvent).data) as unknown;
+      console.log("data", data);
       if (!data) return;
 
       // Support both plain object and string payloads
@@ -20,7 +21,7 @@ export default function IframeMessageListener() {
           message = maybeRecord.type;
         }
       }
-
+      console.log("message", message);
       if (message === "Delete from DB") {
         // TODO: Trigger any cleanup needed (e.g., API call) before closing
         // For now, just log as requested
