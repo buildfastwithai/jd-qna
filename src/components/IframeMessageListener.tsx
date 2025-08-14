@@ -6,6 +6,7 @@ export default function IframeMessageListener() {
   useEffect(() => {
     console.log("IframeMessageListener");
     const handleMessage = (event: MessageEvent<unknown>) => {
+      console.log("handleMessage", event);
       const data = (event && (event as MessageEvent).data) as unknown;
       console.log("data", data);
       if (!data) return;
