@@ -62,29 +62,25 @@ function mapLevelToEnum(level: string | null | undefined) {
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
-    const reqIdRaw = body?.req;
-    const userIdRaw = body?.userId ?? body?.userid ?? body?.user_id;
+    const recordId = body?.recordId;
 
-    if (reqIdRaw === undefined || userIdRaw === undefined) {
+    if (recordId === undefined) {
       return NextResponse.json(
-        { success: false, error: "'req' and 'userId' are required in body" },
+        { success: false, error: "'recordId' is required in body" },
         { status: 400 }
       );
     }
 
-    const reqId = Number(reqIdRaw);
-    const userId = Number(userIdRaw);
-
-    if (!Number.isFinite(reqId) || !Number.isFinite(userId)) {
+    if (!Number.isFinite(recordId)) {
       return NextResponse.json(
-        { success: false, error: "'req' and 'userId' must be numbers" },
+        { success: false, error: "'recordId' must be a number" },
         { status: 400 }
       );
     }
 
     // Find the corresponding SkillRecord
     const record = await prisma.skillRecord.findFirst({
-      where: { reqId, userId },
+      where: { id: recordId },
       include: {
         skills: true,
         questions: true,
@@ -95,14 +91,14 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           success: false,
-          error: "SkillRecord not found for provided req and userId",
+          error: "SkillRecord not found for provided recordId",
         },
         { status: 404 }
       );
     }
 
     // Fetch FloCareer req details. Ensure JSON is requested.
-    const url = `https://sandbox.flocareer.com/dynamic/corporate/req-details/${reqId}/${userId}/`;
+    const url = `https://sandbox.flocareer.com/dynamic/corporate/req-details/${record.reqId}/${record.userId}/`;
     const externalRes = await fetch(url, {
       method: "GET",
       headers: {
